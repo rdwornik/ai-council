@@ -1,0 +1,74 @@
+defaults:
+  rounds: 2
+  output_dir: "./output"
+  synthesizer: "claude"
+
+models:
+  gemini:
+    sdk: "google-genai"
+    model: "gemini-2.5-flash"
+    api_key_env: "GEMINI_API_KEY"
+    timeout_sec: 60
+    max_tokens: 4096
+  openai:
+    sdk: "openai"
+    model: "gpt-4o"
+    api_key_env: "OPENAI_API_KEY"
+    timeout_sec: 60
+    max_tokens: 4096
+  claude:
+    sdk: "anthropic"
+    model: "claude-sonnet-4-20250514"
+    api_key_env: "ANTHROPIC_API_KEY"
+    timeout_sec: 60
+    max_tokens: 4096
+  grok:
+    sdk: "openai-compatible"
+    model: "grok-3"
+    api_key_env: "XAI_API_KEY"
+    base_url: "https://api.x.ai/v1"
+    timeout_sec: 60
+    max_tokens: 4096
+
+prompts:
+  initial: |
+    You are participating in an architectural decision council.
+    Answer the following question with concrete recommendations,
+    trade-offs, and risks. Be direct — no filler.
+
+    Question: {question}
+
+  critique: |
+    You are participating in an architectural decision council, round {round}.
+    Below are responses from other AI models to this question:
+
+    Question: {question}
+
+    {previous_responses}
+
+    Critique the other responses. Where do you agree? Where are they wrong?
+    Give your revised recommendation. Be specific about trade-offs.
+
+  synthesis: |
+    You are the synthesis lead for an AI council debate.
+    Below is the full transcript of {rounds} rounds of debate on:
+
+    Question: {question}
+
+    {full_transcript}
+
+    Produce a structured decision summary:
+    ## Consensus
+    What all models agreed on.
+
+    ## Disagreements
+    Where models differed and why.
+
+    ## Decision
+    The recommended path forward with rationale.
+
+    ## Risks
+    What could go wrong with this decision.
+
+    ## Action Items
+    Concrete next steps to implement.
