@@ -37,7 +37,7 @@ class OpenAIProvider(AIProvider):
                 self._client.chat.completions.create(
                     model=self._config.model,
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=self._config.max_tokens,
+                    max_completion_tokens=self._config.max_tokens,
                 ),
                 timeout=self._config.timeout_sec,
             )
