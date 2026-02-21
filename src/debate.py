@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 from collections.abc import Callable
 
 from config.config_loader import PromptsConfig
@@ -11,12 +12,21 @@ from src.providers.base import AIProvider, ProviderError
 logger = logging.getLogger(__name__)
 
 
-def _format_previous_responses(responses: list[ModelResponse]) -> str:
-    """Format a list of responses into the critique prompt block."""
-    parts: list[str] = []
-    for r in responses:
-        parts.append(f"--- {r.provider} ({r.model}) ---\n{r.content}")
-    return "\n\n".join(parts)
+def _anonymize_responses(
+    responses: list[ModelResponse],
+) -> tuple[str, dict[str, str]]:
+    """Shuffle responses and label them anonymously.
+
+    Returns:
+        (anonymized_block, label→provider_name mapping)
+    """
+    shuffled = list(responses)
+    random.shuffle(shuffled)
+    labels = [chr(ord("A") + i) for i in range(len(shuffled))]
+    parts = [f"--- Proposal {label} ---\n{r.content}"
+             for label, r in zip(labels, shuffled)]
+    mapping = {label: r.provider for label, r in zip(labels, shuffled)}
+    return "\n\n".join(parts), mapping
 
 
 async def _call_provider(
@@ -48,7 +58,7 @@ async def run_debate(
     Args:
         question: The question being debated.
         providers: List of AIProvider instances to use.
-        prompts: Prompt templates from config.
+        prompts: Prompt templates from config (carries personas dict).
         num_rounds: Total number of debate rounds.
         on_round_complete: Optional callback invoked after each round completes.
 
@@ -63,18 +73,25 @@ async def run_debate(
     for round_num in range(1, num_rounds + 1):
         if round_num == 1:
             prompts_for_round = {
-                p.name(): prompts.initial.format(question=question.text)
+                p.name(): prompts.initial.format(
+                    persona=prompts.personas.get(p.name(), ""),
+                    question=question.text,
+                )
                 for p in providers
             }
         else:
             previous_responses = rounds[-1].responses
-            previous_block = _format_previous_responses(previous_responses)
-            prompt_text = prompts.critique.format(
-                round=round_num,
-                question=question.text,
-                previous_responses=previous_block,
-            )
-            prompts_for_round = {p.name(): prompt_text for p in providers}
+            anon_block, label_map = _anonymize_responses(previous_responses)
+            logger.debug("Round %d anonymization map: %s", round_num, label_map)
+            prompts_for_round = {
+                p.name(): prompts.critique.format(
+                    persona=prompts.personas.get(p.name(), ""),
+                    round=round_num,
+                    question=question.text,
+                    previous_responses_anonymized=anon_block,
+                )
+                for p in providers
+            }
 
         logger.info("Starting round %d with %d providers", round_num, len(providers))
 
