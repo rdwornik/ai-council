@@ -27,6 +27,8 @@ async def synthesize(
     synthesizer: AIProvider,
     prompts: PromptsConfig,
     debate_start_time: float,
+    panel_mode: str = "default",
+    synthesizer_is_participant: bool = False,
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -36,6 +38,8 @@ async def synthesize(
         synthesizer: The AIProvider that will synthesize the debate.
         prompts: Prompt templates from config.
         debate_start_time: monotonic time when the debate started (for duration).
+        panel_mode: "default", "full", or "custom".
+        synthesizer_is_participant: True if synthesizer was also in the debate panel.
 
     Returns:
         DebateResult with synthesis content.
@@ -69,4 +73,6 @@ async def synthesize(
         synthesis=synthesis_response.content,
         synthesizer=synthesizer.name(),
         total_duration_sec=total_duration,
+        panel_mode=panel_mode,
+        synthesizer_is_participant=synthesizer_is_participant,
     )
