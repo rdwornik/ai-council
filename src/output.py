@@ -14,7 +14,7 @@ from src.models import DebateResult, ModelResponse
 
 logger = logging.getLogger(__name__)
 
-console = Console()
+console = Console(legacy_windows=False)
 
 
 def _slug(text: str, max_len: int = 40) -> str:

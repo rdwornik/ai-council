@@ -24,7 +24,7 @@ from src.providers.openai_provider import OpenAIProvider
 from src.providers.xai import XAIProvider
 from src.synthesis import synthesize
 
-console = Console()
+console = Console(legacy_windows=False)
 
 PROVIDER_CLASSES: dict[str, type[AIProvider]] = {
     "gemini": GeminiProvider,
@@ -205,6 +205,14 @@ def main(
       python -m src.cli "SQL or NoSQL?" --rounds 1 --models claude,openai
       python -m src.cli --file question.md --rounds 3
     """
+    # Reconfigure stdout/stderr to UTF-8 on Windows so model responses containing
+    # Unicode chars (e.g. non-breaking hyphens) don't crash the ANSI render path.
+    if sys.platform == "win32":
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
     load_dotenv()
     _setup_logging(verbose)
 
