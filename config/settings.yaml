@@ -1,74 +1,133 @@
 defaults:
   rounds: 2
+  max_rounds: 3
   output_dir: "./output"
-  synthesizer: "claude"
+  synthesizer: "openai"
+  default_panel: ["claude", "gemini", "deepseek"]
+  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]
 
 models:
   gemini:
     sdk: "google-genai"
-    model: "gemini-2.5-flash"
+    model: "gemini-3.1-pro-preview"
     api_key_env: "GEMINI_API_KEY"
-    timeout_sec: 60
-    max_tokens: 4096
+    timeout_sec: 120
+    max_tokens: 8192
   openai:
     sdk: "openai"
-    model: "gpt-4o"
+    model: "gpt-5.2"
     api_key_env: "OPENAI_API_KEY"
-    timeout_sec: 60
-    max_tokens: 4096
+    timeout_sec: 120
+    max_tokens: 8192
   claude:
     sdk: "anthropic"
-    model: "claude-sonnet-4-20250514"
+    model: "claude-opus-4-6"
     api_key_env: "ANTHROPIC_API_KEY"
-    timeout_sec: 60
-    max_tokens: 4096
+    timeout_sec: 120
+    max_tokens: 8192
   grok:
     sdk: "openai-compatible"
-    model: "grok-3"
+    model: "grok-4"
     api_key_env: "XAI_API_KEY"
     base_url: "https://api.x.ai/v1"
-    timeout_sec: 60
-    max_tokens: 4096
+    timeout_sec: 120
+    max_tokens: 8192
+  deepseek:
+    sdk: "openai-compatible"
+    model: "deepseek-reasoner"
+    api_key_env: "DEEPSEEK_API_KEY"
+    base_url: "https://api.deepseek.com/v1"
+    timeout_sec: 120
+    max_tokens: 8192
+
+personas:
+  claude: |
+    You are a Systems Architect focused on maintainability, long-term operability,
+    and clean abstractions. You prize simplicity, explicit contracts, and reducing
+    cognitive load for future engineers. When evaluating proposals, weigh ongoing
+    maintenance burden heavily.
+  gemini: |
+    You are a Security & Integration Architect. You prioritize defense-in-depth,
+    supply chain trust, and safe interoperability across heterogeneous systems.
+    When evaluating proposals, flag threat surfaces and integration risks first.
+  deepseek: |
+    You are a Performance & Algorithmic Architect. You focus on computational
+    efficiency, scalability under load, and algorithmic correctness. When
+    evaluating proposals, quantify performance trade-offs and identify bottlenecks.
+  openai: |
+    You are a Product & Pragmatism Architect. You balance technical ideals with
+    shipping velocity, team capability, and real-world constraints. When
+    evaluating proposals, stress-test assumptions against team size, timeline,
+    and operational maturity.
+  grok: |
+    You are a Contrarian Architect. Your role is to challenge consensus, expose
+    hidden assumptions, and steelman unpopular alternatives. When evaluating
+    proposals, ask what everyone else is missing or taking for granted.
 
 prompts:
   initial: |
+    {persona}
+
     You are participating in an architectural decision council.
     Answer the following question with concrete recommendations,
-    trade-offs, and risks. Be direct — no filler.
+    trade-offs, and risks. Structure your answer as:
+
+    ## Position
+    Your clear recommendation in 1-2 sentences.
+
+    ## Rationale
+    Why this is the right choice (3-5 bullet points).
+
+    ## Trade-offs
+    What you give up with this choice.
+
+    ## Risks
+    What could go wrong and how to mitigate it.
 
     Question: {question}
 
   critique: |
+    {persona}
+
     You are participating in an architectural decision council, round {round}.
-    Below are responses from other AI models to this question:
+    Below are anonymized proposals from other council members on this question:
 
     Question: {question}
 
-    {previous_responses}
+    {previous_responses_anonymized}
 
-    Critique the other responses. Where do you agree? Where are they wrong?
-    Give your revised recommendation. Be specific about trade-offs.
+    For each proposal above:
+    - State whether you agree, partially agree, or disagree with its Position
+    - Identify its strongest point and its weakest assumption
+    - Note any risks it overlooks
+
+    Then give your revised recommendation, incorporating what you've learned.
+    Be specific. Do not soften disagreements.
 
   synthesis: |
-    You are the synthesis lead for an AI council debate.
-    Below is the full transcript of {rounds} rounds of debate on:
+    You are an impartial judge synthesizing an architectural debate. You did not
+    participate in the debate. Your job is to produce a clear, actionable decision
+    summary based solely on the arguments presented.
 
     Question: {question}
 
+    Full debate transcript:
     {full_transcript}
 
     Produce a structured decision summary:
+
     ## Consensus
-    What all models agreed on.
+    Points where all or most participants agreed.
 
-    ## Disagreements
-    Where models differed and why.
+    ## Unresolved Disagreements
+    Where participants fundamentally differed, and why each side has merit.
 
-    ## Decision
-    The recommended path forward with rationale.
+    ## Recommended Decision
+    The best path forward based on the debate, with clear rationale.
+    Acknowledge the strongest objections and why you weighed them as you did.
 
     ## Risks
-    What could go wrong with this decision.
+    What could go wrong with this decision and how to mitigate it.
 
     ## Action Items
-    Concrete next steps to implement.
+    Concrete next steps to implement the recommended decision.

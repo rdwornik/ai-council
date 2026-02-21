@@ -28,13 +28,17 @@ class PromptsConfig:
     initial: str
     critique: str
     synthesis: str
+    personas: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class DefaultsConfig:
     rounds: int
+    max_rounds: int
     output_dir: Path
     synthesizer: str
+    default_panel: list[str] = field(default_factory=list)
+    full_panel: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -61,15 +65,20 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     defaults_raw = raw["defaults"]
     defaults = DefaultsConfig(
         rounds=int(defaults_raw["rounds"]),
+        max_rounds=int(defaults_raw["max_rounds"]),
         output_dir=Path(defaults_raw["output_dir"]),
         synthesizer=str(defaults_raw["synthesizer"]),
+        default_panel=list(defaults_raw["default_panel"]),
+        full_panel=list(defaults_raw["full_panel"]),
     )
 
     prompts_raw = raw["prompts"]
+    personas_raw = raw.get("personas", {})
     prompts = PromptsConfig(
         initial=prompts_raw["initial"],
         critique=prompts_raw["critique"],
         synthesis=prompts_raw["synthesis"],
+        personas={k: str(v) for k, v in personas_raw.items()},
     )
 
     models: dict[str, ModelConfig] = {}
