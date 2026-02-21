@@ -127,7 +127,7 @@ async def _run(
 
         def on_round_complete(rnd: Round) -> None:
             completed_rounds.append(rnd)
-            progress.print(f"[green]✓[/green] Round {rnd.number} complete ({len(rnd.responses)} responses)")
+            progress.print(f"[green]OK[/green] Round {rnd.number} complete ({len(rnd.responses)} responses)")
 
         debate_task = progress.add_task("Running debate rounds…", total=None)
         debate_rounds = await run_debate(
