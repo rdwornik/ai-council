@@ -30,8 +30,10 @@ def sample_debate_result(sample_question, sample_round) -> DebateResult:
         question=sample_question,
         rounds=[sample_round],
         synthesis="## Consensus\nAll agreed.",
-        synthesizer="claude",
+        synthesizer="openai",
         total_duration_sec=10.5,
+        panel_mode="default",
+        synthesizer_is_participant=False,
     )
 
 
@@ -55,7 +57,43 @@ def test_save_to_file_content(tmp_path: Path, sample_debate_result: DebateResult
     assert "Round 1" in content
     assert "## Consensus" in content
     assert "Synthesis" in content
-    assert "claude" in content
+    assert "claude" in content  # synthesizer appears in synthesis section
+
+
+def test_save_to_file_has_panel_header(tmp_path: Path, sample_debate_result: DebateResult):
+    saved = save_to_file(sample_debate_result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Panel:**" in content
+
+
+def test_save_to_file_has_mode_header(tmp_path: Path, sample_debate_result: DebateResult):
+    saved = save_to_file(sample_debate_result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Mode:**" in content
+    assert "default" in content
+
+
+def test_save_to_file_has_synthesizer_header(tmp_path: Path, sample_debate_result: DebateResult):
+    saved = save_to_file(sample_debate_result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Synthesizer:**" in content
+    assert "non-participant" in content
+
+
+def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_round):
+    result = DebateResult(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesis="## Decision\nUse YAML.",
+        synthesizer="claude",
+        total_duration_sec=5.0,
+        panel_mode="custom",
+        synthesizer_is_participant=True,
+    )
+    saved = save_to_file(result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "participant" in content
+    assert "**Mode:** custom" in content
 
 
 def test_save_to_file_filename_has_slug(tmp_path: Path, sample_debate_result: DebateResult):

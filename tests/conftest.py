@@ -27,9 +27,10 @@ def sample_model_config() -> ModelConfig:
 @pytest.fixture
 def sample_prompts_config() -> PromptsConfig:
     return PromptsConfig(
-        initial="Answer this question: {question}",
-        critique="Round {round}. Question: {question}\n\nOthers said:\n{previous_responses}\n\nCritique:",
-        synthesis="Question: {question}\n\nTranscript ({rounds} rounds):\n{full_transcript}\n\nSynthesize:",
+        initial="{persona}\nAnswer this question: {question}",
+        critique="{persona}\nRound {round}. Question: {question}\n\nProposals:\n{previous_responses_anonymized}\n\nCritique:",
+        synthesis="Question: {question}\n\nTranscript:\n{full_transcript}\n\nSynthesize:",
+        personas={"mock": "Be a mock architect."},
     )
 
 
@@ -37,8 +38,11 @@ def sample_prompts_config() -> PromptsConfig:
 def sample_defaults_config(tmp_path: Path) -> DefaultsConfig:
     return DefaultsConfig(
         rounds=2,
+        max_rounds=3,
         output_dir=tmp_path / "output",
         synthesizer="claude",
+        default_panel=["claude"],
+        full_panel=["claude", "openai"],
     )
 
 
@@ -50,10 +54,10 @@ def sample_app_config(
     model_cfg = ModelConfig(
         name="claude",
         sdk="anthropic",
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         api_key_env="ANTHROPIC_API_KEY",
-        timeout_sec=60,
-        max_tokens=4096,
+        timeout_sec=120,
+        max_tokens=8192,
     )
     return AppConfig(
         defaults=sample_defaults_config,
@@ -72,7 +76,7 @@ def sample_question() -> Question:
 def sample_response() -> ModelResponse:
     return ModelResponse(
         provider="claude",
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         round_number=1,
         content="Use YAML for human-editable config, JSON for machine interchange.",
         latency_sec=1.5,
