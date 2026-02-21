@@ -11,7 +11,7 @@ class Question:
 
 @dataclass
 class ModelResponse:
-    provider: str          # "gemini", "openai", "claude", "grok"
+    provider: str          # "gemini", "openai", "claude", "grok", "deepseek"
     model: str             # actual model string used
     round_number: int
     content: str
@@ -32,3 +32,5 @@ class DebateResult:
     synthesis: str         # Final markdown synthesis
     synthesizer: str       # Which model did synthesis
     total_duration_sec: float
+    panel_mode: str = "default"              # "default", "full", "custom"
+    synthesizer_is_participant: bool = False
