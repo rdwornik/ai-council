@@ -30,7 +30,7 @@ def _response_preview(response: ModelResponse, words: int = 50) -> str:
     all_words = response.content.split()
     preview = " ".join(all_words[:words])
     if len(all_words) > words:
-        preview += "…"
+        preview += "..."
     return preview
 
 
@@ -52,11 +52,17 @@ def print_round_summary(round_num: int, responses: list[ModelResponse]) -> None:
 def print_synthesis(result: DebateResult) -> None:
     """Print the full synthesis to the console using Rich markdown."""
     console.print(Rule("[bold green]Council Synthesis[/bold green]"))
+    synth_label = result.synthesizer
+    if result.synthesizer_is_participant:
+        synth_label += " (participant)"
+    else:
+        synth_label += " (non-participant)"
     console.print(
         Text(
-            f"Synthesized by: {result.synthesizer} | "
+            f"Synthesized by: {synth_label} | "
             f"Duration: {result.total_duration_sec:.1f}s | "
-            f"Rounds: {len(result.rounds)}",
+            f"Rounds: {len(result.rounds)} | "
+            f"Mode: {result.panel_mode}",
             style="dim",
         )
     )
@@ -80,17 +86,41 @@ def save_to_file(result: DebateResult, output_dir: Path) -> Path:
     filename = f"{timestamp}_{slug}.md"
     filepath = output_dir / filename
 
-    model_list = ", ".join(
-        sorted({r.provider for rnd in result.rounds for r in rnd.responses})
+    # Derive panel info from first round responses
+    panel_providers = sorted({r.provider for r in result.rounds[0].responses})
+    panel_models = [
+        next(r.model for r in result.rounds[0].responses if r.provider == p)
+        for p in panel_providers
+    ]
+    panel_str = ", ".join(panel_models)
+
+    synth_model = next(
+        (r.model for rnd in result.rounds for r in rnd.responses if r.provider == result.synthesizer),
+        result.synthesizer,
     )
+    synth_label = synth_model
+    if result.synthesizer_is_participant:
+        synth_label += " (participant)"
+    else:
+        synth_label += " (non-participant)"
+
+    panel_count = len(panel_providers)
+    if result.panel_mode == "default":
+        mode_str = f"default ({panel_count}-model panel)"
+    elif result.panel_mode == "full":
+        mode_str = f"full ({panel_count}-model panel)"
+    else:
+        mode_str = "custom"
 
     lines: list[str] = [
-        f"# AI Council Debate: {result.question.text[:50]}",
+        f"# AI Council Debate: {result.question.text[:80]}",
         "",
         f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"**Models:** {model_list}",
+        f"**Panel:** {panel_str}",
+        f"**Synthesizer:** {synth_label}",
         f"**Rounds:** {len(result.rounds)}",
         f"**Duration:** {result.total_duration_sec:.1f}s",
+        f"**Mode:** {mode_str}",
         f"**Source:** {result.question.source}",
         "",
         "---",
@@ -113,8 +143,9 @@ def save_to_file(result: DebateResult, output_dir: Path) -> Path:
             )
             lines.append("")
 
+    synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
     lines += [
-        f"## Synthesis (by {result.synthesizer})",
+        f"## Synthesis (by {result.synthesizer}, {synth_is_label})",
         "",
         result.synthesis,
         "",
