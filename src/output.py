@@ -69,12 +69,14 @@ def print_synthesis(result: DebateResult) -> None:
     console.print(Markdown(result.synthesis))
 
 
-def save_to_file(result: DebateResult, output_dir: Path) -> Path:
+def save_to_file(result: DebateResult, output_dir: Path, slug_override: str | None = None) -> Path:
     """Save the full debate transcript as a markdown file.
 
     Args:
         result: The completed DebateResult.
         output_dir: Directory to save the file in.
+        slug_override: If provided, use this as the filename stem instead of
+            deriving one from the question text. Useful for inbox mode.
 
     Returns:
         Path to the saved file.
@@ -82,7 +84,7 @@ def save_to_file(result: DebateResult, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    slug = _slug(result.question.text)
+    slug = slug_override if slug_override is not None else _slug(result.question.text)
     filename = f"{timestamp}_{slug}.md"
     filepath = output_dir / filename
 

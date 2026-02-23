@@ -6,6 +6,10 @@ defaults:
   default_panel: ["claude", "gemini", "deepseek"]
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]
 
+inbox:
+  dir: "./council_inbox"
+  archive_dir: "./council_inbox/archive"
+
 models:
   gemini:
     sdk: "google-genai"

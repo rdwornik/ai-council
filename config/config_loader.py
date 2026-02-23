@@ -32,6 +32,12 @@ class PromptsConfig:
 
 
 @dataclass
+class InboxConfig:
+    dir: Path
+    archive_dir: Path
+
+
+@dataclass
 class DefaultsConfig:
     rounds: int
     max_rounds: int
@@ -46,6 +52,7 @@ class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
     prompts: PromptsConfig
+    inbox: InboxConfig = field(default_factory=lambda: InboxConfig(Path("./council_inbox"), Path("./council_inbox/archive")))
     available_providers: set[str] = field(default_factory=set)
 
 
@@ -107,9 +114,16 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
                 model_raw["api_key_env"],
             )
 
+    inbox_raw = raw.get("inbox", {})
+    inbox = InboxConfig(
+        dir=Path(inbox_raw.get("dir", "./council_inbox")),
+        archive_dir=Path(inbox_raw.get("archive_dir", "./council_inbox/archive")),
+    )
+
     return AppConfig(
         defaults=defaults,
         models=models,
         prompts=prompts,
+        inbox=inbox,
         available_providers=available_providers,
     )
