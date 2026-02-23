@@ -1,117 +1,163 @@
 # AI Council
 
-Multi-model architectural debate tool. Sends a question to a panel of AI models in parallel, runs critique rounds where each model sees anonymized versions of others' answers, then a non-participating model synthesizes the final decision.
+You have a hard architectural decision to make. Instead of asking one AI and hoping for the best, AI Council sends the question to a panel of top models simultaneously — Claude, Gemini, GPT, Grok, DeepSeek — lets them argue, critique each other's reasoning anonymously, then has a separate model synthesize the final verdict.
+
+The result is a structured decision document: consensus points, unresolved disagreements, a recommended path forward, risks, and action items.
+
+---
+
+## How it works
+
+1. **You ask a question** — on the command line, from a file, or by dropping `.md` files into an inbox folder
+2. **The panel debates** — each model gives its position in parallel (Round 1), then critiques the others' anonymized answers (Round 2+)
+3. **A non-participating model synthesizes** — a model that wasn't in the debate reads the full transcript and renders a verdict
+4. **You get a markdown report** — saved to `output/` with the full transcript, panel metadata, and synthesis
+
+---
+
+## Example
+
+```bash
+python -m src.cli "Should we use REST or GraphQL for our public API?" --rounds 2
+```
+
+**Console output:**
+- Round summaries (each model's position at a glance)
+- Full synthesis from the non-participating judge
+
+**Saved to** `output/20260223_143012_should-we-use-rest-or-graphql.md`:
+```
+## Consensus
+All participants agreed that REST is better suited for public APIs due to...
+
+## Unresolved Disagreements
+Claude and Grok disagreed on schema flexibility — Claude prioritized...
+
+## Recommended Decision
+Use REST. The team's operational maturity and existing tooling outweigh...
+
+## Risks
+GraphQL's flexibility may be needed as the API grows. Revisit if...
+
+## Action Items
+- Define versioning strategy for REST endpoints
+- ...
+```
+
+---
 
 ## Setup
 
 ```bash
 # 1. Create and activate virtual environment
 python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS / Linux
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
 # 3. Configure API keys
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your keys
 ```
 
-### API Keys (`.env`)
+### API keys (`.env`)
 
 ```
+ANTHROPIC_API_KEY=your-key
 GEMINI_API_KEY=your-key
 OPENAI_API_KEY=your-key
-ANTHROPIC_API_KEY=your-key
 XAI_API_KEY=your-key
 DEEPSEEK_API_KEY=your-key
 ```
 
-Any keys you provide will be used. Models with missing keys are skipped automatically. At least 2 panel models must be available.
+You don't need all five. Any models with missing keys are skipped. You need at least 2 panel models.
 
-> **Note:** Always run commands from inside the activated venv. The `venv/` directory is gitignored.
+---
 
 ## Usage
 
+### Single question
+
 ```bash
-# Default 3-model panel: claude, gemini, deepseek (2 rounds)
-python -m src.cli "Should we use REST or GraphQL?"
+# Default panel: claude, gemini, deepseek (2 rounds)
+python -m src.cli "Should we adopt a monorepo?"
 
-# Full 5-model panel: all models
-python -m src.cli "Monorepo vs polyrepo?" --full
+# All 5 models
+python -m src.cli "Microservices vs monolith?" --full
 
-# Custom model list
-python -m src.cli "SQL or NoSQL?" --models claude,openai
+# Specific models
+python -m src.cli "SQL or NoSQL?" --models claude,openai,grok
 
-# Read question from file
-python -m src.cli --file question.md
-
-# Custom rounds and output directory
-python -m src.cli --rounds 3 --output ./debates "Should we use microservices?"
-
-# Override synthesizer
-python -m src.cli --synthesizer gemini "REST vs GraphQL?"
-
-# Verbose logging (shows anonymization map, full prompts at DEBUG)
-python -m src.cli --verbose "Test question"
+# From a markdown file
+python -m src.cli --file question.md --rounds 3
 ```
 
-## Options
+### Inbox mode — batch processing
+
+Drop `.md` files into `council_inbox/` and process them all at once:
+
+```bash
+python -m src.cli --inbox
+```
+
+Each file is archived to `council_inbox/archive/` after processing (prefixed `FAILED_` on error). Input files and archives are gitignored.
+
+You can add YAML frontmatter to override settings per file:
+
+```markdown
+---
+models: claude,openai
+rounds: 1
+---
+Should we use Redis or Memcached for session caching?
+```
+
+### All options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `QUESTION` | — | Question to debate (or use `--file`) |
+| `QUESTION` | — | Question to debate |
 | `--file PATH` | — | Read question from `.md` file |
 | `--rounds N` | 2 | Number of debate rounds |
-| `--full` | off | Use all 5 models instead of default 3-model panel |
-| `--models LIST` | panel default | Comma-separated override: `claude,openai,grok` |
-| `--output PATH` | `./output` | Output directory for transcripts |
-| `--synthesizer NAME` | `openai` | Model that synthesizes (picked outside panel when possible) |
-| `--verbose` | off | Enable DEBUG logging |
+| `--full` | off | Use all 5 models |
+| `--models LIST` | 3-model panel | Comma-separated: `claude,openai,grok` |
+| `--synthesizer NAME` | `openai` | Model that writes the final verdict |
+| `--output PATH` | `./output` | Where to save transcripts |
+| `--inbox` | off | Process all files in `council_inbox/` |
+| `--inbox-dir PATH` | `./council_inbox` | Override inbox folder |
+| `--verbose` | off | Debug logging |
+
+---
+
+## Models
+
+| Name | Provider | Default panel |
+|------|----------|---------------|
+| `claude` | Anthropic | yes |
+| `gemini` | Google | yes |
+| `deepseek` | DeepSeek | yes |
+| `openai` | OpenAI | — |
+| `grok` | xAI | — |
+
+Each model has an adversarial persona baked in (Systems Architect, Security Architect, Performance Architect, etc.) to push disagreement and surface blind spots.
+
+---
 
 ## Output
 
-- **Console:** Round summaries (first ~50 words per model) + full synthesis via Rich
-- **File:** `output/{timestamp}_{slug}.md` — full transcript with Panel/Mode/Synthesizer metadata header, all rounds, and synthesis
+- **Console:** Round-by-round summaries + full synthesis rendered in the terminal
+- **File:** `output/{timestamp}_{slug}.md` — full transcript with all rounds, panel metadata, and synthesis
 
-## Running Tests
+---
+
+## Tests
 
 ```bash
-# Activate venv first, then:
-
 # Unit tests (no API keys needed)
 pytest tests/ -m "not integration" -v
 
-# Integration tests (requires 2+ API keys in .env)
+# Integration tests (requires 2+ keys in .env)
 pytest tests/test_integration.py -v
-```
-
-## Architecture
-
-```
-config/
-  settings.yaml       — models, prompts, personas, panel lists (single source of truth)
-  config_loader.py    — YAML -> typed dataclasses; API key detection at startup
-src/
-  models.py           — Question, ModelResponse, Round, DebateResult (pure dataclasses)
-  debate.py           — parallel async rounds; persona injection; blind voting (anonymized critiques)
-  synthesis.py        — builds transcript; calls non-participating synthesizer
-  output.py           — Rich console + markdown file save
-  cli.py              — Click CLI; panel/synthesizer selection logic
-  providers/
-    base.py           — AIProvider ABC + ProviderError
-    anthropic.py      — Claude (Anthropic SDK)
-    gemini.py         — Gemini (google-genai SDK)
-    openai_provider.py — GPT (openai SDK)
-    xai.py            — Grok (OpenAI-compatible)
-    deepseek.py       — DeepSeek (OpenAI-compatible)
-tests/
-  conftest.py         — MockProvider, shared fixtures
-  test_config.py / test_debate.py / test_synthesis.py / test_output.py / test_cli.py
-  test_integration.py — end-to-end with real API calls (marked integration)
 ```
