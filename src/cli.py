@@ -14,6 +14,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from config.config_loader import AppConfig, load_config
 from src.debate import run_debate
+from src.healthcheck import run_health_checks
 from src.inbox import archive_file, ensure_dirs, parse_file, scan_inbox
 from src.models import Question, Round
 from src.output import print_round_summary, print_synthesis, save_to_file
@@ -94,6 +95,47 @@ def _pick_non_participant_synthesizer(
     if preferred in all_providers:
         return all_providers[preferred], True
     return next(iter(all_providers.values())), True
+
+
+def _check_and_filter_providers(all_providers: dict[str, AIProvider]) -> dict[str, AIProvider]:
+    """Run health checks, print results, and ask user what to do on failures.
+
+    Returns the filtered dict of working providers. Exits if the user
+    declines to continue or no providers pass.
+    """
+    console.print("\n[bold]Checking providers...[/bold]")
+    results: dict[str, tuple[bool, str]] = asyncio.run(run_health_checks(all_providers))
+
+    failed_names: list[str] = []
+    for name in sorted(results):
+        ok, err = results[name]
+        if ok:
+            console.print(f"  [green]OK  [/green] {name}")
+        else:
+            short_err = err.splitlines()[0][:120] if err else "unknown error"
+            console.print(f"  [red]FAIL[/red] {name}: {short_err}")
+            failed_names.append(name)
+
+    if not failed_names:
+        console.print()
+        return all_providers
+
+    working = {n: p for n, p in all_providers.items() if n not in failed_names}
+
+    if not working:
+        console.print("\n[bold red]Error:[/bold red] No providers passed the health check.")
+        sys.exit(1)
+
+    console.print(
+        f"\n[yellow]{len(failed_names)} provider(s) failed:[/yellow] {', '.join(failed_names)}"
+    )
+    console.print(f"Working providers: {', '.join(sorted(working))}")
+
+    if not click.confirm("Continue with working providers only?", default=True):
+        sys.exit(0)
+
+    console.print()
+    return working
 
 
 async def _run_single(
@@ -183,6 +225,7 @@ async def _run_single(
 
 async def _run_inbox(
     config: AppConfig,
+    all_providers: dict[str, AIProvider],
     inbox_dir: Path,
     archive_dir: Path,
     rounds: int,
@@ -198,8 +241,6 @@ async def _run_inbox(
     if not files:
         click.echo("No files in inbox.")
         return
-
-    all_providers = _build_all_providers(config)
 
     for file_path in files:
         question_text, meta = parse_file(file_path)
@@ -243,6 +284,8 @@ async def _run_inbox(
               help="Process all .md files in inbox folder")
 @click.option("--inbox-dir", "inbox_dir_override", default=None,
               help="Override inbox folder path (default: from config)")
+@click.option("--skip-health-check", is_flag=True, default=False,
+              help="Skip the API connectivity check at startup")
 def main(
     question: str | None,
     question_file: str | None,
@@ -254,6 +297,7 @@ def main(
     verbose: bool,
     use_inbox: bool,
     inbox_dir_override: str | None,
+    skip_health_check: bool,
 ) -> None:
     """AI Council -- Multi-model architectural debate tool.
 
@@ -287,12 +331,22 @@ def main(
     effective_output = Path(output_path) if output_path else config.defaults.output_dir
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
+    all_providers = _build_all_providers(config)
+
+    if not all_providers:
+        console.print("[bold red]Error:[/bold red] No providers available. Check API keys in .env.")
+        sys.exit(1)
+
+    if not skip_health_check:
+        all_providers = _check_and_filter_providers(all_providers)
+
     if use_inbox:
         inbox_dir = Path(inbox_dir_override) if inbox_dir_override else config.inbox.dir
         archive_dir = config.inbox.archive_dir
         asyncio.run(
             _run_inbox(
                 config=config,
+                all_providers=all_providers,
                 inbox_dir=inbox_dir,
                 archive_dir=archive_dir,
                 rounds=effective_rounds,
@@ -314,7 +368,6 @@ def main(
         console.print("[bold red]Error:[/bold red] Provide a QUESTION argument, --file, or --inbox.")
         sys.exit(1)
 
-    all_providers = _build_all_providers(config)
     asyncio.run(
         _run_single(
             question_text=question_text,
