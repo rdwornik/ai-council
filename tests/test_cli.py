@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.cli import _determine_panel, _pick_non_participant_synthesizer
+from src.cli import _determine_panel, _exclude_synthesizer_from_panel, _pick_non_participant_synthesizer
 from tests.conftest import MockProvider
 
 
@@ -102,3 +102,30 @@ def test_non_participant_all_in_panel_no_preferred():
     )
     assert is_participant is True
     assert synth.name() in {"claude", "gemini"}
+
+
+# --- _exclude_synthesizer_from_panel tests ---
+
+def test_exclude_synthesizer_from_full_panel():
+    """Full panel including synthesizer: synthesizer removed, leaving 4 debaters."""
+    all_providers = {n: MockProvider(n) for n in ["claude", "gemini", "deepseek", "openai", "grok"]}
+    panel = ["claude", "gemini", "deepseek", "openai", "grok"]
+    result = _exclude_synthesizer_from_panel(panel, "openai", all_providers)
+    assert "openai" not in result
+    assert len(result) == 4
+
+
+def test_exclude_synthesizer_not_in_panel():
+    """When synthesizer is already absent from panel, no change."""
+    all_providers = {n: MockProvider(n) for n in ["claude", "gemini", "deepseek"]}
+    panel = ["claude", "gemini", "deepseek"]
+    result = _exclude_synthesizer_from_panel(panel, "openai", all_providers)
+    assert result == panel
+
+
+def test_exclude_synthesizer_keeps_when_only_two_left():
+    """When removing synthesizer would leave fewer than 2 available debaters, keep it."""
+    all_providers = {"claude": MockProvider("claude"), "openai": MockProvider("openai")}
+    panel = ["claude", "openai"]
+    result = _exclude_synthesizer_from_panel(panel, "openai", all_providers)
+    assert result == panel  # can't remove, would leave only 1 debater

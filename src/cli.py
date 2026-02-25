@@ -77,6 +77,26 @@ def _determine_panel(
         return config.defaults.default_panel, "default"
 
 
+def _exclude_synthesizer_from_panel(
+    panel_names: list[str],
+    synthesizer_name: str,
+    all_providers: dict[str, AIProvider],
+) -> list[str]:
+    """Remove synthesizer from panel when doing so still leaves >= 2 available debaters.
+
+    This ensures the synthesizer is always a true non-participant when possible,
+    even when --full includes it in the panel list.
+    """
+    if synthesizer_name not in panel_names:
+        return panel_names
+    remaining = [n for n in panel_names if n != synthesizer_name]
+    available_remaining = [n for n in remaining if n in all_providers]
+    if len(available_remaining) >= 2:
+        return remaining
+    # Can't remove — would leave fewer than 2 available debaters
+    return panel_names
+
+
 def _pick_non_participant_synthesizer(
     all_providers: dict[str, AIProvider],
     panel_names: list[str],
@@ -156,6 +176,10 @@ async def _run_single(
         sys.exit(1)
 
     panel_names, panel_mode = _determine_panel(config, models_arg, full_flag)
+
+    # Always try to keep synthesizer out of the debate panel
+    panel_names = _exclude_synthesizer_from_panel(panel_names, synthesizer_name, all_providers)
+
     panel_providers = [all_providers[n] for n in panel_names if n in all_providers]
 
     if len(panel_providers) < 2:
@@ -228,13 +252,16 @@ async def _run_inbox(
     all_providers: dict[str, AIProvider],
     inbox_dir: Path,
     archive_dir: Path,
-    rounds: int,
-    models_arg: str | None,
-    full_flag: bool,
+    rounds_cli: int | None,
+    models_cli: str | None,
+    full_cli: bool,
     output_dir: Path,
     synthesizer_name: str,
 ) -> None:
-    """Process all .md files in the inbox folder."""
+    """Process all .md files in the inbox folder.
+
+    Precedence for per-file settings: CLI flag > frontmatter > config default.
+    """
     ensure_dirs(inbox_dir, archive_dir)
     files = scan_inbox(inbox_dir)
 
@@ -245,10 +272,18 @@ async def _run_inbox(
     for file_path in files:
         question_text, meta = parse_file(file_path)
 
-        # Frontmatter overrides
-        effective_rounds = int(meta["rounds"]) if "rounds" in meta else rounds
-        effective_models = str(meta["models"]) if "models" in meta else models_arg
-        effective_full = bool(meta["full"]) if "full" in meta else full_flag
+        # CLI flags always win; frontmatter only fills in when CLI flag not set
+        effective_rounds = (
+            rounds_cli if rounds_cli is not None
+            else int(meta["rounds"]) if "rounds" in meta
+            else config.defaults.rounds
+        )
+        effective_models = (
+            models_cli if models_cli is not None
+            else str(meta["models"]) if "models" in meta
+            else None
+        )
+        effective_full = full_cli or bool(meta.get("full", False))
 
         try:
             saved = await _run_single(
@@ -349,9 +384,9 @@ def main(
                 all_providers=all_providers,
                 inbox_dir=inbox_dir,
                 archive_dir=archive_dir,
-                rounds=effective_rounds,
-                models_arg=models,
-                full_flag=use_full_panel,
+                rounds_cli=rounds,          # raw CLI value (None if not specified)
+                models_cli=models,          # raw CLI value (None if not specified)
+                full_cli=use_full_panel,
                 output_dir=effective_output,
                 synthesizer_name=effective_synthesizer,
             )

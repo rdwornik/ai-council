@@ -11,6 +11,9 @@ from src.providers.base import AIProvider, ProviderError
 
 logger = logging.getLogger(__name__)
 
+# Quality gate: warn when fewer than this many models respond in Round 1
+_MIN_QUALITY_RESPONSES = 3
+
 
 def _anonymize_responses(
     responses: list[ModelResponse],
@@ -34,10 +37,48 @@ async def _call_provider(
     prompt: str,
     round_number: int,
 ) -> ModelResponse | ProviderError:
-    """Call a single provider, returning ProviderError on failure (never raises)."""
+    """Call a single provider, retrying once on timeout with 1.5x the timeout.
+
+    Never raises — returns ProviderError on permanent failure.
+    """
     try:
         return await provider.generate(prompt, round_number)
     except ProviderError as exc:
+        if "timed out" in str(exc).lower():
+            # Retry once with 1.5x timeout by temporarily patching provider config
+            cfg = getattr(provider, "_config", None)
+            original_timeout: int | None = None
+            if cfg is not None and hasattr(cfg, "timeout_sec"):
+                original_timeout = cfg.timeout_sec
+                cfg.timeout_sec = int(original_timeout * 1.5)
+                logger.warning(
+                    "Provider %s timed out in round %d, retrying with %ds (1.5x)",
+                    provider.name(), round_number, cfg.timeout_sec,
+                )
+            else:
+                logger.warning(
+                    "Provider %s timed out in round %d, retrying",
+                    provider.name(), round_number,
+                )
+            try:
+                return await provider.generate(prompt, round_number)
+            except ProviderError as retry_exc:
+                logger.warning(
+                    "Provider %s failed after retry in round %d: %s",
+                    provider.name(), round_number, retry_exc,
+                )
+                return retry_exc
+            except Exception as retry_exc:
+                err = ProviderError(provider.name(), f"Unexpected error on retry: {retry_exc}")
+                logger.warning(
+                    "Provider %s unexpected failure after retry in round %d: %s",
+                    provider.name(), round_number, retry_exc,
+                )
+                return err
+            finally:
+                if cfg is not None and original_timeout is not None:
+                    cfg.timeout_sec = original_timeout
+
         logger.warning("Provider %s failed in round %d: %s", provider.name(), round_number, exc)
         return exc
     except Exception as exc:
@@ -109,6 +150,15 @@ async def run_debate(
 
         if not responses:
             raise RuntimeError(f"All providers failed in round {round_num}")
+
+        # Quality gate: warn when Round 1 has low participation on a large panel
+        if round_num == 1 and len(providers) >= _MIN_QUALITY_RESPONSES and len(responses) < _MIN_QUALITY_RESPONSES:
+            logger.warning(
+                "WARNING: Only %d/%d models responded in Round 1. "
+                "Debate quality is degraded. Consider re-running with longer timeouts or fewer models.",
+                len(responses),
+                len(providers),
+            )
 
         current_round = Round(number=round_num, responses=responses)
         rounds.append(current_round)
