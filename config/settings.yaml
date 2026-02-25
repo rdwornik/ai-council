@@ -2,7 +2,7 @@ defaults:
   rounds: 2
   max_rounds: 3
   output_dir: "./output"
-  synthesizer: "openai"
+  synthesizer: "claude"
   default_panel: ["claude", "gemini", "deepseek"]
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]
 

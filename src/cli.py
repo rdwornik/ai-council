@@ -168,6 +168,7 @@ async def _run_single(
     full_flag: bool,
     output_dir: Path,
     synthesizer_name: str,
+    synthesizer_specified: bool = False,
     slug_override: str | None = None,
 ) -> Path:
     """Run a single debate and return the saved output path."""
@@ -195,7 +196,10 @@ async def _run_single(
 
     question = Question(text=question_text, source=source)
     provider_names = [p.name() for p in panel_providers]
-    synth_label = synthesizer.name() + (" (participant)" if is_participant else " (non-participant)")
+    if synthesizer_specified:
+        synth_label = synthesizer.name() + " (user-selected)"
+    else:
+        synth_label = synthesizer.name() + (" (participant)" if is_participant else " (non-participant)")
 
     console.print(f"\n[bold cyan]AI Council[/bold cyan] — {len(panel_providers)} models, {rounds} rounds [{panel_mode}]")
     console.print(f"Panel: {', '.join(provider_names)}")
@@ -256,7 +260,7 @@ async def _run_inbox(
     models_cli: str | None,
     full_cli: bool,
     output_dir: Path,
-    synthesizer_name: str,
+    synthesizer_cli: str | None,
 ) -> None:
     """Process all .md files in the inbox folder.
 
@@ -284,6 +288,12 @@ async def _run_inbox(
             else None
         )
         effective_full = full_cli or bool(meta.get("full", False))
+        effective_synthesizer = (
+            synthesizer_cli if synthesizer_cli is not None
+            else str(meta["synthesizer"]) if "synthesizer" in meta
+            else config.defaults.synthesizer
+        )
+        synthesizer_specified = synthesizer_cli is not None or "synthesizer" in meta
 
         try:
             saved = await _run_single(
@@ -295,7 +305,8 @@ async def _run_inbox(
                 models_arg=effective_models,
                 full_flag=effective_full,
                 output_dir=output_dir,
-                synthesizer_name=synthesizer_name,
+                synthesizer_name=effective_synthesizer,
+                synthesizer_specified=synthesizer_specified,
                 slug_override=file_path.stem,
             )
             archived = archive_file(file_path, archive_dir)
@@ -313,7 +324,9 @@ async def _run_inbox(
 @click.option("--full", "use_full_panel", is_flag=True,
               help="Use all 5 models. Default uses 3-model panel (claude, gemini, deepseek).")
 @click.option("--output", "output_path", default=None, help="Output directory (default: from config)")
-@click.option("--synthesizer", default=None, help="Which model synthesizes (default: from config)")
+@click.option("--synthesizer", default=None,
+              help="Which model synthesizes: claude, openai, gemini, grok, deepseek (default: claude). "
+                   "Automatically removed from the debate panel.")
 @click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging")
 @click.option("--inbox", "use_inbox", is_flag=True, default=False,
               help="Process all .md files in inbox folder")
@@ -338,7 +351,9 @@ def main(
 
     \b
     Examples:
-      python -m src.cli "Should we use REST or GraphQL?" --rounds 1
+      python -m src.cli "Should we use REST or GraphQL?"           # Claude synthesizes (default)
+      python -m src.cli --synthesizer openai "question"            # GPT-5.2 synthesizes
+      python -m src.cli --synthesizer deepseek "question"          # DeepSeek synthesizes
       python -m src.cli "Monorepo vs polyrepo?" --rounds 1 --full
       python -m src.cli "SQL or NoSQL?" --rounds 1 --models claude,openai
       python -m src.cli --file question.md --rounds 3
@@ -384,11 +399,11 @@ def main(
                 all_providers=all_providers,
                 inbox_dir=inbox_dir,
                 archive_dir=archive_dir,
-                rounds_cli=rounds,          # raw CLI value (None if not specified)
-                models_cli=models,          # raw CLI value (None if not specified)
+                rounds_cli=rounds,
+                models_cli=models,
                 full_cli=use_full_panel,
                 output_dir=effective_output,
-                synthesizer_name=effective_synthesizer,
+                synthesizer_cli=synthesizer,  # raw CLI value (None if not specified)
             )
         )
         return
@@ -414,6 +429,7 @@ def main(
             full_flag=use_full_panel,
             output_dir=effective_output,
             synthesizer_name=effective_synthesizer,
+            synthesizer_specified=synthesizer is not None,
         )
     )
 
