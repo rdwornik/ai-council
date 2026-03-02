@@ -8,19 +8,34 @@ from src.providers.base import AIProvider
 logger = logging.getLogger(__name__)
 
 _PING_PROMPT = "Reply with the word OK only."
-_TIMEOUT_SEC = 30.0
+_DEFAULT_TIMEOUT_SEC = 30.0
+_MAX_TIMEOUT_SEC = 60.0
+
+
+def _ping_timeout(provider: AIProvider) -> float:
+    """Return a per-provider health check timeout.
+
+    Uses the provider's configured timeout capped at _MAX_TIMEOUT_SEC,
+    so slow providers (Gemini, DeepSeek) get proportionally more time
+    while the overall check never hangs indefinitely.
+    """
+    cfg = getattr(provider, "_config", None)
+    if cfg is not None and hasattr(cfg, "timeout_sec"):
+        return min(float(cfg.timeout_sec), _MAX_TIMEOUT_SEC)
+    return _DEFAULT_TIMEOUT_SEC
 
 
 async def _check_one(name: str, provider: AIProvider) -> tuple[str, bool, str]:
     """Ping a single provider. Returns (name, ok, error_message)."""
+    timeout = _ping_timeout(provider)
     try:
         await asyncio.wait_for(
             provider.generate(_PING_PROMPT, round_number=0),
-            timeout=_TIMEOUT_SEC,
+            timeout=timeout,
         )
         return name, True, ""
     except asyncio.TimeoutError:
-        return name, False, f"health check timed out after {_TIMEOUT_SEC:.0f}s"
+        return name, False, f"health check timed out after {timeout:.0f}s"
     except Exception as exc:
         msg = str(exc) or repr(exc)
         return name, False, msg

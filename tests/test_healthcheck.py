@@ -90,14 +90,14 @@ async def test_timeout_counts_as_failure():
 
     providers["slow"].generate = AsyncMock(side_effect=hang)
 
-    # Patch the timeout to 0.05s so the test runs fast
+    # Patch the default timeout to 0.05s so the test runs fast
     import src.healthcheck as hc
-    original = hc._TIMEOUT_SEC
-    hc._TIMEOUT_SEC = 0.05
+    original = hc._DEFAULT_TIMEOUT_SEC
+    hc._DEFAULT_TIMEOUT_SEC = 0.05
     try:
         results = await run_health_checks(providers)
     finally:
-        hc._TIMEOUT_SEC = original
+        hc._DEFAULT_TIMEOUT_SEC = original
 
     ok, err = results["slow"]
     assert ok is False
