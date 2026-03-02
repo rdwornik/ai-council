@@ -8,7 +8,7 @@ from src.providers.base import AIProvider
 logger = logging.getLogger(__name__)
 
 _PING_PROMPT = "Reply with the word OK only."
-_TIMEOUT_SEC = 15.0
+_TIMEOUT_SEC = 30.0
 
 
 async def _check_one(name: str, provider: AIProvider) -> tuple[str, bool, str]:
@@ -19,8 +19,11 @@ async def _check_one(name: str, provider: AIProvider) -> tuple[str, bool, str]:
             timeout=_TIMEOUT_SEC,
         )
         return name, True, ""
+    except asyncio.TimeoutError:
+        return name, False, f"health check timed out after {_TIMEOUT_SEC:.0f}s"
     except Exception as exc:
-        return name, False, str(exc)
+        msg = str(exc) or repr(exc)
+        return name, False, msg
 
 
 async def run_health_checks(

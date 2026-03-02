@@ -101,3 +101,4 @@ async def test_timeout_counts_as_failure():
 
     ok, err = results["slow"]
     assert ok is False
+    assert "timed out" in err
