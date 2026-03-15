@@ -105,6 +105,7 @@ Coverage: cli, config, debate, healthcheck, inbox, models, output, synthesis
 
 ## Known issues
 
-- No `pyproject.toml` test coverage reporting configured (no `pytest-cov` in deps)
+- **No unit tests for individual providers** — `providers/anthropic.py`, `gemini.py`, `openai_provider.py`, `xai.py`, `deepseek.py` are only covered by the integration test (requires live API keys). Unit tests with mocked SDK clients would improve coverage.
+- No `pytest-cov` configured for coverage reporting
 - `mypy` not installed — no static type checking in CI
 - DeepSeek API key not available in current environment
