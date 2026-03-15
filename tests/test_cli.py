@@ -2,7 +2,11 @@
 
 import pytest
 
-from src.cli import _determine_panel, _exclude_synthesizer_from_panel, _pick_non_participant_synthesizer
+from src.cli import (
+    _determine_panel,
+    _exclude_synthesizer_from_panel,
+    _pick_non_participant_synthesizer,
+)
 from tests.conftest import MockProvider
 
 
@@ -30,14 +34,18 @@ def test_determine_panel_full(sample_defaults_config, sample_app_config):
 
 
 def test_determine_panel_custom_models_arg(sample_app_config):
-    panel, mode = _determine_panel(sample_app_config, models_arg="claude,openai", full_flag=False)
+    panel, mode = _determine_panel(
+        sample_app_config, models_arg="claude,openai", full_flag=False
+    )
     assert panel == ["claude", "openai"]
     assert mode == "custom"
 
 
 def test_determine_panel_models_arg_overrides_full(sample_app_config):
     """--models should override --full."""
-    panel, mode = _determine_panel(sample_app_config, models_arg="claude,grok", full_flag=True)
+    panel, mode = _determine_panel(
+        sample_app_config, models_arg="claude,grok", full_flag=True
+    )
     assert panel == ["claude", "grok"]
     assert mode == "custom"
 
@@ -70,7 +78,9 @@ def test_non_participant_falls_back_when_preferred_not_available(mock_all_provid
     """If preferred synthesizer is in panel, pick another non-participant."""
     panel_names = ["claude", "gemini", "deepseek"]
     synth, is_participant = _pick_non_participant_synthesizer(
-        mock_all_providers, panel_names, preferred="claude"  # claude is in panel
+        mock_all_providers,
+        panel_names,
+        preferred="claude",  # claude is in panel
     )
     assert synth.name() not in panel_names
     assert is_participant is False
@@ -98,7 +108,9 @@ def test_non_participant_all_in_panel_no_preferred():
     }
     panel_names = ["claude", "gemini"]
     synth, is_participant = _pick_non_participant_synthesizer(
-        all_providers, panel_names, preferred="openai"  # not available
+        all_providers,
+        panel_names,
+        preferred="openai",  # not available
     )
     assert is_participant is True
     assert synth.name() in {"claude", "gemini"}
@@ -106,9 +118,12 @@ def test_non_participant_all_in_panel_no_preferred():
 
 # --- _exclude_synthesizer_from_panel tests ---
 
+
 def test_exclude_synthesizer_from_full_panel():
     """Full panel including synthesizer: synthesizer removed, leaving 4 debaters."""
-    all_providers = {n: MockProvider(n) for n in ["claude", "gemini", "deepseek", "openai", "grok"]}
+    all_providers = {
+        n: MockProvider(n) for n in ["claude", "gemini", "deepseek", "openai", "grok"]
+    }
     panel = ["claude", "gemini", "deepseek", "openai", "grok"]
     result = _exclude_synthesizer_from_panel(panel, "openai", all_providers)
     assert "openai" not in result

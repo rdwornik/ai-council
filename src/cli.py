@@ -117,7 +117,9 @@ def _pick_non_participant_synthesizer(
     return next(iter(all_providers.values())), True
 
 
-def _check_and_filter_providers(all_providers: dict[str, AIProvider]) -> dict[str, AIProvider]:
+def _check_and_filter_providers(
+    all_providers: dict[str, AIProvider],
+) -> dict[str, AIProvider]:
     """Run health checks, print results, and ask user what to do on failures.
 
     Returns the filtered dict of working providers. Exits if the user
@@ -143,7 +145,9 @@ def _check_and_filter_providers(all_providers: dict[str, AIProvider]) -> dict[st
     working = {n: p for n, p in all_providers.items() if n not in failed_names}
 
     if not working:
-        console.print("\n[bold red]Error:[/bold red] No providers passed the health check.")
+        console.print(
+            "\n[bold red]Error:[/bold red] No providers passed the health check."
+        )
         sys.exit(1)
 
     console.print(
@@ -173,13 +177,17 @@ async def _run_single(
 ) -> Path:
     """Run a single debate and return the saved output path."""
     if not all_providers:
-        console.print("[bold red]Error:[/bold red] No providers available. Check API keys in .env.")
+        console.print(
+            "[bold red]Error:[/bold red] No providers available. Check API keys in .env."
+        )
         sys.exit(1)
 
     panel_names, panel_mode = _determine_panel(config, models_arg, full_flag)
 
     # Always try to keep synthesizer out of the debate panel
-    panel_names = _exclude_synthesizer_from_panel(panel_names, synthesizer_name, all_providers)
+    panel_names = _exclude_synthesizer_from_panel(
+        panel_names, synthesizer_name, all_providers
+    )
 
     panel_providers = [all_providers[n] for n in panel_names if n in all_providers]
 
@@ -199,12 +207,18 @@ async def _run_single(
     if synthesizer_specified:
         synth_label = synthesizer.name() + " (user-selected)"
     else:
-        synth_label = synthesizer.name() + (" (participant)" if is_participant else " (non-participant)")
+        synth_label = synthesizer.name() + (
+            " (participant)" if is_participant else " (non-participant)"
+        )
 
-    console.print(f"\n[bold cyan]AI Council[/bold cyan] — {len(panel_providers)} models, {rounds} rounds [{panel_mode}]")
+    console.print(
+        f"\n[bold cyan]AI Council[/bold cyan] — {len(panel_providers)} models, {rounds} rounds [{panel_mode}]"
+    )
     console.print(f"Panel: {', '.join(provider_names)}")
     console.print(f"Synthesizer: {synth_label}")
-    console.print(f"Question: [italic]{question_text[:80]}{'...' if len(question_text) > 80 else ''}[/italic]\n")
+    console.print(
+        f"Question: [italic]{question_text[:80]}{'...' if len(question_text) > 80 else ''}[/italic]\n"
+    )
 
     debate_start = time.monotonic()
     completed_rounds: list[Round] = []
@@ -219,7 +233,9 @@ async def _run_single(
 
         def on_round_complete(rnd: Round) -> None:
             completed_rounds.append(rnd)
-            progress.print(f"[green]OK[/green] Round {rnd.number} complete ({len(rnd.responses)} responses)")
+            progress.print(
+                f"[green]OK[/green] Round {rnd.number} complete ({len(rnd.responses)} responses)"
+            )
 
         debate_task = progress.add_task("Running debate rounds...", total=None)
         debate_rounds = await run_debate(
@@ -278,19 +294,25 @@ async def _run_inbox(
 
         # CLI flags always win; frontmatter only fills in when CLI flag not set
         effective_rounds = (
-            rounds_cli if rounds_cli is not None
-            else int(meta["rounds"]) if "rounds" in meta
+            rounds_cli
+            if rounds_cli is not None
+            else int(meta["rounds"])
+            if "rounds" in meta
             else config.defaults.rounds
         )
         effective_models = (
-            models_cli if models_cli is not None
-            else str(meta["models"]) if "models" in meta
+            models_cli
+            if models_cli is not None
+            else str(meta["models"])
+            if "models" in meta
             else None
         )
         effective_full = full_cli or bool(meta.get("full", False))
         effective_synthesizer = (
-            synthesizer_cli if synthesizer_cli is not None
-            else str(meta["synthesizer"]) if "synthesizer" in meta
+            synthesizer_cli
+            if synthesizer_cli is not None
+            else str(meta["synthesizer"])
+            if "synthesizer" in meta
             else config.defaults.synthesizer
         )
         synthesizer_specified = synthesizer_cli is not None or "synthesizer" in meta
@@ -310,7 +332,9 @@ async def _run_inbox(
                 slug_override=file_path.stem,
             )
             archived = archive_file(file_path, archive_dir)
-            click.echo(f"Processed: {file_path.name} -> {saved} (archived: {archived.name})")
+            click.echo(
+                f"Processed: {file_path.name} -> {saved} (archived: {archived.name})"
+            )
         except Exception as e:
             logger.error("Failed: %s -- %s", file_path.name, e)
             archive_file(file_path, archive_dir, failed=True)
@@ -318,22 +342,61 @@ async def _run_inbox(
 
 @click.command()
 @click.argument("question", required=False)
-@click.option("--file", "question_file", type=click.Path(exists=True), help="Read question from .md file")
-@click.option("--rounds", default=None, type=int, help="Number of debate rounds (default: from config)")
-@click.option("--models", default=None, help="Comma-separated model list, overrides panel selection")
-@click.option("--full", "use_full_panel", is_flag=True,
-              help="Use all 5 models. Default uses 3-model panel (claude, gemini, deepseek).")
-@click.option("--output", "output_path", default=None, help="Output directory (default: from config)")
-@click.option("--synthesizer", default=None,
-              help="Which model synthesizes: claude, openai, gemini, grok, deepseek (default: claude). "
-                   "Automatically removed from the debate panel.")
+@click.option(
+    "--file",
+    "question_file",
+    type=click.Path(exists=True),
+    help="Read question from .md file",
+)
+@click.option(
+    "--rounds",
+    default=None,
+    type=int,
+    help="Number of debate rounds (default: from config)",
+)
+@click.option(
+    "--models",
+    default=None,
+    help="Comma-separated model list, overrides panel selection",
+)
+@click.option(
+    "--full",
+    "use_full_panel",
+    is_flag=True,
+    help="Use all 5 models. Default uses 3-model panel (claude, gemini, deepseek).",
+)
+@click.option(
+    "--output",
+    "output_path",
+    default=None,
+    help="Output directory (default: from config)",
+)
+@click.option(
+    "--synthesizer",
+    default=None,
+    help="Which model synthesizes: claude, openai, gemini, grok, deepseek (default: claude). "
+    "Automatically removed from the debate panel.",
+)
 @click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging")
-@click.option("--inbox", "use_inbox", is_flag=True, default=False,
-              help="Process all .md files in inbox folder")
-@click.option("--inbox-dir", "inbox_dir_override", default=None,
-              help="Override inbox folder path (default: from config)")
-@click.option("--skip-health-check", is_flag=True, default=False,
-              help="Skip the API connectivity check at startup")
+@click.option(
+    "--inbox",
+    "use_inbox",
+    is_flag=True,
+    default=False,
+    help="Process all .md files in inbox folder",
+)
+@click.option(
+    "--inbox-dir",
+    "inbox_dir_override",
+    default=None,
+    help="Override inbox folder path (default: from config)",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip the API connectivity check at startup",
+)
 def main(
     question: str | None,
     question_file: str | None,
@@ -384,7 +447,9 @@ def main(
     all_providers = _build_all_providers(config)
 
     if not all_providers:
-        console.print("[bold red]Error:[/bold red] No providers available. Check API keys in .env.")
+        console.print(
+            "[bold red]Error:[/bold red] No providers available. Check API keys in .env."
+        )
         sys.exit(1)
 
     if not skip_health_check:
@@ -415,7 +480,9 @@ def main(
         question_text = question
         question_source = "cli"
     else:
-        console.print("[bold red]Error:[/bold red] Provide a QUESTION argument, --file, or --inbox.")
+        console.print(
+            "[bold red]Error:[/bold red] Provide a QUESTION argument, --file, or --inbox."
+        )
         sys.exit(1)
 
     asyncio.run(

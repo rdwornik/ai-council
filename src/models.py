@@ -11,8 +11,8 @@ class Question:
 
 @dataclass
 class ModelResponse:
-    provider: str          # "gemini", "openai", "claude", "grok", "deepseek"
-    model: str             # actual model string used
+    provider: str  # "gemini", "openai", "claude", "grok", "deepseek"
+    model: str  # actual model string used
     round_number: int
     content: str
     latency_sec: float
@@ -29,8 +29,8 @@ class Round:
 class DebateResult:
     question: Question
     rounds: list[Round]
-    synthesis: str         # Final markdown synthesis
-    synthesizer: str       # Which model did synthesis
+    synthesis: str  # Final markdown synthesis
+    synthesizer: str  # Which model did synthesis
     total_duration_sec: float
-    panel_mode: str = "default"              # "default", "full", "custom"
+    panel_mode: str = "default"  # "default", "full", "custom"
     synthesizer_is_participant: bool = False

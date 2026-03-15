@@ -92,6 +92,7 @@ async def test_timeout_counts_as_failure():
 
     # Patch the default timeout to 0.05s so the test runs fast
     import src.healthcheck as hc
+
     original = hc._DEFAULT_TIMEOUT_SEC
     hc._DEFAULT_TIMEOUT_SEC = 0.05
     try:

@@ -92,7 +92,9 @@ def sample_round(sample_response: ModelResponse) -> Round:
 class MockProvider(AIProvider):
     """Test double AIProvider."""
 
-    def __init__(self, provider_name: str = "mock", response_content: str = "Mock response") -> None:
+    def __init__(
+        self, provider_name: str = "mock", response_content: str = "Mock response"
+    ) -> None:
         self._name = provider_name
         self._response_content = response_content
         # Shadow the class method with an AsyncMock at the instance level.
@@ -133,4 +135,7 @@ def mock_provider() -> MockProvider:
 
 @pytest.fixture
 def two_mock_providers() -> list[MockProvider]:
-    return [MockProvider("provider_a", "Response from A"), MockProvider("provider_b", "Response from B")]
+    return [
+        MockProvider("provider_a", "Response from A"),
+        MockProvider("provider_b", "Response from B"),
+    ]

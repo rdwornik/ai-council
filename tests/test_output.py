@@ -43,7 +43,9 @@ def test_save_to_file_creates_file(tmp_path: Path, sample_debate_result: DebateR
     assert saved.suffix == ".md"
 
 
-def test_save_to_file_creates_output_dir(tmp_path: Path, sample_debate_result: DebateResult):
+def test_save_to_file_creates_output_dir(
+    tmp_path: Path, sample_debate_result: DebateResult
+):
     output_dir = tmp_path / "nested" / "output"
     assert not output_dir.exists()
     save_to_file(sample_debate_result, output_dir)
@@ -60,20 +62,26 @@ def test_save_to_file_content(tmp_path: Path, sample_debate_result: DebateResult
     assert "claude" in content  # synthesizer appears in synthesis section
 
 
-def test_save_to_file_has_panel_header(tmp_path: Path, sample_debate_result: DebateResult):
+def test_save_to_file_has_panel_header(
+    tmp_path: Path, sample_debate_result: DebateResult
+):
     saved = save_to_file(sample_debate_result, tmp_path)
     content = saved.read_text(encoding="utf-8")
     assert "**Panel:**" in content
 
 
-def test_save_to_file_has_mode_header(tmp_path: Path, sample_debate_result: DebateResult):
+def test_save_to_file_has_mode_header(
+    tmp_path: Path, sample_debate_result: DebateResult
+):
     saved = save_to_file(sample_debate_result, tmp_path)
     content = saved.read_text(encoding="utf-8")
     assert "**Mode:**" in content
     assert "default" in content
 
 
-def test_save_to_file_has_synthesizer_header(tmp_path: Path, sample_debate_result: DebateResult):
+def test_save_to_file_has_synthesizer_header(
+    tmp_path: Path, sample_debate_result: DebateResult
+):
     saved = save_to_file(sample_debate_result, tmp_path)
     content = saved.read_text(encoding="utf-8")
     assert "**Synthesizer:**" in content
@@ -96,6 +104,8 @@ def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_
     assert "**Mode:** custom" in content
 
 
-def test_save_to_file_filename_has_slug(tmp_path: Path, sample_debate_result: DebateResult):
+def test_save_to_file_filename_has_slug(
+    tmp_path: Path, sample_debate_result: DebateResult
+):
     saved = save_to_file(sample_debate_result, tmp_path)
     assert "yaml" in saved.name or "should" in saved.name  # slug from question

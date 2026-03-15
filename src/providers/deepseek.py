@@ -23,7 +23,9 @@ class DeepSeekProvider(AIProvider):
         if not api_key:
             raise ProviderError(config.name, f"Missing API key: {config.api_key_env}")
         if not config.base_url:
-            raise ProviderError(config.name, "base_url is required for DeepSeek provider")
+            raise ProviderError(
+                config.name, "base_url is required for DeepSeek provider"
+            )
         self._client = AsyncOpenAI(api_key=api_key, base_url=config.base_url)
 
     def name(self) -> str:
@@ -44,7 +46,10 @@ class DeepSeekProvider(AIProvider):
                 timeout=self._config.timeout_sec,
             )
         except TimeoutError as exc:
-            raise ProviderError(self._config.name, f"Request timed out after {self._config.timeout_sec}s") from exc
+            raise ProviderError(
+                self._config.name,
+                f"Request timed out after {self._config.timeout_sec}s",
+            ) from exc
         except Exception as exc:
             raise ProviderError(self._config.name, f"API call failed: {exc}") from exc
 

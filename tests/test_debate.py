@@ -50,7 +50,9 @@ def test_anonymize_responses_mapping_covers_all_providers():
     assert len(mapping) == 3
 
 
-async def test_run_debate_single_round(two_mock_providers, sample_prompts_config, sample_question):
+async def test_run_debate_single_round(
+    two_mock_providers, sample_prompts_config, sample_question
+):
     rounds = await run_debate(
         question=sample_question,
         providers=two_mock_providers,
@@ -62,12 +64,18 @@ async def test_run_debate_single_round(two_mock_providers, sample_prompts_config
     assert len(rounds[0].responses) == 2
 
 
-async def test_run_debate_two_rounds(two_mock_providers, sample_prompts_config, sample_question):
+async def test_run_debate_two_rounds(
+    two_mock_providers, sample_prompts_config, sample_question
+):
     for p in two_mock_providers:
         p.generate = AsyncMock(
             side_effect=[
-                ModelResponse(p.name(), "mock-model", 1, f"Round 1 from {p.name()}", 0.1, 5),
-                ModelResponse(p.name(), "mock-model", 2, f"Round 2 from {p.name()}", 0.1, 5),
+                ModelResponse(
+                    p.name(), "mock-model", 1, f"Round 1 from {p.name()}", 0.1, 5
+                ),
+                ModelResponse(
+                    p.name(), "mock-model", 2, f"Round 2 from {p.name()}", 0.1, 5
+                ),
             ]
         )
 
@@ -81,7 +89,9 @@ async def test_run_debate_two_rounds(two_mock_providers, sample_prompts_config, 
     assert rounds[1].number == 2
 
 
-async def test_run_debate_injects_persona_in_round1(sample_prompts_config, sample_question):
+async def test_run_debate_injects_persona_in_round1(
+    sample_prompts_config, sample_question
+):
     """Persona text should appear in the prompt passed to the provider on round 1."""
     from src.providers.base import AIProvider
 
@@ -99,7 +109,9 @@ async def test_run_debate_injects_persona_in_round1(sample_prompts_config, sampl
 
         async def generate(self, prompt: str, round_number: int) -> ModelResponse:
             captured_prompts.append(prompt)
-            return ModelResponse(self._name, "mock-model", round_number, "response", 0.1, 5)
+            return ModelResponse(
+                self._name, "mock-model", round_number, "response", 0.1, 5
+            )
 
     provider1 = CapturingProvider("mock")
     provider2 = CapturingProvider("mock2")
@@ -115,7 +127,9 @@ async def test_run_debate_injects_persona_in_round1(sample_prompts_config, sampl
     assert any("Be a mock architect." in p for p in captured_prompts)
 
 
-async def test_run_debate_critique_uses_anonymized_placeholder(two_mock_providers, sample_prompts_config, sample_question):
+async def test_run_debate_critique_uses_anonymized_placeholder(
+    two_mock_providers, sample_prompts_config, sample_question
+):
     """Round 2 prompts should use previous_responses_anonymized, not provider names."""
     captured_prompts: list[str] = []
 
@@ -123,8 +137,22 @@ async def test_run_debate_critique_uses_anonymized_placeholder(two_mock_provider
         original_name = p.name()
         p.generate = AsyncMock(
             side_effect=[
-                ModelResponse(original_name, "mock-model", 1, f"Round 1 from {original_name}", 0.1, 5),
-                ModelResponse(original_name, "mock-model", 2, f"Round 2 from {original_name}", 0.1, 5),
+                ModelResponse(
+                    original_name,
+                    "mock-model",
+                    1,
+                    f"Round 1 from {original_name}",
+                    0.1,
+                    5,
+                ),
+                ModelResponse(
+                    original_name,
+                    "mock-model",
+                    2,
+                    f"Round 2 from {original_name}",
+                    0.1,
+                    5,
+                ),
             ]
         )
 
@@ -144,8 +172,22 @@ async def test_run_debate_critique_uses_anonymized_placeholder(two_mock_provider
         original_name = p.name()
         p.generate = AsyncMock(
             side_effect=[
-                ModelResponse(original_name, "mock-model", 1, f"Round 1 from {original_name}", 0.1, 5),
-                ModelResponse(original_name, "mock-model", 2, f"Round 2 from {original_name}", 0.1, 5),
+                ModelResponse(
+                    original_name,
+                    "mock-model",
+                    1,
+                    f"Round 1 from {original_name}",
+                    0.1,
+                    5,
+                ),
+                ModelResponse(
+                    original_name,
+                    "mock-model",
+                    2,
+                    f"Round 2 from {original_name}",
+                    0.1,
+                    5,
+                ),
             ]
         )
 
@@ -160,7 +202,9 @@ async def test_run_debate_critique_uses_anonymized_placeholder(two_mock_provider
     assert rounds[1].number == 2
 
 
-async def test_run_debate_on_round_complete_callback(two_mock_providers, sample_prompts_config, sample_question):
+async def test_run_debate_on_round_complete_callback(
+    two_mock_providers, sample_prompts_config, sample_question
+):
     completed = []
 
     def callback(rnd: Round) -> None:
@@ -209,10 +253,15 @@ async def test_run_debate_raises_if_all_fail(sample_prompts_config, sample_quest
 
 # --- Retry logic tests ---
 
+
 def _make_mock_config(timeout_sec: int = 10) -> ModelConfig:
     return ModelConfig(
-        name="slow", sdk="test", model="m", api_key_env="K",
-        timeout_sec=timeout_sec, max_tokens=100,
+        name="slow",
+        sdk="test",
+        model="m",
+        api_key_env="K",
+        timeout_sec=timeout_sec,
+        max_tokens=100,
     )
 
 
@@ -229,7 +278,9 @@ async def test_retry_succeeds_on_second_attempt(sample_prompts_config, sample_qu
         call_count += 1
         if call_count == 1:
             raise ProviderError("slow", "Request timed out after 10s")
-        return ModelResponse("slow", "m", round_number, "Slow but eventual response", 0.1, 5)
+        return ModelResponse(
+            "slow", "m", round_number, "Slow but eventual response", 0.1, 5
+        )
 
     slow.generate = AsyncMock(side_effect=timeout_then_succeed)
 
@@ -243,7 +294,9 @@ async def test_retry_succeeds_on_second_attempt(sample_prompts_config, sample_qu
     assert call_count == 2  # initial attempt + one retry
 
 
-async def test_retry_excluded_after_second_timeout(sample_prompts_config, sample_question):
+async def test_retry_excluded_after_second_timeout(
+    sample_prompts_config, sample_question
+):
     """Provider that times out on both attempts is excluded from results."""
     good = MockProvider("good", "Good response")
     slow = MockProvider("slow", "")
@@ -284,12 +337,13 @@ async def test_retry_uses_15x_timeout(sample_prompts_config, sample_question):
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert observed_timeouts[0] == 100           # original timeout on first attempt
-    assert observed_timeouts[1] == 150           # 1.5x on retry
-    assert slow._config.timeout_sec == 100       # restored after retry
+    assert observed_timeouts[0] == 100  # original timeout on first attempt
+    assert observed_timeouts[1] == 150  # 1.5x on retry
+    assert slow._config.timeout_sec == 100  # restored after retry
 
 
 # --- Quality gate tests ---
+
 
 async def test_quality_gate_warns_when_too_few_respond(
     sample_prompts_config, sample_question, caplog

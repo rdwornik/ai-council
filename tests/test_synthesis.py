@@ -15,14 +15,18 @@ def test_format_full_transcript():
         Round(
             number=1,
             responses=[
-                ModelResponse("gemini", "gemini-3.1-pro-preview", 1, "Use YAML.", 1.0, 10),
+                ModelResponse(
+                    "gemini", "gemini-3.1-pro-preview", 1, "Use YAML.", 1.0, 10
+                ),
                 ModelResponse("claude", "claude-opus-4-6", 1, "Use JSON.", 1.1, 12),
             ],
         ),
         Round(
             number=2,
             responses=[
-                ModelResponse("gemini", "gemini-3.1-pro-preview", 2, "Changed mind: JSON.", 0.8, 8),
+                ModelResponse(
+                    "gemini", "gemini-3.1-pro-preview", 2, "Changed mind: JSON.", 0.8, 8
+                ),
             ],
         ),
     ]
@@ -33,7 +37,9 @@ def test_format_full_transcript():
     assert "Changed mind: JSON." in transcript
 
 
-async def test_synthesize_returns_debate_result(sample_prompts_config, sample_question, sample_round):
+async def test_synthesize_returns_debate_result(
+    sample_prompts_config, sample_question, sample_round
+):
     synthesizer = MockProvider("openai", "## Consensus\nAll agreed on YAML.")
     synthesizer.generate = AsyncMock(
         return_value=ModelResponse(
@@ -60,7 +66,9 @@ async def test_synthesize_returns_debate_result(sample_prompts_config, sample_qu
     assert result.total_duration_sec >= 5.0
 
 
-async def test_synthesize_passes_panel_mode_to_result(sample_prompts_config, sample_question, sample_round):
+async def test_synthesize_passes_panel_mode_to_result(
+    sample_prompts_config, sample_question, sample_round
+):
     synthesizer = MockProvider("openai", "## Consensus\nAgreed.")
     synthesizer.generate = AsyncMock(
         return_value=ModelResponse(
@@ -87,7 +95,9 @@ async def test_synthesize_passes_panel_mode_to_result(sample_prompts_config, sam
     assert result.synthesizer_is_participant is False
 
 
-async def test_synthesize_records_is_participant(sample_prompts_config, sample_question, sample_round):
+async def test_synthesize_records_is_participant(
+    sample_prompts_config, sample_question, sample_round
+):
     synthesizer = MockProvider("claude", "## Decision\nUse YAML.")
     synthesizer.generate = AsyncMock(
         return_value=ModelResponse(
@@ -113,7 +123,9 @@ async def test_synthesize_records_is_participant(sample_prompts_config, sample_q
     assert result.synthesizer_is_participant is True
 
 
-async def test_synthesize_raises_on_empty_content(sample_prompts_config, sample_question, sample_round):
+async def test_synthesize_raises_on_empty_content(
+    sample_prompts_config, sample_question, sample_round
+):
     synthesizer = MockProvider("claude", "")
     synthesizer.generate = AsyncMock(
         return_value=ModelResponse(

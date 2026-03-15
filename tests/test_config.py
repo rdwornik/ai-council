@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig, load_config
+from config.config_loader import (
+    AppConfig,
+    DefaultsConfig,
+    ModelConfig,
+    PromptsConfig,
+    load_config,
+)
 
 
 @pytest.fixture

@@ -26,8 +26,9 @@ def _anonymize_responses(
     shuffled = list(responses)
     random.shuffle(shuffled)
     labels = [chr(ord("A") + i) for i in range(len(shuffled))]
-    parts = [f"--- Proposal {label} ---\n{r.content}"
-             for label, r in zip(labels, shuffled)]
+    parts = [
+        f"--- Proposal {label} ---\n{r.content}" for label, r in zip(labels, shuffled)
+    ]
     mapping = {label: r.provider for label, r in zip(labels, shuffled)}
     return "\n\n".join(parts), mapping
 
@@ -53,37 +54,53 @@ async def _call_provider(
                 cfg.timeout_sec = int(original_timeout * 1.5)
                 logger.warning(
                     "Provider %s timed out in round %d, retrying with %ds (1.5x)",
-                    provider.name(), round_number, cfg.timeout_sec,
+                    provider.name(),
+                    round_number,
+                    cfg.timeout_sec,
                 )
             else:
                 logger.warning(
                     "Provider %s timed out in round %d, retrying",
-                    provider.name(), round_number,
+                    provider.name(),
+                    round_number,
                 )
             try:
                 return await provider.generate(prompt, round_number)
             except ProviderError as retry_exc:
                 logger.warning(
                     "Provider %s failed after retry in round %d: %s",
-                    provider.name(), round_number, retry_exc,
+                    provider.name(),
+                    round_number,
+                    retry_exc,
                 )
                 return retry_exc
             except Exception as retry_exc:
-                err = ProviderError(provider.name(), f"Unexpected error on retry: {retry_exc}")
+                err = ProviderError(
+                    provider.name(), f"Unexpected error on retry: {retry_exc}"
+                )
                 logger.warning(
                     "Provider %s unexpected failure after retry in round %d: %s",
-                    provider.name(), round_number, retry_exc,
+                    provider.name(),
+                    round_number,
+                    retry_exc,
                 )
                 return err
             finally:
                 if cfg is not None and original_timeout is not None:
                     cfg.timeout_sec = original_timeout
 
-        logger.warning("Provider %s failed in round %d: %s", provider.name(), round_number, exc)
+        logger.warning(
+            "Provider %s failed in round %d: %s", provider.name(), round_number, exc
+        )
         return exc
     except Exception as exc:
         err = ProviderError(provider.name(), f"Unexpected error: {exc}")
-        logger.warning("Provider %s unexpected failure in round %d: %s", provider.name(), round_number, exc)
+        logger.warning(
+            "Provider %s unexpected failure in round %d: %s",
+            provider.name(),
+            round_number,
+            exc,
+        )
         return err
 
 
@@ -137,8 +154,7 @@ async def run_debate(
         logger.info("Starting round %d with %d providers", round_num, len(providers))
 
         tasks = [
-            _call_provider(p, prompts_for_round[p.name()], round_num)
-            for p in providers
+            _call_provider(p, prompts_for_round[p.name()], round_num) for p in providers
         ]
         results = await asyncio.gather(*tasks)
 
@@ -152,7 +168,11 @@ async def run_debate(
             raise RuntimeError(f"All providers failed in round {round_num}")
 
         # Quality gate: warn when Round 1 has low participation on a large panel
-        if round_num == 1 and len(providers) >= _MIN_QUALITY_RESPONSES and len(responses) < _MIN_QUALITY_RESPONSES:
+        if (
+            round_num == 1
+            and len(providers) >= _MIN_QUALITY_RESPONSES
+            and len(responses) < _MIN_QUALITY_RESPONSES
+        ):
             logger.warning(
                 "WARNING: Only %d/%d models responded in Round 1. "
                 "Debate quality is degraded. Consider re-running with longer timeouts or fewer models.",

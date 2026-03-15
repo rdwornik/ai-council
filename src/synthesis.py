@@ -5,7 +5,7 @@ import time
 
 from config.config_loader import PromptsConfig
 from src.models import DebateResult, ModelResponse, Question, Round
-from src.providers.base import AIProvider, ProviderError
+from src.providers.base import AIProvider
 
 logger = logging.getLogger(__name__)
 

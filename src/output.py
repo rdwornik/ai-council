@@ -20,6 +20,7 @@ console = Console(legacy_windows=False)
 def _slug(text: str, max_len: int = 40) -> str:
     """Convert text to a filename-safe slug."""
     import re
+
     slug = re.sub(r"[^\w\s-]", "", text.lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")
     return slug[:max_len]
@@ -69,7 +70,9 @@ def print_synthesis(result: DebateResult) -> None:
     console.print(Markdown(result.synthesis))
 
 
-def save_to_file(result: DebateResult, output_dir: Path, slug_override: str | None = None) -> Path:
+def save_to_file(
+    result: DebateResult, output_dir: Path, slug_override: str | None = None
+) -> Path:
     """Save the full debate transcript as a markdown file.
 
     Args:
@@ -97,7 +100,12 @@ def save_to_file(result: DebateResult, output_dir: Path, slug_override: str | No
     panel_str = ", ".join(panel_models)
 
     synth_model = next(
-        (r.model for rnd in result.rounds for r in rnd.responses if r.provider == result.synthesizer),
+        (
+            r.model
+            for rnd in result.rounds
+            for r in rnd.responses
+            if r.provider == result.synthesizer
+        ),
         result.synthesizer,
     )
     synth_label = synth_model
@@ -145,7 +153,9 @@ def save_to_file(result: DebateResult, output_dir: Path, slug_override: str | No
             )
             lines.append("")
 
-    synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
+    synth_is_label = (
+        "participant" if result.synthesizer_is_participant else "non-participant"
+    )
     lines += [
         f"## Synthesis (by {result.synthesizer}, {synth_is_label})",
         "",

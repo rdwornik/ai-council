@@ -42,7 +42,10 @@ class AnthropicProvider(AIProvider):
                 timeout=self._config.timeout_sec,
             )
         except TimeoutError as exc:
-            raise ProviderError(self._config.name, f"Request timed out after {self._config.timeout_sec}s") from exc
+            raise ProviderError(
+                self._config.name,
+                f"Request timed out after {self._config.timeout_sec}s",
+            ) from exc
         except Exception as exc:
             raise ProviderError(self._config.name, f"API call failed: {exc}") from exc
 
