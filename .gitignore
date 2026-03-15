@@ -6,3 +6,4 @@ output/
 .history/
 council_inbox/archive/
 council_inbox/*.md
+.claude/worktrees/
