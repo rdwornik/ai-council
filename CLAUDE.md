@@ -1,129 +1,110 @@
-# AI Council — Architecture Reference
+# CLAUDE.md — AI Council
 
-## Project Overview
+## What this repo does
 
-Multi-model AI debate tool. A question is posed; multiple AI models argue in parallel rounds; a non-participating synthesizer produces the final decision summary.
+Multi-model AI debate tool. Pose an architectural question; a panel of AI models (Claude, Gemini, GPT, Grok, DeepSeek) debate in parallel rounds with anonymized critique; a non-participating model synthesizes the final verdict into a structured decision document.
 
-## Phase 1 Checklist (complete)
+## Quick start
 
-- [x] Config loading (settings.yaml → typed dataclasses)
-- [x] Provider abstraction (AIProvider ABC)
-- [x] All providers: OpenAI, Anthropic, Gemini, xAI/Grok, DeepSeek
-- [x] Debate pipeline (parallel async calls, critique rounds)
-- [x] Persona injection (per-model adversarial roles)
-- [x] Blind voting (anonymized critique prompts)
-- [x] Non-participating synthesizer selection
-- [x] Default 3-model panel + `--full` 5-model flag
-- [x] Rich console output + markdown file save
-- [x] Full unit test suite
+```bash
+python -m venv venv && venv\Scripts\activate  # Windows
+pip install -e ".[dev]"
+cp .env.example .env  # add API keys
+python -m src.cli "Should we use REST or GraphQL?" --rounds 1
+pytest tests/ -m "not integration" -v
+```
 
 ## Architecture
 
 ```
 src/
-  cli.py              — Click entry point; panel/synthesizer selection
-  debate.py           — run_debate(); persona injection; blind voting
-  synthesis.py        — synthesize(); builds transcript; calls synthesizer
-  output.py           — save_to_file(); print_round_summary(); print_synthesis()
-  models.py           — Pure dataclasses: Question, ModelResponse, Round, DebateResult
+  cli.py               — Click entry point; panel/synthesizer selection; PROVIDER_CLASSES dict
+  debate.py            — run_debate(); persona injection; blind voting via _anonymize_responses()
+  synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer
+  output.py            — save_to_file(); print_round_summary(); print_synthesis()
+  models.py            — Pure dataclasses: Question, ModelResponse, Round, DebateResult
+  healthcheck.py       — run_health_checks(); pings all providers before debate starts
+  inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive
   providers/
-    base.py           — AIProvider ABC + ProviderError
-    anthropic.py      — Claude (Anthropic SDK)
-    gemini.py         — Gemini (google-genai SDK)
-    openai_provider.py — GPT (openai SDK)
-    xai.py            — Grok (OpenAI-compatible)
-    deepseek.py       — DeepSeek (OpenAI-compatible)
+    base.py            — AIProvider ABC + ProviderError
+    anthropic.py       — Claude (Anthropic SDK, asyncio.to_thread)
+    gemini.py          — Gemini (google-genai, native async)
+    openai_provider.py — GPT (AsyncOpenAI)
+    xai.py             — Grok (OpenAI-compatible, base_url)
+    deepseek.py        — DeepSeek (OpenAI-compatible, base_url)
 config/
-  settings.yaml       — All model configs, prompts, personas, defaults (single source of truth)
-  config_loader.py    — YAML → typed dataclasses; API key detection at startup
-tests/
-  conftest.py         — MockProvider, shared fixtures
-  test_config.py      — Config loading, panels, personas
-  test_debate.py      — Anonymization, persona injection, round logic
-  test_synthesis.py   — Synthesis output, panel_mode, is_participant fields
-  test_output.py      — Markdown output format, header fields
-  test_cli.py         — Panel determination, synthesizer selection logic
-  test_models.py      — Dataclass field validation
-  test_integration.py — End-to-end with real API calls (marked `integration`)
+  settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
+  config_loader.py     — YAML -> typed dataclasses; API key detection at startup
+tests/                 — 72 unit tests + 1 integration test
 ```
 
-## Key Design Decisions
+## Dev standards
 
-### Panel System
-- **Default panel**: `["claude", "gemini", "deepseek"]` — 3 models, balanced perspectives
-- **Full panel**: `["claude", "gemini", "deepseek", "openai", "grok"]` — all 5 models
-- **Custom**: `--models claude,openai` — explicit override
-- `_determine_panel()` in cli.py; `--models` always wins over `--full`
+- Python 3.12+, `pyproject.toml` as single dependency source
+- `ruff` for linting/formatting, `pytest` + `pytest-asyncio` for testing
+- Feature branches, no deletions without asking
+- Logging not print, dataclasses not dicts
+- Click CLI, Rich console output
+- Do NOT merge OpenAI-compatible providers (xai.py, deepseek.py) — keep separate
 
-### Persona System
-- Each provider has an adversarial persona defined in `settings.yaml` under `personas:`
-- Personas are loaded into `PromptsConfig.personas` (dict: provider_name → text)
-- Injected via `{persona}` placeholder in `initial` and `critique` prompt templates
-- Fallback: `prompts.personas.get(p.name(), "")` — empty string if no persona defined
-
-### Blind Voting (Anonymization)
-- Critique rounds use `_anonymize_responses()` in `debate.py`
-- Responses are shuffled randomly and labeled "Proposal A", "Proposal B", etc.
-- Provider names and model strings are **not** included in the critique prompt
-- Label→provider mapping is logged at DEBUG only (not stored in DebateResult)
-- Template placeholder: `{previous_responses_anonymized}` (not `{previous_responses}`)
-
-### Non-Participating Synthesizer
-- `_pick_non_participant_synthesizer()` in cli.py selects a synthesizer outside the panel
-- Preferred synthesizer (from config or `--synthesizer`) is used if available outside panel
-- If no non-participant is available (all providers in panel), falls back to preferred with `is_participant=True`
-- `DebateResult.synthesizer_is_participant` tracks this; displayed in output header
-
-### Provider Pattern
-- Each provider is a separate file (no shared base class beyond `AIProvider` ABC)
-- OpenAI-compatible providers (xai.py, deepseek.py) are structurally identical — do NOT merge
-- `PROVIDER_CLASSES` dict in cli.py maps name → class
-
-### Config as Single Source of Truth
-- All model strings, timeouts, max_tokens live in `settings.yaml`
-- `prompts:` section holds all three templates; `personas:` holds per-model roles
-- `defaults:` holds panel lists, round counts, synthesizer preference
-
-## Provider SDK Notes
-
-- **anthropic**: `client.messages.create()` via `asyncio.to_thread`
-- **google-genai**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
-- **openai**: `AsyncOpenAI` client, `chat.completions.create()`
-- **openai-compatible** (xai, deepseek): same as openai but with `base_url`
-
-## Gotchas
-
-- **Windows cp1252**: Do not print Unicode chars (✓, →, etc.) in Rich progress callbacks. Use ASCII (`OK`, `>`, etc.)
-- **MockProvider ABC**: `async def generate` must exist in the class body AND be shadowed by `AsyncMock` in `__init__` for ABC compliance
-- **pytest-asyncio**: Needs `asyncio_mode = auto` in `pytest.ini`
-- **Synthesis prompt**: `{rounds}` placeholder removed from synthesis template; `synthesize()` still passes `rounds=` kwarg (Python ignores extra kwargs in `.format()`)
-- **Critique template rename**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
-
-## CLI Usage
+## Key commands
 
 ```bash
-# Default 3-model panel
+# Default 3-model panel (claude, gemini, deepseek)
 python -m src.cli "Should we use REST or GraphQL?" --rounds 1
 
 # Full 5-model panel
-python -m src.cli "Monorepo vs polyrepo?" --rounds 1 --full
+python -m src.cli "Monorepo vs polyrepo?" --rounds 2 --full
 
-# Custom models
-python -m src.cli "SQL or NoSQL?" --rounds 1 --models claude,openai
+# Custom models + custom synthesizer
+python -m src.cli "SQL or NoSQL?" --models claude,openai --synthesizer gemini
 
 # From file
 python -m src.cli --file question.md --rounds 3
 
-# Debug prompts
+# Inbox batch mode (reads council_inbox/*.md with optional frontmatter overrides)
+python -m src.cli --inbox
+
+# Debug logging
 python -m src.cli "question" --rounds 1 --verbose
 ```
 
-## Testing
+## Key design decisions
+
+- **Panel system**: `_determine_panel()` in cli.py; `--models` wins over `--full` wins over default
+- **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
+- **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
+- **Non-participating synthesizer**: `_pick_non_participant_synthesizer()` picks a model outside the panel; falls back with `is_participant=True` if none available
+- **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `settings.yaml`
+
+## Test suite
 
 ```bash
-# Unit tests only (no API keys needed)
-pytest tests/ -m "not integration" -v
-
-# Integration test (requires API keys)
-pytest tests/test_integration.py -v
+pytest tests/ -m "not integration" -v   # 72 unit tests, no API keys needed
+pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
+
+Coverage: cli, config, debate, healthcheck, inbox, models, output, synthesis
+
+## Dependencies
+
+- `click` — CLI framework
+- `rich` — Console output formatting
+- `pyyaml` — Config loading
+- `python-dotenv` — .env file loading
+- `anthropic`, `openai`, `google-genai` — AI provider SDKs
+- `python-frontmatter` — Inbox file parsing
+
+## Gotchas
+
+- **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks. Use ASCII only.
+- **MockProvider ABC**: `async def generate` must exist in class body AND be shadowed by `AsyncMock` in `__init__`
+- **pytest-asyncio**: Needs `asyncio_mode = auto` in `pytest.ini`
+- **Critique template**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
+- **google-genai async**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
+
+## Known issues
+
+- No `pyproject.toml` test coverage reporting configured (no `pytest-cov` in deps)
+- `mypy` not installed — no static type checking in CI
+- DeepSeek API key not available in current environment
