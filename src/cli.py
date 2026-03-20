@@ -431,7 +431,13 @@ def main(
         if hasattr(sys.stderr, "reconfigure"):
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    load_dotenv()
+    # Global API keys (Documents/.secrets/.env)
+    _global_env = Path.home() / "Documents" / ".secrets" / ".env"
+    if _global_env.exists():
+        load_dotenv(_global_env, override=False)
+
+    # Local .env (project-specific vars only)
+    load_dotenv(override=False)
     _setup_logging(verbose)
 
     try:
