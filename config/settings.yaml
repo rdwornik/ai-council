@@ -13,36 +13,40 @@ inbox:
 models:
   gemini:
     sdk: "google-genai"
-    model: "gemini-3.1-pro-preview"
+    model: "gemini-3.1-pro-preview" # najmocniejszy Pro Google
     api_key_env: "GEMINI_API_KEY"
     timeout_sec: 180
-    max_tokens: 8192
+    max_tokens: 16384 # zwiększone z 8192 → lepsze odpowiedzi
+
   openai:
     sdk: "openai"
-    model: "gpt-5.2"
+    model: "gpt-5.4" # najnowszy frontier (lepszy niż 5.2)
     api_key_env: "OPENAI_API_KEY"
     timeout_sec: 180
-    max_tokens: 8192
+    max_tokens: 16384
+
   claude:
     sdk: "anthropic"
-    model: "claude-opus-4-6"
+    model: "claude-opus-4-6" # absolutny król rozumowania + najlepszy synthesizer
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_sec: 240
-    max_tokens: 8192
+    max_tokens: 16384
+
   grok:
     sdk: "openai-compatible"
-    model: "grok-4"
+    model: "grok-4.20-beta" # najnowsza beta xAI (2M context!)
     api_key_env: "XAI_API_KEY"
     base_url: "https://api.x.ai/v1"
     timeout_sec: 180
-    max_tokens: 8192
+    max_tokens: 16384
+
   deepseek:
     sdk: "openai-compatible"
-    model: "deepseek-reasoner"
+    model: "deepseek-reasoner" # najlepszy reasoner + ekstremalnie tani przy cache
     api_key_env: "DEEPSEEK_API_KEY"
     base_url: "https://api.deepseek.com/v1"
     timeout_sec: 300
-    max_tokens: 8192
+    max_tokens: 16384
 
 personas:
   claude: |

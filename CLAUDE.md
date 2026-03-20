@@ -80,7 +80,8 @@ python -m src.cli "question" --rounds 1 --verbose
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration" -v   # 72 unit tests, no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 72 unit tests, no API keys needed
+pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
 
@@ -95,6 +96,14 @@ Coverage: cli, config, debate, healthcheck, inbox, models, output, synthesis
 - `anthropic`, `openai`, `google-genai` — AI provider SDKs
 - `python-frontmatter` — Inbox file parsing
 
+## API Keys
+
+Keys loaded globally from `Documents/.secrets/.env` via PowerShell profile.
+Do NOT add API keys to local `.env`.
+Check: `keys list` | Update: `keys set KEY value` | Reload: `keys reload`
+
+This repo uses: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`
+
 ## Gotchas
 
 - **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks. Use ASCII only.
@@ -108,4 +117,4 @@ Coverage: cli, config, debate, healthcheck, inbox, models, output, synthesis
 - **No unit tests for individual providers** — `providers/anthropic.py`, `gemini.py`, `openai_provider.py`, `xai.py`, `deepseek.py` are only covered by the integration test (requires live API keys). Unit tests with mocked SDK clients would improve coverage.
 - No `pytest-cov` configured for coverage reporting
 - `mypy` not installed — no static type checking in CI
-- DeepSeek API key not available in current environment
+- DeepSeek API key may not be available in current environment

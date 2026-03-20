@@ -109,7 +109,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             logger.info("Provider available: %s", provider_name)
         else:
             logger.info(
-                "Provider skipped (no API key): %s — set %s in .env",
+                "Provider skipped (no API key): %s — set %s in global env",
                 provider_name,
                 model_raw["api_key_env"],
             )
