@@ -5,6 +5,12 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from dotenv import load_dotenv
+
+# Global API keys (Documents/.secrets/.env)
+_global_env = Path.home() / "Documents" / ".secrets" / ".env"
+if _global_env.exists():
+    load_dotenv(_global_env, override=False)
 
 from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig
 from src.models import ModelResponse, Question, Round
