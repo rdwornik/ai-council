@@ -104,6 +104,19 @@ Check: `keys list` | Update: `keys set KEY value` | Reload: `keys reload`
 
 This repo uses: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`
 
+## Integration points
+
+ai-council is fully standalone. It is used for architectural decision-making across the ecosystem.
+
+- AI Council debates produce binding decisions (see ECOSYSTEM.md)
+- 5 LLM providers: Claude, Gemini, GPT, Grok, DeepSeek
+
+## Related repos
+
+- [ECOSYSTEM.md](../ECOSYSTEM.md) — full ecosystem overview, AI Council binding decisions
+- [corp-by-os](../corp-by-os/) — root orchestrator
+- [corp-os-meta](../corp-os-meta/) — shared schema
+
 ## Gotchas
 
 - **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks. Use ASCII only.

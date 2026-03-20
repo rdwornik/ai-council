@@ -24,6 +24,14 @@ dev = [
 [project.scripts]
 ai-council = "src.cli:main"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (require real API keys)",
+    "envcheck: marks tests that verify environment setup (API keys present)",
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120

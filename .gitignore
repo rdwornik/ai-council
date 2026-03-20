@@ -7,3 +7,5 @@ output/
 council_inbox/archive/
 council_inbox/*.md
 .claude/worktrees/
+.claude/settings.local.json
+.ruff_cache/
