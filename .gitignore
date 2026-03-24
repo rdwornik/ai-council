@@ -1,12 +1,37 @@
-﻿.env
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
 .venv/
 venv/
-__pycache__/
-*.pyc
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+desktop.ini
+Thumbs.db
+
+# Environment
+.env
+
+# Claude
+.claude/
+
+# Project-specific
 output/
 .history/
 council_inbox/archive/
 council_inbox/*.md
-.claude/worktrees/
-.claude/settings.local.json
-.ruff_cache/
+
+# Data
+*.db
