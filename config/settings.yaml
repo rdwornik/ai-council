@@ -140,13 +140,27 @@ prompts:
 
     {previous_responses_anonymized}
 
-    For each proposal above:
-    - State whether you agree, partially agree, or disagree with its Position
-    - Identify its strongest point and its weakest assumption
-    - Note any risks it overlooks
+    For each proposal above, in order:
 
-    Then give your revised recommendation, incorporating what you've learned.
-    Be specific. Do not soften disagreements.
+    **Steelman first:** State the strongest possible version of this proposal — what would have to be true for it to be exactly right?
+
+    **Your assessment:** Agree / Partially agree / Disagree with its Position, and why.
+
+    **Strongest point:** The single most compelling argument this proposal makes.
+
+    **Weakest assumption:** The assumption most likely to be false and what breaks if it is.
+
+    **Hidden assumptions:** What does this proposal take for granted that it never states? Identify 1-2 premises the author didn't notice they were making.
+
+    **Overlooked risks:** Risks or failure modes this proposal does not address.
+
+    ---
+
+    Then give your revised recommendation. You must either:
+    - Maintain your original position and explain why the other proposals didn't change your mind, or
+    - Update your position and state precisely what evidence or argument caused the update.
+
+    Do not split the difference. Do not soften disagreements. Be specific.
 
   synthesis: |
     You are an impartial judge synthesizing an architectural debate. You did not
