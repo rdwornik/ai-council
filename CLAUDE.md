@@ -18,11 +18,14 @@ pytest tests/ -m "not integration" -v
 
 ```
 src/
-  cli.py               — Click entry point; panel/synthesizer selection; PROVIDER_CLASSES dict
-  debate.py            — run_debate(); persona injection; blind voting via _anonymize_responses()
-  synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer
-  output.py            — save_to_file(); print_round_summary(); print_synthesis()
-  models.py            — Pure dataclasses: Question, ModelResponse, Round, DebateResult
+  cli.py               — Click entry point; PROVIDER_CLASSES dict; builds RunRequest, delegates to CouncilRunner
+  runner.py            — CouncilRunner.run(); build_all_providers(); determine_panel(); pick_synthesizer()
+  debate.py            — run_debate() → DebateOutcome; persona injection; blind voting via _anonymize_responses()
+  synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer → DebateResult
+  output.py            — save_to_file(); print_round_summary(); print_synthesis(); print_cost_summary()
+  models.py            — Dataclasses: Question, ModelResponse, Round, DebateOutcome, DebateResult, RunRequest, DebateMetrics
+  policy.py            — RunPolicy: min_panel_size, retry_on patterns, should_retry()
+  metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
   healthcheck.py       — run_health_checks(); pings all providers before debate starts
   inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive
   providers/
@@ -35,7 +38,7 @@ src/
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-tests/                 — 72 unit tests + 1 integration test
+tests/                 — 79 unit tests + 1 integration test
 ```
 
 ## Dev standards
@@ -71,16 +74,21 @@ python -m src.cli "question" --rounds 1 --verbose
 
 ## Key design decisions
 
-- **Panel system**: `_determine_panel()` in cli.py; `--models` wins over `--full` wins over default
+- **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full` wins over default
 - **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
-- **Non-participating synthesizer**: `_pick_non_participant_synthesizer()` picks a model outside the panel; falls back with `is_participant=True` if none available
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; falls back with `is_participant=True` if none available
 - **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `settings.yaml`
+- **RunPolicy**: Retry logic (`retry_on` patterns, `min_panel_size`) decoupled from debate logic; passed into `run_debate()`
+- **DebateOutcome**: `run_debate()` returns `DebateOutcome` (rounds + degradation fields); not `list[Round]`
+- **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`
+- **provider_statuses**: Dict tracking per-provider `"ok"` | `"failed"` — surfaced in output and saved to markdown
+- **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
 
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 72 unit tests, no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 79 unit tests, no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
@@ -131,3 +139,9 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - No `pytest-cov` configured for coverage reporting
 - `mypy` not installed — no static type checking in CI
 - DeepSeek API key may not be available in current environment
+
+
+## Global Skills
+Before modifying code, consult ~/.claude/skills/gotchas/ for known ecosystem traps.
+After pytest passes, check ~/.claude/skills/verify/ for verification scripts.
+
