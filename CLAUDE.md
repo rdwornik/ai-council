@@ -38,7 +38,7 @@ src/
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-tests/                 — 79 unit tests + 1 integration test
+tests/                 — 121 unit tests + 1 integration test
 ```
 
 ## Dev standards
@@ -88,7 +88,7 @@ python -m src.cli "question" --rounds 1 --verbose
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 79 unit tests, no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 121 unit tests, no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
