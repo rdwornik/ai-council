@@ -2,10 +2,10 @@
 
 import pytest
 
-from src.cli import (
-    _determine_panel,
-    _exclude_synthesizer_from_panel,
-    _pick_non_participant_synthesizer,
+from src.runner import (
+    determine_panel as _determine_panel,
+    exclude_synthesizer_from_panel as _exclude_synthesizer_from_panel,
+    pick_synthesizer as _pick_non_participant_synthesizer,
 )
 from tests.conftest import MockProvider
 

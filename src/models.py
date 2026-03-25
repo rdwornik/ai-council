@@ -1,6 +1,12 @@
 """Pure dataclasses for the AI Council debate pipeline. No logic, no deps."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.policy import RunPolicy
 
 
 @dataclass
@@ -49,6 +55,20 @@ class DebateMetrics:
     total_output_tokens: int = 0
     total_estimated_cost_usd: float = 0.0
     total_duration_sec: float = 0.0
+
+
+@dataclass
+class RunRequest:
+    """Fully resolved parameters for a single debate run. Built by cli.py."""
+
+    question: Question
+    panel_names: list[str]
+    synthesizer_name: str
+    rounds: int
+    policy: RunPolicy
+    panel_mode: str = "default"  # "default", "full", "custom"
+    synthesizer_specified: bool = False  # True if user explicitly chose synthesizer
+    slug_override: str | None = None  # inbox file stem → deterministic output filename
 
 
 @dataclass
