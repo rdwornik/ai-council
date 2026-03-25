@@ -4,7 +4,7 @@ import logging
 
 from config.config_loader import AppConfig, ModelConfig
 from src.debate import run_debate
-from src.models import DebateResult, RunRequest
+from src.models import DebateOutcome, DebateResult, RunRequest
 from src.output import print_cost_summary, print_round_summary, print_synthesis, save_to_file
 from src.policy import RunPolicy
 from src.providers.base import AIProvider
@@ -158,27 +158,31 @@ class CouncilRunner:
                 )
 
             debate_task = progress.add_task("Running debate rounds...", total=None)
-            debate_rounds = await run_debate(
+            outcome: DebateOutcome = await run_debate(
                 question=request.question,
                 providers=panel_providers,
                 prompts=self._config.prompts,
                 num_rounds=request.rounds,
                 on_round_complete=on_round_complete,
+                policy=request.policy,
             )
             progress.update(debate_task, description="Running synthesis...")
 
             result = await synthesize(
                 question=request.question,
-                rounds=debate_rounds,
+                rounds=outcome.rounds,
                 synthesizer=synthesizer,
                 prompts=self._config.prompts,
                 debate_start_time=debate_start,
                 panel_mode=request.panel_mode,
                 synthesizer_is_participant=is_participant,
                 model_configs=self._config.models,
+                degraded=outcome.degraded,
+                degradation_summary=outcome.degradation_summary,
+                provider_statuses=outcome.provider_statuses,
             )
 
-        for rnd in debate_rounds:
+        for rnd in outcome.rounds:
             print_round_summary(rnd.number, rnd.responses)
 
         print_synthesis(result)

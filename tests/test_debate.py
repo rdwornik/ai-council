@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 from config.config_loader import ModelConfig
 from src.debate import _anonymize_responses, run_debate
-from src.models import ModelResponse, Question, Round
+from src.models import DebateOutcome, ModelResponse, Question, Round
 from src.providers.base import ProviderError
 from tests.conftest import MockProvider
 
@@ -53,15 +53,16 @@ def test_anonymize_responses_mapping_covers_all_providers():
 async def test_run_debate_single_round(
     two_mock_providers, sample_prompts_config, sample_question
 ):
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=two_mock_providers,
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert len(rounds) == 1
-    assert rounds[0].number == 1
-    assert len(rounds[0].responses) == 2
+    assert isinstance(outcome, DebateOutcome)
+    assert len(outcome.rounds) == 1
+    assert outcome.rounds[0].number == 1
+    assert len(outcome.rounds[0].responses) == 2
 
 
 async def test_run_debate_two_rounds(
@@ -79,14 +80,14 @@ async def test_run_debate_two_rounds(
             ]
         )
 
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=two_mock_providers,
         prompts=sample_prompts_config,
         num_rounds=2,
     )
-    assert len(rounds) == 2
-    assert rounds[1].number == 2
+    assert len(outcome.rounds) == 2
+    assert outcome.rounds[1].number == 2
 
 
 async def test_run_debate_injects_persona_in_round1(
@@ -116,7 +117,7 @@ async def test_run_debate_injects_persona_in_round1(
     provider1 = CapturingProvider("mock")
     provider2 = CapturingProvider("mock2")
 
-    await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=[provider1, provider2],
         prompts=sample_prompts_config,
@@ -125,6 +126,7 @@ async def test_run_debate_injects_persona_in_round1(
 
     # The persona for "mock" is "Be a mock architect." (from sample_prompts_config fixture)
     assert any("Be a mock architect." in p for p in captured_prompts)
+    assert isinstance(outcome, DebateOutcome)
 
 
 async def test_run_debate_critique_uses_anonymized_placeholder(
@@ -191,15 +193,15 @@ async def test_run_debate_critique_uses_anonymized_placeholder(
             ]
         )
 
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=two_mock_providers,
         prompts=sample_prompts_config,
         num_rounds=2,
     )
-    assert len(rounds) == 2
+    assert len(outcome.rounds) == 2
     # Ensure round 2 actually ran
-    assert rounds[1].number == 2
+    assert outcome.rounds[1].number == 2
 
 
 async def test_run_debate_on_round_complete_callback(
@@ -210,7 +212,7 @@ async def test_run_debate_on_round_complete_callback(
     def callback(rnd: Round) -> None:
         completed.append(rnd.number)
 
-    await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=two_mock_providers,
         prompts=sample_prompts_config,
@@ -218,6 +220,7 @@ async def test_run_debate_on_round_complete_callback(
         on_round_complete=callback,
     )
     assert completed == [1, 2]
+    assert isinstance(outcome, DebateOutcome)
 
 
 async def test_run_debate_skips_failed_provider(sample_prompts_config, sample_question):
@@ -225,15 +228,15 @@ async def test_run_debate_skips_failed_provider(sample_prompts_config, sample_qu
     bad = MockProvider("bad", "")
     bad.generate = AsyncMock(side_effect=ProviderError("bad", "API error"))
 
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=[good, bad],
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert len(rounds) == 1
-    assert len(rounds[0].responses) == 1
-    assert rounds[0].responses[0].provider == "good"
+    assert len(outcome.rounds) == 1
+    assert len(outcome.rounds[0].responses) == 1
+    assert outcome.rounds[0].responses[0].provider == "good"
 
 
 async def test_run_debate_raises_if_all_fail(sample_prompts_config, sample_question):
@@ -284,13 +287,13 @@ async def test_retry_succeeds_on_second_attempt(sample_prompts_config, sample_qu
 
     slow.generate = AsyncMock(side_effect=timeout_then_succeed)
 
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=[good, slow],
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert len(rounds[0].responses) == 2
+    assert len(outcome.rounds[0].responses) == 2
     assert call_count == 2  # initial attempt + one retry
 
 
@@ -305,14 +308,14 @@ async def test_retry_excluded_after_second_timeout(
         side_effect=ProviderError("slow", "Request timed out after 10s")
     )
 
-    rounds = await run_debate(
+    outcome = await run_debate(
         question=sample_question,
         providers=[good, slow],
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert len(rounds[0].responses) == 1
-    assert rounds[0].responses[0].provider == "good"
+    assert len(outcome.rounds[0].responses) == 1
+    assert outcome.rounds[0].responses[0].provider == "good"
 
 
 async def test_retry_uses_15x_timeout(sample_prompts_config, sample_question):
@@ -357,13 +360,14 @@ async def test_quality_gate_warns_when_too_few_respond(
     p4.generate = AsyncMock(side_effect=ProviderError("p4", "fail"))
 
     with caplog.at_level(logging.WARNING):
-        await run_debate(
+        outcome = await run_debate(
             question=sample_question,
             providers=[p1, p2, p3, p4],
             prompts=sample_prompts_config,
             num_rounds=1,
         )
 
+    assert isinstance(outcome, DebateOutcome)
     assert any("Only 2/4" in msg for msg in caplog.messages)
     assert any("Debate quality is degraded" in msg for msg in caplog.messages)
 
@@ -401,3 +405,74 @@ async def test_quality_gate_silent_when_enough_respond(
         )
 
     assert not any("Debate quality is degraded" in msg for msg in caplog.messages)
+
+
+# --- DebateOutcome degradation tests ---
+
+
+async def test_run_debate_returns_outcome_with_statuses(
+    two_mock_providers, sample_prompts_config, sample_question
+):
+    """Successful run populates provider_statuses as 'ok' for all providers."""
+    outcome = await run_debate(
+        question=sample_question,
+        providers=two_mock_providers,
+        prompts=sample_prompts_config,
+        num_rounds=1,
+    )
+    assert outcome.degraded is False
+    assert outcome.degradation_summary is None
+    for p in two_mock_providers:
+        assert outcome.provider_statuses[p.name()] == "ok"
+
+
+async def test_run_debate_failed_provider_marked_in_statuses(
+    sample_prompts_config, sample_question
+):
+    """A provider that always fails is marked 'failed' in provider_statuses."""
+    good = MockProvider("good", "Good response")
+    bad = MockProvider("bad", "")
+    bad.generate = AsyncMock(side_effect=ProviderError("bad", "API error"))
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[good, bad],
+        prompts=sample_prompts_config,
+        num_rounds=1,
+    )
+    assert outcome.provider_statuses["good"] == "ok"
+    assert outcome.provider_statuses["bad"] == "failed"
+
+
+async def test_run_debate_round2_all_fail_returns_partial(
+    sample_prompts_config, sample_question
+):
+    """Round 2+ all-fail returns DebateOutcome with degraded=True instead of raising."""
+    p1 = MockProvider("p1", "Round 1 response")
+    p2 = MockProvider("p2", "Round 1 response")
+
+    async def p1_generate(prompt: str, round_number: int) -> ModelResponse:
+        if round_number == 1:
+            return ModelResponse("p1", "mock-model", round_number, "Round 1 from p1", 0.1, 5)
+        raise ProviderError("p1", "fail round 2")
+
+    async def p2_generate(prompt: str, round_number: int) -> ModelResponse:
+        if round_number == 1:
+            return ModelResponse("p2", "mock-model", round_number, "Round 1 from p2", 0.1, 5)
+        raise ProviderError("p2", "fail round 2")
+
+    p1.generate = AsyncMock(side_effect=p1_generate)
+    p2.generate = AsyncMock(side_effect=p2_generate)
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[p1, p2],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+
+    assert outcome.degraded is True
+    assert outcome.degradation_summary is not None
+    assert "round 2" in outcome.degradation_summary.lower()
+    assert len(outcome.rounds) == 1  # only round 1 completed
+    assert outcome.rounds[0].number == 1

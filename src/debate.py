@@ -6,7 +6,8 @@ import random
 from collections.abc import Callable
 
 from config.config_loader import PromptsConfig
-from src.models import ModelResponse, Question, Round
+from src.models import DebateOutcome, ModelResponse, Question, Round
+from src.policy import RunPolicy
 from src.providers.base import AIProvider, ProviderError
 
 logger = logging.getLogger(__name__)
@@ -37,15 +38,16 @@ async def _call_provider(
     provider: AIProvider,
     prompt: str,
     round_number: int,
+    policy: RunPolicy,
 ) -> ModelResponse | ProviderError:
-    """Call a single provider, retrying once on timeout with 1.5x the timeout.
+    """Call a single provider, retrying once on retryable errors with 1.5x the timeout.
 
     Never raises — returns ProviderError on permanent failure.
     """
     try:
         return await provider.generate(prompt, round_number)
     except ProviderError as exc:
-        if "timed out" in str(exc).lower():
+        if policy.should_retry(str(exc)):
             # Retry once with 1.5x timeout by temporarily patching provider config
             cfg = getattr(provider, "_config", None)
             original_timeout: int | None = None
@@ -110,7 +112,8 @@ async def run_debate(
     prompts: PromptsConfig,
     num_rounds: int,
     on_round_complete: Callable[[Round], None] | None = None,
-) -> list[Round]:
+    policy: RunPolicy | None = None,
+) -> DebateOutcome:
     """Run the full debate across all rounds.
 
     Args:
@@ -119,14 +122,17 @@ async def run_debate(
         prompts: Prompt templates from config (carries personas dict).
         num_rounds: Total number of debate rounds.
         on_round_complete: Optional callback invoked after each round completes.
+        policy: Retry/abort policy. Defaults to RunPolicy.default().
 
     Returns:
-        List of Round objects, one per round.
+        DebateOutcome with rounds and degradation metadata.
 
     Raises:
-        RuntimeError: If all providers fail in a round.
+        RuntimeError: If all providers fail in round 1.
     """
+    _policy = policy or RunPolicy.default()
     rounds: list[Round] = []
+    provider_statuses: dict[str, str] = {p.name(): "failed" for p in providers}
 
     for round_num in range(1, num_rounds + 1):
         if round_num == 1:
@@ -154,18 +160,33 @@ async def run_debate(
         logger.info("Starting round %d with %d providers", round_num, len(providers))
 
         tasks = [
-            _call_provider(p, prompts_for_round[p.name()], round_num) for p in providers
+            _call_provider(p, prompts_for_round[p.name()], round_num, _policy)
+            for p in providers
         ]
         results = await asyncio.gather(*tasks)
 
         responses: list[ModelResponse] = []
-        for result in results:
+        for provider, result in zip(providers, results):
             if isinstance(result, ModelResponse):
                 responses.append(result)
+                provider_statuses[provider.name()] = "ok"
             # ProviderError already logged in _call_provider
 
         if not responses:
-            raise RuntimeError(f"All providers failed in round {round_num}")
+            if round_num == 1:
+                raise RuntimeError(f"All providers failed in round {round_num}")
+            # Round 2+: return partial results rather than aborting entirely
+            degradation_summary = (
+                f"All providers failed in round {round_num}. "
+                f"Returning {len(rounds)} completed round(s)."
+            )
+            logger.warning("Degraded debate: %s", degradation_summary)
+            return DebateOutcome(
+                rounds=rounds,
+                degraded=True,
+                degradation_summary=degradation_summary,
+                provider_statuses=provider_statuses,
+            )
 
         # Quality gate: warn when Round 1 has low participation on a large panel
         if (
@@ -193,4 +214,4 @@ async def run_debate(
         if on_round_complete:
             on_round_complete(current_round)
 
-    return rounds
+    return DebateOutcome(rounds=rounds, provider_statuses=provider_statuses)

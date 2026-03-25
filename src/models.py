@@ -34,6 +34,16 @@ class Round:
 
 
 @dataclass
+class DebateOutcome:
+    """Result of the debate phase, before synthesis. Returned by run_debate()."""
+
+    rounds: list[Round] = field(default_factory=list)
+    degraded: bool = False
+    degradation_summary: str | None = None
+    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
+
+
+@dataclass
 class ProviderCallMetrics:
     """Cost and performance metrics for a single provider API call."""
 
@@ -80,4 +90,7 @@ class DebateResult:
     total_duration_sec: float
     panel_mode: str = "default"  # "default", "full", "custom"
     synthesizer_is_participant: bool = False
+    degraded: bool = False
+    degradation_summary: str | None = None
+    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
     metrics: DebateMetrics | None = None  # populated after all calls complete

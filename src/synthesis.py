@@ -31,6 +31,9 @@ async def synthesize(
     panel_mode: str = "default",
     synthesizer_is_participant: bool = False,
     model_configs: dict[str, ModelConfig] | None = None,
+    degraded: bool = False,
+    degradation_summary: str | None = None,
+    provider_statuses: dict[str, str] | None = None,
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -88,5 +91,8 @@ async def synthesize(
         total_duration_sec=total_duration,
         panel_mode=panel_mode,
         synthesizer_is_participant=synthesizer_is_participant,
+        degraded=degraded,
+        degradation_summary=degradation_summary,
+        provider_statuses=provider_statuses or {},
         metrics=metrics,
     )

@@ -54,6 +54,14 @@ def print_round_summary(round_num: int, responses: list[ModelResponse]) -> None:
 
 def print_synthesis(result: DebateResult) -> None:
     """Print the full synthesis to the console using Rich markdown."""
+    if result.degraded:
+        console.print(
+            Panel(
+                f"[bold yellow]DEGRADED RUN[/bold yellow]\n"
+                f"{result.degradation_summary or 'Some providers failed during the debate.'}",
+                border_style="yellow",
+            )
+        )
     console.print(Rule("[bold green]Council Synthesis[/bold green]"))
     synth_label = result.synthesizer
     if result.synthesizer_is_participant:
@@ -180,6 +188,12 @@ def save_to_file(
     ]
     if cost_line:
         lines.append(cost_line)
+    if result.degraded:
+        failed = [k for k, v in result.provider_statuses.items() if v == "failed"]
+        degradation_note = result.degradation_summary or "Some providers failed during the debate."
+        lines.append(f"**Status:** DEGRADED — {degradation_note}")
+        if failed:
+            lines.append(f"**Failed providers:** {', '.join(failed)}")
     lines += [
         "",
         "---",
