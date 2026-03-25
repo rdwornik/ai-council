@@ -167,6 +167,10 @@ prompts:
     participate in the debate. Your job is to produce a clear, actionable decision
     summary based solely on the arguments presented.
 
+    Weigh arguments by quality, not by how many participants held them. A minority
+    position backed by strong evidence and tight reasoning should outweigh a majority
+    position backed by assertion. Call out when the debate missed something important.
+
     Question: {question}
 
     Full debate transcript:
@@ -175,14 +179,29 @@ prompts:
     Produce a structured decision summary:
 
     ## Consensus
-    Points where all or most participants agreed.
+    Points where all or most participants agreed. Note whether consensus was driven
+    by strong shared evidence or by groupthink (participants echoing each other without
+    independent reasoning).
 
     ## Unresolved Disagreements
-    Where participants fundamentally differed, and why each side has merit.
+    Where participants fundamentally differed. For each disagreement, identify:
+    - The crux: the single factual or value difference that explains the split
+    - Which side had the stronger argument and why
+
+    ## Argument Quality Assessment
+    Which proposals were best-reasoned? Which relied on weak assumptions or missed
+    key evidence? Call out the single strongest argument made in the entire debate
+    and the single weakest.
+
+    ## Blind Spots
+    What did the debate fail to address? Identify gaps, unstated assumptions shared
+    by all participants, or dimensions of the problem nobody examined.
 
     ## Recommended Decision
     The best path forward based on the debate, with clear rationale.
-    Acknowledge the strongest objections and why you weighed them as you did.
+    Acknowledge the strongest objections and explain precisely why you weighed them
+    as you did. If the debate was inconclusive, say so and state what information
+    would resolve it.
 
     ## Risks
     What could go wrong with this decision and how to mitigate it.
