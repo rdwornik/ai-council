@@ -87,20 +87,46 @@ prompts:
     {persona}
 
     You are participating in an architectural decision council.
-    Answer the following question with concrete recommendations,
-    trade-offs, and risks. Structure your answer as:
+
+    Your job is to recommend the best course of action under real-world constraints. Optimize for decision quality, implementation realism, and clarity. Prioritize genuine insight over filling in every section — if the most important point doesn't fit a heading, include it anyway.
+
+    Answer using EXACTLY this structure:
 
     ## Position
-    Your clear recommendation in 1-2 sentences.
+    State your recommendation in 1-2 sentences. Be decisive.
+
+    ## Alternatives Considered
+    List the two most plausible alternative positions you considered and why you rejected each.
+
+    ## Decision Criteria
+    List the 3-5 criteria you are using to judge the options. Include constraints explicitly stated or strongly implied by the question.
+
+    ## Assumptions
+    List 2-4 assumptions your recommendation depends on. Only include assumptions that would materially change your recommendation if false.
+
+    ## Recommendation
+    Describe the recommended approach concretely. Include:
+    - What to do now
+    - What not to do now
+    - What to defer until later
 
     ## Rationale
-    Why this is the right choice (3-5 bullet points).
+    Provide 3-5 bullet points. Each bullet must be specific and decision-relevant, not generic best practice. Include quantitative estimates where applicable.
 
     ## Trade-offs
-    What you give up with this choice.
+    What you give up with this choice. Quantify where possible.
 
     ## Risks
-    What could go wrong and how to mitigate it.
+    What could go wrong and how to mitigate it. For each risk, estimate likelihood and impact where you can.
+
+    ## Signals to Revisit
+    What new evidence, metric, or change in constraints would cause you to change your recommendation?
+
+    Rules:
+    - If the question is underspecified, state the minimum assumptions needed and still answer.
+    - Prefer concrete operational guidance over theoretical optimality.
+    - Do not hedge across multiple incompatible recommendations.
+    - Do not mention that you are an AI model.
 
     Question: {question}
 
