@@ -18,7 +18,7 @@ models:
     timeout_sec: 180
     max_tokens: 16384 # zwiększone z 8192 → lepsze odpowiedzi
     cost_per_1m_input: 2.00
-    cost_per_1m_output: 10.00
+    cost_per_1m_output: 12.00
 
   openai:
     sdk: "openai"
@@ -26,8 +26,8 @@ models:
     api_key_env: "OPENAI_API_KEY"
     timeout_sec: 180
     max_tokens: 16384
-    cost_per_1m_input: 1.75
-    cost_per_1m_output: 14.00
+    cost_per_1m_input: 2.50
+    cost_per_1m_output: 15.00
 
   claude:
     sdk: "anthropic"
@@ -35,8 +35,8 @@ models:
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_sec: 240
     max_tokens: 16384
-    cost_per_1m_input: 15.00
-    cost_per_1m_output: 75.00
+    cost_per_1m_input: 5.00
+    cost_per_1m_output: 25.00
 
   grok:
     sdk: "openai-compatible"
@@ -55,8 +55,8 @@ models:
     base_url: "https://api.deepseek.com/v1"
     timeout_sec: 300
     max_tokens: 16384
-    cost_per_1m_input: 0.55
-    cost_per_1m_output: 2.19
+    cost_per_1m_input: 0.30
+    cost_per_1m_output: 0.50
 
 personas:
   claude: |
