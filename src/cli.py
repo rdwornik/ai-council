@@ -17,7 +17,7 @@ from src.debate import run_debate
 from src.healthcheck import run_health_checks
 from src.inbox import archive_file, ensure_dirs, parse_file, scan_inbox
 from src.models import Question, Round
-from src.output import print_round_summary, print_synthesis, save_to_file
+from src.output import print_cost_summary, print_round_summary, print_synthesis, save_to_file
 from src.providers.anthropic import AnthropicProvider
 from src.providers.base import AIProvider
 from src.providers.deepseek import DeepSeekProvider
@@ -255,12 +255,16 @@ async def _run_single(
             debate_start_time=debate_start,
             panel_mode=panel_mode,
             synthesizer_is_participant=is_participant,
+            model_configs=config.models,
         )
 
     for rnd in debate_rounds:
         print_round_summary(rnd.number, rnd.responses)
 
     print_synthesis(result)
+
+    if result.metrics:
+        print_cost_summary(result.metrics)
 
     saved_path = save_to_file(result, output_dir, slug_override=slug_override)
     console.print(f"\n[dim]Saved to: {saved_path}[/dim]")
@@ -304,7 +308,7 @@ async def _run_inbox(
             models_cli
             if models_cli is not None
             else str(meta["models"])
-            if "models" in meta
+            if "models" in meta and not full_cli
             else None
         )
         effective_full = full_cli or bool(meta.get("full", False))

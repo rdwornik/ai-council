@@ -60,9 +60,13 @@ class AnthropicProvider(AIProvider):
 
         content = "\n".join(text_blocks)
 
+        input_tokens: int | None = None
+        output_tokens: int | None = None
         token_count: int | None = None
         if response.usage:
-            token_count = response.usage.input_tokens + response.usage.output_tokens
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+            token_count = input_tokens + output_tokens
 
         logger.info(
             "Anthropic round %d: %.2fs, %s tokens",
@@ -78,4 +82,6 @@ class AnthropicProvider(AIProvider):
             content=content,
             latency_sec=latency,
             token_count=token_count,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )

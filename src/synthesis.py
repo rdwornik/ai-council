@@ -3,7 +3,8 @@
 import logging
 import time
 
-from config.config_loader import PromptsConfig
+from config.config_loader import ModelConfig, PromptsConfig
+from src.metrics import build_call_metrics, build_debate_metrics
 from src.models import DebateResult, ModelResponse, Question, Round
 from src.providers.base import AIProvider
 
@@ -29,6 +30,7 @@ async def synthesize(
     debate_start_time: float,
     panel_mode: str = "default",
     synthesizer_is_participant: bool = False,
+    model_configs: dict[str, ModelConfig] | None = None,
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -67,6 +69,17 @@ async def synthesize(
 
     total_duration = time.monotonic() - debate_start_time
 
+    metrics = None
+    if model_configs is not None:
+        synthesis_metrics = build_call_metrics(
+            synthesis_response,
+            model_configs,
+            round_number=0,  # 0 = synthesis call
+        )
+        metrics = build_debate_metrics(
+            rounds, synthesis_metrics, model_configs, total_duration
+        )
+
     return DebateResult(
         question=question,
         rounds=rounds,
@@ -75,4 +88,5 @@ async def synthesize(
         total_duration_sec=total_duration,
         panel_mode=panel_mode,
         synthesizer_is_participant=synthesizer_is_participant,
+        metrics=metrics,
     )

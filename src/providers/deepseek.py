@@ -59,8 +59,12 @@ class DeepSeekProvider(AIProvider):
         if not choice or not choice.message.content:
             raise ProviderError(self._config.name, "Empty response content")
 
+        input_tokens: int | None = None
+        output_tokens: int | None = None
         token_count: int | None = None
         if response.usage:
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
             token_count = response.usage.total_tokens
 
         logger.info(
@@ -77,4 +81,6 @@ class DeepSeekProvider(AIProvider):
             content=choice.message.content,
             latency_sec=latency,
             token_count=token_count,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )

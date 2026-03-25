@@ -1,5 +1,6 @@
 """Rich console output and markdown file save for debate results."""
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -9,8 +10,9 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
+from rich.tree import Tree
 
-from src.models import DebateResult, ModelResponse
+from src.models import DebateMetrics, DebateResult, ModelResponse
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,44 @@ def print_synthesis(result: DebateResult) -> None:
     console.print(Markdown(result.synthesis))
 
 
+def print_cost_summary(metrics: DebateMetrics) -> None:
+    """Print a cost breakdown tree to the console."""
+    tree = Tree("[bold]Cost Summary[/bold]")
+
+    # Group debate calls by round
+    by_round: dict[int, list] = {}
+    synthesis_call = None
+    for call in metrics.calls:
+        if call.round_number == 0:
+            synthesis_call = call
+        else:
+            by_round.setdefault(call.round_number, []).append(call)
+
+    for rnd_num in sorted(by_round):
+        calls = by_round[rnd_num]
+        rnd_tokens = sum(c.input_tokens + c.output_tokens for c in calls)
+        rnd_cost = sum(c.estimated_cost_usd for c in calls)
+        tree.add(
+            f"Round {rnd_num}: [green]${rnd_cost:.4f}[/green]"
+            f" ({len(calls)} providers, {rnd_tokens:,} tokens)"
+        )
+
+    if synthesis_call:
+        synth_tokens = synthesis_call.input_tokens + synthesis_call.output_tokens
+        tree.add(
+            f"Synthesis: [green]${synthesis_call.estimated_cost_usd:.4f}[/green]"
+            f" (1 provider, {synth_tokens:,} tokens)"
+        )
+
+    total_tokens = metrics.total_input_tokens + metrics.total_output_tokens
+    tree.add(
+        f"[bold]Total: [green]${metrics.total_estimated_cost_usd:.4f}[/green][/bold]"
+        f" ({total_tokens:,} tokens, {metrics.total_duration_sec:.1f}s)"
+    )
+
+    console.print(Panel(tree, border_style="dim"))
+
+
 def save_to_file(
     result: DebateResult, output_dir: Path, slug_override: str | None = None
 ) -> Path:
@@ -122,6 +162,11 @@ def save_to_file(
     else:
         mode_str = "custom"
 
+    cost_line = ""
+    if result.metrics:
+        total_tokens = result.metrics.total_input_tokens + result.metrics.total_output_tokens
+        cost_line = f"**Cost:** ~${result.metrics.total_estimated_cost_usd:.4f} ({total_tokens:,} tokens)"
+
     lines: list[str] = [
         f"# AI Council Debate: {result.question.text[:80]}",
         "",
@@ -132,6 +177,10 @@ def save_to_file(
         f"**Duration:** {result.total_duration_sec:.1f}s",
         f"**Mode:** {mode_str}",
         f"**Source:** {result.question.source}",
+    ]
+    if cost_line:
+        lines.append(cost_line)
+    lines += [
         "",
         "---",
         "",
@@ -165,4 +214,39 @@ def save_to_file(
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
     logger.info("Debate saved to: %s", filepath)
+
+    if result.metrics:
+        _save_metrics_json(result, filepath)
+
     return filepath
+
+
+def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
+    """Save detailed metrics as a JSON file alongside the transcript."""
+    assert result.metrics is not None
+    m = result.metrics
+    payload = {
+        "debate_id": transcript_path.stem,
+        "total_input_tokens": m.total_input_tokens,
+        "total_output_tokens": m.total_output_tokens,
+        "total_tokens": m.total_input_tokens + m.total_output_tokens,
+        "total_estimated_cost_usd": round(m.total_estimated_cost_usd, 6),
+        "total_duration_sec": round(m.total_duration_sec, 2),
+        "calls": [
+            {
+                "provider": c.provider,
+                "round_number": c.round_number,
+                "input_tokens": c.input_tokens,
+                "output_tokens": c.output_tokens,
+                "estimated_cost_usd": round(c.estimated_cost_usd, 6),
+                "latency_sec": round(c.latency_sec, 3),
+                "was_retry": c.was_retry,
+            }
+            for c in m.calls
+        ],
+    }
+    metrics_path = transcript_path.with_suffix("").with_name(
+        transcript_path.stem + "_metrics.json"
+    )
+    metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    logger.info("Metrics saved to: %s", metrics_path)

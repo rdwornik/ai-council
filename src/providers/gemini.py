@@ -57,9 +57,21 @@ class GeminiProvider(AIProvider):
         if not response.text:
             raise ProviderError(self._config.name, "Empty response text")
 
+        input_tokens: int | None = None
+        output_tokens: int | None = None
         token_count: int | None = None
         if response.usage_metadata:
-            token_count = response.usage_metadata.total_token_count
+            input_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
+            output_tokens = getattr(
+                response.usage_metadata, "candidates_token_count", None
+            )
+            total = response.usage_metadata.total_token_count
+            token_count = total
+            # Derive missing split from total if only one side is available
+            if input_tokens is not None and output_tokens is None and total is not None:
+                output_tokens = total - input_tokens
+            elif output_tokens is not None and input_tokens is None and total is not None:
+                input_tokens = total - output_tokens
 
         logger.info(
             "Gemini round %d: %.2fs, %s tokens",
@@ -75,4 +87,6 @@ class GeminiProvider(AIProvider):
             content=response.text,
             latency_sec=latency,
             token_count=token_count,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )

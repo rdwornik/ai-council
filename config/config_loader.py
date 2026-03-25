@@ -21,6 +21,8 @@ class ModelConfig:
     timeout_sec: int
     max_tokens: int
     base_url: str | None = None
+    cost_per_1m_input: float = 0.0   # USD per 1M input tokens
+    cost_per_1m_output: float = 0.0  # USD per 1M output tokens
 
 
 @dataclass
@@ -100,6 +102,8 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             timeout_sec=int(model_raw["timeout_sec"]),
             max_tokens=int(model_raw["max_tokens"]),
             base_url=model_raw.get("base_url"),
+            cost_per_1m_input=float(model_raw.get("cost_per_1m_input", 0.0)),
+            cost_per_1m_output=float(model_raw.get("cost_per_1m_output", 0.0)),
         )
         models[provider_name] = model_cfg
 
