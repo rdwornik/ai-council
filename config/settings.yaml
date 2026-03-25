@@ -3,8 +3,8 @@ defaults:
   max_rounds: 3
   output_dir: "./output"
   synthesizer: "claude"
-  default_panel: ["claude", "gemini", "deepseek"]
-  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]
+  default_panel: ["claude", "gemini", "openai"]  # Systems + Security + Product; best for most decisions
+  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]  # add Performance + Contrarian for high-stakes debates
 
 inbox:
   dir: "./council_inbox"
