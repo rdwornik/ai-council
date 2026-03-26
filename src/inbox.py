@@ -1,10 +1,31 @@
 """Inbox folder scanning, frontmatter parsing, and archive logic."""
 
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 import frontmatter
+
+# Matches optional FAILED_ prefix and optional YYYY-MM-DDTHHMM_ timestamp prefix.
+# Group 1 captures everything after those prefixes.
+_SLUG_PREFIX_RE = re.compile(r"^(?:FAILED_)?(?:\d{4}-\d{2}-\d{2}T\d{4}_)?(.+)$")
+
+
+def clean_slug(filename_stem: str) -> str:
+    """Strip FAILED_ and timestamp prefixes from a filename stem.
+
+    Only strips FAILED_ when it is a leading prefix (not mid-filename).
+    Only strips a timestamp when it directly follows the FAILED_ prefix or starts the name.
+
+    Examples:
+        FAILED_2026-03-26T1200_question  -> question
+        2026-03-26T1200_question         -> question
+        question                         -> question
+        failure_analysis                 -> failure_analysis  (not stripped)
+    """
+    m = _SLUG_PREFIX_RE.match(filename_stem)
+    return m.group(1) if m else filename_stem
 
 
 def ensure_dirs(inbox_dir: Path, archive_dir: Path) -> None:

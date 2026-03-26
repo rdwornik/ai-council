@@ -12,7 +12,7 @@ from rich.logging import RichHandler
 
 from config.config_loader import load_config
 from src.healthcheck import run_health_checks
-from src.inbox import archive_file, ensure_dirs, parse_file, scan_inbox
+from src.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_inbox
 from src.models import Question, RunRequest
 from src.policy import RunPolicy
 from src.providers.anthropic import AnthropicProvider
@@ -188,7 +188,7 @@ def main(
                 policy=policy,
                 panel_mode=panel_mode,
                 synthesizer_specified=synthesizer is not None or "synthesizer" in meta,
-                slug_override=file_path.stem,
+                slug_override=clean_slug(file_path.stem),
             )
             try:
                 asyncio.run(runner.run(request, output_dir=effective_output))
