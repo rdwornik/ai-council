@@ -120,6 +120,12 @@ class CouncilRunner:
             self._providers, panel_names, synthesizer_name
         )
 
+        mode_config = self._config.modes.get(request.mode) if self._config.modes else None
+        persona_directives = (
+            self._config.persona_mode_directives.get(request.mode, {})
+            if self._config.persona_mode_directives else {}
+        )
+
         provider_names = [p.name() for p in panel_providers]
         synth_label = synthesizer.name() + (
             " (user-selected)" if request.synthesizer_specified
@@ -127,9 +133,11 @@ class CouncilRunner:
             else " (non-participant)"
         )
 
+        mode_emoji = mode_config.emoji if mode_config else ""
         console.print(
             f"\n[bold cyan]AI Council[/bold cyan] — {len(panel_providers)} models, "
-            f"{request.rounds} rounds [{request.panel_mode}]"
+            f"{request.rounds} rounds [{request.panel_mode}] "
+            f"{mode_emoji} {request.mode}"
         )
         console.print(f"Panel: {', '.join(provider_names)}")
         console.print(f"Synthesizer: {synth_label}")
@@ -165,6 +173,8 @@ class CouncilRunner:
                 num_rounds=request.rounds,
                 on_round_complete=on_round_complete,
                 policy=request.policy,
+                mode_config=mode_config,
+                persona_directives=persona_directives,
             )
             progress.update(debate_task, description="Running synthesis...")
 
@@ -180,6 +190,8 @@ class CouncilRunner:
                 degraded=outcome.degraded,
                 degradation_summary=outcome.degradation_summary,
                 provider_statuses=outcome.provider_statuses,
+                mode_config=mode_config,
+                debate_mode=request.mode,
             )
 
         for rnd in outcome.rounds:

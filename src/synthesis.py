@@ -3,7 +3,7 @@
 import logging
 import time
 
-from config.config_loader import ModelConfig, PromptsConfig
+from config.config_loader import ModeConfig, ModelConfig, PromptsConfig
 from src.metrics import build_call_metrics, build_debate_metrics
 from src.models import DebateResult, ModelResponse, Question, Round
 from src.providers.base import AIProvider
@@ -22,6 +22,32 @@ def _format_full_transcript(rounds: list[Round]) -> str:
     return "\n\n".join(parts)
 
 
+def _build_synthesis_prompt(
+    question_text: str,
+    transcript: str,
+    rounds: list[Round],
+    prompts: PromptsConfig,
+    mode_config: ModeConfig | None,
+) -> str:
+    """Build the synthesis prompt, respecting mode."""
+    if mode_config is None or mode_config.uses_existing_prompts:
+        return prompts.synthesis.format(
+            rounds=len(rounds),
+            question=question_text,
+            full_transcript=transcript,
+        )
+
+    # ideas / judge modes — custom synthesis structure
+    return (
+        "You are an impartial synthesizer. Your job: distill the council's "
+        "discussion into a clear, structured output.\n\n"
+        f"Question: {question_text}\n\n"
+        "Full debate transcript:\n"
+        f"{transcript}\n\n"
+        f"{mode_config.synthesis_output.strip()}"
+    )
+
+
 async def synthesize(
     question: Question,
     rounds: list[Round],
@@ -34,6 +60,8 @@ async def synthesize(
     degraded: bool = False,
     degradation_summary: str | None = None,
     provider_statuses: dict[str, str] | None = None,
+    mode_config: ModeConfig | None = None,
+    debate_mode: str = "pick",
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -45,6 +73,8 @@ async def synthesize(
         debate_start_time: monotonic time when the debate started (for duration).
         panel_mode: "default", "full", or "custom".
         synthesizer_is_participant: True if synthesizer was also in the debate panel.
+        mode_config: Mode-specific config; None or pick → uses existing prompts.synthesis.
+        debate_mode: Canonical mode name to carry into DebateResult.
 
     Returns:
         DebateResult with synthesis content.
@@ -54,10 +84,8 @@ async def synthesize(
         RuntimeError: If synthesizer returns empty content.
     """
     transcript = _format_full_transcript(rounds)
-    synthesis_prompt = prompts.synthesis.format(
-        rounds=len(rounds),
-        question=question.text,
-        full_transcript=transcript,
+    synthesis_prompt = _build_synthesis_prompt(
+        question.text, transcript, rounds, prompts, mode_config
     )
 
     logger.info("Running synthesis via %s", synthesizer.name())
@@ -90,6 +118,7 @@ async def synthesize(
         synthesizer=synthesizer.name(),
         total_duration_sec=total_duration,
         panel_mode=panel_mode,
+        mode=debate_mode,
         synthesizer_is_participant=synthesizer_is_participant,
         degraded=degraded,
         degradation_summary=degradation_summary,

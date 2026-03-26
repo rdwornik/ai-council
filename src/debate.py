@@ -5,7 +5,7 @@ import logging
 import random
 from collections.abc import Callable
 
-from config.config_loader import PromptsConfig
+from config.config_loader import ModeConfig, PromptsConfig
 from src.models import DebateOutcome, ModelResponse, Question, Round
 from src.policy import RunPolicy
 from src.providers.base import AIProvider, ProviderError
@@ -106,6 +106,81 @@ async def _call_provider(
         return err
 
 
+def _build_round1_prompt(
+    provider_name: str,
+    question_text: str,
+    prompts: PromptsConfig,
+    mode_config: ModeConfig | None,
+    persona_directives: dict[str, str],
+) -> str:
+    """Build the Round 1 prompt for a provider, respecting mode."""
+    persona = prompts.personas.get(provider_name, "")
+    directive = persona_directives.get(provider_name, "")
+
+    if mode_config is None or mode_config.uses_existing_prompts:
+        # pick mode — use existing template unchanged
+        return prompts.initial.format(persona=persona, question=question_text)
+
+    # ideas / judge modes — assemble from mode template fields
+    parts: list[str] = []
+    if directive:
+        parts.append(f"CRITICAL INSTRUCTION: {directive}")
+        parts.append("")
+    if persona:
+        parts.append(persona)
+        parts.append("")
+    if mode_config.round1_header:
+        parts.append(mode_config.round1_header)
+        parts.append("")
+    parts.append(mode_config.round1_instruction.strip())
+    if mode_config.round1_structure:
+        parts.append("")
+        parts.append(mode_config.round1_structure.strip())
+    parts.append("")
+    parts.append(f"Question: {question_text}")
+    return "\n".join(parts)
+
+
+def _build_round2_prompt(
+    provider_name: str,
+    round_num: int,
+    question_text: str,
+    anon_block: str,
+    prompts: PromptsConfig,
+    mode_config: ModeConfig | None,
+    persona_directives: dict[str, str],
+) -> str:
+    """Build Round 2+ prompts for a provider, respecting mode."""
+    persona = prompts.personas.get(provider_name, "")
+
+    if mode_config is None or mode_config.uses_existing_prompts:
+        # pick mode — use existing critique template unchanged
+        return prompts.critique.format(
+            persona=persona,
+            round=round_num,
+            question=question_text,
+            previous_responses_anonymized=anon_block,
+        )
+
+    # ideas / judge modes — assemble from mode template fields
+    parts: list[str] = []
+    if persona:
+        parts.append(persona)
+        parts.append("")
+    parts.append(f"You are participating in a council, round {round_num}.")
+    parts.append("")
+    parts.append(
+        "Below are anonymized contributions from other council members on this question:"
+    )
+    parts.append("")
+    parts.append(f"Question: {question_text}")
+    parts.append("")
+    parts.append(anon_block)
+    parts.append("")
+    parts.append(mode_config.round2_instruction.strip())
+    return "\n".join(parts)
+
+
 async def run_debate(
     question: Question,
     providers: list[AIProvider],
@@ -113,6 +188,8 @@ async def run_debate(
     num_rounds: int,
     on_round_complete: Callable[[Round], None] | None = None,
     policy: RunPolicy | None = None,
+    mode_config: ModeConfig | None = None,
+    persona_directives: dict[str, str] | None = None,
 ) -> DebateOutcome:
     """Run the full debate across all rounds.
 
@@ -123,6 +200,8 @@ async def run_debate(
         num_rounds: Total number of debate rounds.
         on_round_complete: Optional callback invoked after each round completes.
         policy: Retry/abort policy. Defaults to RunPolicy.default().
+        mode_config: Mode-specific prompt templates. None or pick → uses existing prompts.
+        persona_directives: Per-provider directive strings for this mode (pre-extracted).
 
     Returns:
         DebateOutcome with rounds and degradation metadata.
@@ -131,15 +210,15 @@ async def run_debate(
         RuntimeError: If all providers fail in round 1.
     """
     _policy = policy or RunPolicy.default()
+    _directives = persona_directives or {}
     rounds: list[Round] = []
     provider_statuses: dict[str, str] = {p.name(): "failed" for p in providers}
 
     for round_num in range(1, num_rounds + 1):
         if round_num == 1:
             prompts_for_round = {
-                p.name(): prompts.initial.format(
-                    persona=prompts.personas.get(p.name(), ""),
-                    question=question.text,
+                p.name(): _build_round1_prompt(
+                    p.name(), question.text, prompts, mode_config, _directives
                 )
                 for p in providers
             }
@@ -148,11 +227,8 @@ async def run_debate(
             anon_block, label_map = _anonymize_responses(previous_responses)
             logger.debug("Round %d anonymization map: %s", round_num, label_map)
             prompts_for_round = {
-                p.name(): prompts.critique.format(
-                    persona=prompts.personas.get(p.name(), ""),
-                    round=round_num,
-                    question=question.text,
-                    previous_responses_anonymized=anon_block,
+                p.name(): _build_round2_prompt(
+                    p.name(), round_num, question.text, anon_block, prompts, mode_config, _directives
                 )
                 for p in providers
             }
