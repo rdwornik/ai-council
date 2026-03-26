@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.inbox import archive_file, parse_file, scan_inbox
+from src.inbox import archive_file, clean_slug, parse_file, scan_inbox
 
 
 def test_parse_file_no_frontmatter(tmp_path: Path) -> None:
@@ -81,3 +81,53 @@ def test_scan_inbox_empty(tmp_path: Path) -> None:
     inbox.mkdir()
     result = scan_inbox(inbox)
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# clean_slug
+# ---------------------------------------------------------------------------
+
+
+def test_clean_slug_strips_failed_and_timestamp() -> None:
+    stem = "FAILED_2026-03-26T1200_council_mode_system_design"
+    assert clean_slug(stem) == "council_mode_system_design"
+
+
+def test_clean_slug_strips_timestamp_only() -> None:
+    stem = "2026-03-26T1200_council_mode_system_design"
+    assert clean_slug(stem) == "council_mode_system_design"
+
+
+def test_clean_slug_plain_filename() -> None:
+    assert clean_slug("question") == "question"
+
+
+def test_clean_slug_does_not_strip_failed_mid_filename() -> None:
+    """'failure_analysis' should NOT be treated as a FAILED_ prefix."""
+    assert clean_slug("failure_analysis") == "failure_analysis"
+
+
+def test_clean_slug_failed_without_timestamp() -> None:
+    """FAILED_ prefix alone (no timestamp) is stripped."""
+    assert clean_slug("FAILED_my_question") == "my_question"
+
+
+# ---------------------------------------------------------------------------
+# scan_inbox — archive exclusion
+# ---------------------------------------------------------------------------
+
+
+def test_scan_inbox_excludes_archive_subdir(tmp_path: Path) -> None:
+    """Files inside archive/ subdirectory are not returned by scan_inbox."""
+    inbox = tmp_path / "inbox"
+    archive = inbox / "archive"
+    inbox.mkdir()
+    archive.mkdir()
+
+    (inbox / "valid_question.md").write_text("Q", encoding="utf-8")
+    (archive / "FAILED_2026-03-26T1200_old_question.md").write_text("old", encoding="utf-8")
+
+    result = scan_inbox(inbox)
+    names = [p.name for p in result]
+    assert names == ["valid_question.md"]
+    assert not any("FAILED_" in n for n in names)
