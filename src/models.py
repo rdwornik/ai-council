@@ -79,6 +79,7 @@ class RunRequest:
     panel_mode: str = "default"  # "default", "full", "custom"
     synthesizer_specified: bool = False  # True if user explicitly chose synthesizer
     slug_override: str | None = None  # inbox file stem → deterministic output filename
+    mode: str = "pick"  # "pick", "ideas", "judge"
 
 
 @dataclass
@@ -89,6 +90,7 @@ class DebateResult:
     synthesizer: str  # Which model did synthesis
     total_duration_sec: float
     panel_mode: str = "default"  # "default", "full", "custom"
+    mode: str = "pick"  # "pick", "ideas", "judge"
     synthesizer_is_participant: bool = False
     degraded: bool = False
     degradation_summary: str | None = None
