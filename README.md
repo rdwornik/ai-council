@@ -67,7 +67,7 @@ You don't need all five. Any models with missing keys are skipped. You need at l
 | `ideas` | `i`, `brainstorm`, `creative`, `explore`, `e` | Brainstorm — many ideas, clusters, wild cards |
 | `judge` | `j`, `assess`, `evaluate`, `review`, `audit`, `a` | Evaluate a proposal — verdict with evidence |
 
-Mode is auto-detected from your question (5s confirm window). Use `-m` to skip detection.
+Mode is auto-detected from your question (5s confirm window). Use `-M` to skip detection.
 
 ```bash
 python -m src.cli --modes           # print the full modes table
@@ -80,9 +80,9 @@ python -m src.cli --modes           # print the full modes table
 python -m src.cli "Should we adopt a monorepo?"
 
 # Force a specific mode
-python -m src.cli -m ideas "What caching strategies should we consider?"
-python -m src.cli -m judge "Is this microservices design production-ready?"
-python -m src.cli -m pick "REST vs GraphQL?" --rounds 1
+python -m src.cli -M ideas "What caching strategies should we consider?"
+python -m src.cli -M judge "Is this microservices design production-ready?"
+python -m src.cli -M pick "REST vs GraphQL?" --rounds 1
 
 # All 5 models
 python -m src.cli "Microservices vs monolith?" --full
@@ -124,7 +124,7 @@ Should we use Redis or Memcached for session caching?
 |--------|---------|-------------|
 | `QUESTION` | -- | Question to debate |
 | `--file PATH` | -- | Read question from `.md` file |
-| `-m, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge` (or alias) |
+| `-M, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge` (or alias) |
 | `--modes` | -- | Print all modes with aliases and exit |
 | `--rounds N` | from mode | Number of debate rounds |
 | `--full` | off | Use all 5 models |

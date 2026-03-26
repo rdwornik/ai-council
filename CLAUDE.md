@@ -58,10 +58,10 @@ tests/                 — 164 unit tests + 1 integration test
 python -m src.cli "Should we use REST or GraphQL?" --rounds 1
 
 # Ideas mode — brainstorm
-python -m src.cli -m i "What features am I not using in my auth system?"
+python -m src.cli -M i "What features am I not using in my auth system?"
 
 # Judge mode — evaluate a proposal
-python -m src.cli -m j "Is this microservices architecture production-ready?"
+python -m src.cli -M j "Is this microservices architecture production-ready?"
 
 # Full 5-model panel
 python -m src.cli "Monorepo vs polyrepo?" --rounds 2 --full
@@ -91,7 +91,7 @@ python -m src.cli "question" --rounds 1 --verbose
 - **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`
 - **provider_statuses**: Dict tracking per-provider `"ok"` | `"failed"` — surfaced in output and saved to markdown
 - **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
-- **Mode system**: `pick`/`ideas`/`judge` via `--mode`/`-m`; aliases `p`/`i`/`j`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
+- **Mode system**: `pick`/`ideas`/`judge` via `--mode`/`-M`; aliases `p`/`i`/`j`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
 
 ## Debate modes
 

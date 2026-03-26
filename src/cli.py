@@ -137,9 +137,9 @@ def _interactive_confirm_mode(
 _EPILOG = """\b
 EXAMPLES:
   python -m src.cli "Should we use REST or GraphQL?"
-  python -m src.cli -m ideas "What caching strategies should we consider?"
-  python -m src.cli -m judge "Is this microservices design production-ready?"
-  python -m src.cli -m p "Redis vs Memcached for sessions?" --rounds 1
+  python -m src.cli -M ideas "What caching strategies should we consider?"
+  python -m src.cli -M judge "Is this microservices design production-ready?"
+  python -m src.cli -M p "Redis vs Memcached for sessions?" --rounds 1
   python -m src.cli "Monorepo vs polyrepo?" --full --synthesizer openai
   python -m src.cli --file question.md --models claude,gemini --rounds 3
   python -m src.cli --inbox
@@ -188,7 +188,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
          "Defaults to claude. Automatically excluded from the debate panel.",
 )
 @click.option(
-    "--mode", "-m", "mode_arg", default=None,
+    "--mode", "-M", "mode_arg", default=None,
     help="Debate mode: pick (default), ideas, or judge - or any alias. "
          "Skips auto-detection when set. Run --modes to see all aliases.",
 )
