@@ -89,6 +89,121 @@ personas:
     sport — you disagree when you spot something real. When you evaluate proposals,
     your first question is: what is everyone in this room taking for granted?
 
+persona_mode_directives:
+  ideas:
+    claude: "BRAINSTORM MODE: Suspend your preference for clean architecture. Generate volume. Messy ideas are welcome."
+    gemini: "BRAINSTORM MODE: Suspend your security focus. Generate ideas freely without threat modeling."
+    deepseek: "BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even if computationally expensive."
+    openai: "BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship ideas."
+    grok: "BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else is too responsible to suggest."
+  judge:
+    grok: "ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine weaknesses with evidence."
+
+modes:
+  pick:
+    description: "Which option should I choose? -> 1 recommendation"
+    emoji: "🎯"
+    aliases: ["p", "pick", "decide", "d", "decision", "architecture"]
+    default: true
+    max_rounds: 2
+    token_budget: 1500
+    # uses prompts.initial / prompts.critique / prompts.synthesis (no templates needed)
+
+  ideas:
+    description: "What could I do? -> many ideas, clusters, wild cards"
+    emoji: "💡"
+    aliases: ["i", "ideas", "brainstorm", "creative", "explore", "e"]
+    default: false
+    max_rounds: 1
+    token_budget: 1000
+    round1_header: "You are participating in a brainstorming council."
+    round1_instruction: |
+      Your job is to generate as many high-quality ideas as possible.
+      Optimize for breadth, surprise, and feasibility.
+      Do NOT converge on a single answer. Do NOT critique ideas in this round.
+    round1_structure: |
+      Answer using EXACTLY this structure:
+      ## Ideas
+      List 5-8 ideas. For each, one or two lines max:
+      - **Name**: A memorable 2-4 word label
+      - **What**: One sentence
+      - **Why it might work**: One sentence
+      - **Feasibility**: easy / medium / hard
+      ## Wild Card
+      One idea that seems risky or unconventional but could be high-impact.
+      ## Connections
+      Which of your ideas combine well? Name 1-2 pairings.
+    round2_instruction: |
+      You have seen all panelists' ideas. Your tasks:
+      1. Top 3: Pick your 3 favorite ideas from OTHER panelists. One sentence why.
+      2. Combinations: Propose 1-2 hybrid ideas merging concepts from different panelists.
+      3. Dealbreakers: Flag any ideas with a hidden showstopper.
+      4. New sparks: Add 1-2 NEW ideas inspired by reading the others.
+    synthesis_output: |
+      Produce EXACTLY this structure:
+      ## Idea Inventory
+      Total unique ideas generated (count).
+      ## Top Tier (Implement Soon)
+      3-5 ideas with the most cross-panelist support and reasonable feasibility.
+      For each: name, one-sentence description, who endorsed it.
+      ## Interesting But Unvalidated
+      3-5 novel ideas that need investigation.
+      ## Powerful Combinations
+      2-3 hybrid ideas that emerged from cross-pollination.
+      ## Discarded (and Why)
+      Ideas flagged as infeasible with the reason.
+      ## Suggested Next Step
+      What to do with the top ideas (prototype? research? run a pick debate?).
+
+  judge:
+    description: "How good is this? -> verdict with evidence"
+    emoji: "⚖️"
+    aliases: ["j", "judge", "assess", "evaluate", "review", "audit", "a"]
+    default: false
+    max_rounds: 2
+    token_budget: 1200
+    round1_header: "You are participating in an assessment council."
+    round1_instruction: |
+      Your job is to assess the subject honestly from your area of expertise.
+      Optimize for accuracy, evidence quality, and identifying what the questioner
+      might be missing. Deliver a verdict, not a decision.
+    round1_structure: |
+      Answer using EXACTLY this structure:
+      ## Assessment
+      2-3 sentence overall assessment from your perspective.
+      ## Strengths
+      3-5 specific strengths with evidence or reasoning.
+      ## Weaknesses / Gaps
+      3-5 specific weaknesses. Distinguish "missing" from "bad".
+      ## Surprises
+      1-2 non-obvious findings the questioner probably doesn't know.
+      ## Verdict
+      One clear verdict sentence.
+      ## Confidence
+      How confident are you? (high/medium/low) and what would change it.
+    round2_instruction: |
+      You have seen other panelists' assessments. Your tasks:
+      1. Agreement map: Where do you agree? Where do you disagree?
+      2. Missing evidence: What would resolve the disagreements?
+      3. Blind spots: What did all panelists (including you) miss?
+      4. Updated verdict: Restate or revise with one-sentence justification.
+    synthesis_output: |
+      Produce EXACTLY this structure:
+      ## Overall Verdict
+      One clear sentence.
+      ## Confidence Level
+      high / medium / low -- with reasoning.
+      ## Consensus Strengths
+      What all panelists agreed is good.
+      ## Consensus Weaknesses
+      What all panelists agreed needs work.
+      ## Contested Points
+      Where panelists disagreed and each side's best argument.
+      ## Blind Spots
+      What no panelist addressed.
+      ## Recommendations
+      Concrete next steps based on the assessment.
+
 prompts:
   initial: |
     {persona}
