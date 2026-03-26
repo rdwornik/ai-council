@@ -28,6 +28,7 @@ src/
   metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
   healthcheck.py       — run_health_checks(); pings all providers before debate starts
   inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive
+  mode_detector.py     — detect_mode(); _pick_cheapest(); auto-classifies question via cheap LLM call
   providers/
     base.py            — AIProvider ABC + ProviderError
     anthropic.py       — Claude (Anthropic SDK, asyncio.to_thread)
@@ -38,7 +39,7 @@ src/
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-tests/                 — 121 unit tests + 1 integration test
+tests/                 — 164 unit tests + 1 integration test
 ```
 
 ## Dev standards
@@ -53,8 +54,14 @@ tests/                 — 121 unit tests + 1 integration test
 ## Key commands
 
 ```bash
-# Default 3-model panel (claude, gemini, deepseek)
+# Default 3-model panel, pick mode (default) — auto-detected or explicit
 python -m src.cli "Should we use REST or GraphQL?" --rounds 1
+
+# Ideas mode — brainstorm
+python -m src.cli -m i "What features am I not using in my auth system?"
+
+# Judge mode — evaluate a proposal
+python -m src.cli -m j "Is this microservices architecture production-ready?"
 
 # Full 5-model panel
 python -m src.cli "Monorepo vs polyrepo?" --rounds 2 --full
@@ -84,16 +91,32 @@ python -m src.cli "question" --rounds 1 --verbose
 - **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`
 - **provider_statuses**: Dict tracking per-provider `"ok"` | `"failed"` — surfaced in output and saved to markdown
 - **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
+- **Mode system**: `pick`/`ideas`/`judge` via `--mode`/`-m`; aliases `p`/`i`/`j`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
+
+## Debate modes
+
+| Mode | Aliases | Default rounds | Purpose |
+|------|---------|---------------|---------|
+| `pick` | `p`, `pick`, `d`, `decide` | 2 | Choose between options. **(default)** |
+| `ideas` | `i`, `ideas` | 1 | Brainstorm. Surface unknowns and divergent ideas. |
+| `judge` | `j`, `judge` | 2 | Evaluate a proposal or claim. Get a verdict. |
+
+- `pick` uses `prompts.initial`/`prompts.critique`/`prompts.synthesis` from settings.yaml (backward compat).
+- `ideas`/`judge` use per-mode `round1_header`/`round1_instruction`/`round1_structure`/`round2_instruction`/`synthesis_output` from `modes:` block in settings.yaml.
+- `persona_mode_directives` in settings.yaml injects a `CRITICAL INSTRUCTION:` override at top of each persona for `ideas`/`judge`.
+- Mode auto-detected from question text via cheap LLM call (deepseek > gemini > others); 5s interactive confirm.
+- Inbox frontmatter can specify `mode:` — CLI `--mode` overrides it.
+- `resolve_mode()` in `config_loader.py` maps aliases; raises `ValueError` for unknown modes.
 
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 121 unit tests, no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 164 unit tests, no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
 
-Coverage: cli, config, debate, healthcheck, inbox, models, output, synthesis
+Coverage: cli, config, debate, healthcheck, inbox, models, mode_detector, output, synthesis
 
 ## Dependencies
 
