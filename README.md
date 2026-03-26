@@ -7,6 +7,8 @@ The result is a structured decision document: consensus points, unresolved disag
 ## Features
 
 - **Multi-model debate** — parallel rounds with 2-5 AI models
+- **Three debate modes** — pick (choose an option), ideas (brainstorm), judge (evaluate a proposal)
+- **Auto-detection** — mode is inferred from the question via a cheap LLM call; you confirm or override
 - **Blind voting** — critique rounds use anonymized proposals to prevent bias
 - **Adversarial personas** — each model has a specialized perspective (Systems, Security, Performance, Product, Contrarian)
 - **Non-participating synthesizer** — a model outside the debate panel renders the final verdict
@@ -57,11 +59,30 @@ You don't need all five. Any models with missing keys are skipped. You need at l
 
 ## Usage
 
+### Debate modes
+
+| Mode | Aliases | Purpose |
+|------|---------|---------|
+| `pick` | `p`, `decide`, `d`, `decision`, `architecture` | Choose between options — 1 recommendation **(default)** |
+| `ideas` | `i`, `brainstorm`, `creative`, `explore`, `e` | Brainstorm — many ideas, clusters, wild cards |
+| `judge` | `j`, `assess`, `evaluate`, `review`, `audit`, `a` | Evaluate a proposal — verdict with evidence |
+
+Mode is auto-detected from your question (5s confirm window). Use `-m` to skip detection.
+
+```bash
+python -m src.cli --modes           # print the full modes table
+```
+
 ### Single question
 
 ```bash
-# Default panel: claude, gemini, deepseek (2 rounds)
+# Default panel: claude, gemini, openai (mode auto-detected)
 python -m src.cli "Should we adopt a monorepo?"
+
+# Force a specific mode
+python -m src.cli -m ideas "What caching strategies should we consider?"
+python -m src.cli -m judge "Is this microservices design production-ready?"
+python -m src.cli -m pick "REST vs GraphQL?" --rounds 1
 
 # All 5 models
 python -m src.cli "Microservices vs monolith?" --full
@@ -92,6 +113,7 @@ You can add YAML frontmatter to override settings per file:
 ---
 models: claude,openai
 rounds: 1
+mode: judge
 ---
 Should we use Redis or Memcached for session caching?
 ```
@@ -102,13 +124,16 @@ Should we use Redis or Memcached for session caching?
 |--------|---------|-------------|
 | `QUESTION` | -- | Question to debate |
 | `--file PATH` | -- | Read question from `.md` file |
-| `--rounds N` | 2 | Number of debate rounds |
+| `-m, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge` (or alias) |
+| `--modes` | -- | Print all modes with aliases and exit |
+| `--rounds N` | from mode | Number of debate rounds |
 | `--full` | off | Use all 5 models |
 | `--models LIST` | 3-model panel | Comma-separated: `claude,openai,grok` |
 | `--synthesizer NAME` | `claude` | Model that writes the final verdict |
 | `--output PATH` | `./output` | Where to save transcripts |
 | `--inbox` | off | Process all files in `council_inbox/` |
 | `--inbox-dir PATH` | `./council_inbox` | Override inbox folder |
+| `--skip-health-check` | off | Skip API connectivity check at startup |
 | `--verbose` | off | Debug logging |
 
 ---
@@ -119,8 +144,8 @@ Should we use Redis or Memcached for session caching?
 |------|----------|---------------|
 | `claude` | Anthropic | yes |
 | `gemini` | Google | yes |
-| `deepseek` | DeepSeek | yes |
-| `openai` | OpenAI | -- |
+| `openai` | OpenAI | yes |
+| `deepseek` | DeepSeek | -- |
 | `grok` | xAI | -- |
 
 Each model has an adversarial persona baked in (Systems Architect, Security Architect, Performance Architect, etc.) to push disagreement and surface blind spots.
@@ -163,7 +188,7 @@ pytest tests/ -m "not integration" -v
 pytest tests/test_integration.py -v
 ```
 
-72 unit tests covering all modules. Integration test runs a real debate with live API calls.
+164 unit tests covering all modules. Integration test runs a real debate with live API calls.
 
 ---
 

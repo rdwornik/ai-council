@@ -134,27 +134,73 @@ def _interactive_confirm_mode(
         return detected_mode
 
 
-@click.command()
+_EPILOG = """\b
+EXAMPLES:
+  python -m src.cli "Should we use REST or GraphQL?"
+  python -m src.cli -m ideas "What caching strategies should we consider?"
+  python -m src.cli -m judge "Is this microservices design production-ready?"
+  python -m src.cli -m p "Redis vs Memcached for sessions?" --rounds 1
+  python -m src.cli "Monorepo vs polyrepo?" --full --synthesizer openai
+  python -m src.cli --file question.md --models claude,gemini --rounds 3
+  python -m src.cli --inbox
+"""
+
+
+def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
+    if not value or ctx.resilient_parsing:
+        return
+    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    try:
+        cfg = load_config()
+        modes = cfg.modes
+    except Exception:
+        modes = {}
+    _con = Console(legacy_windows=False)
+    if modes:
+        _con.print("\n[bold]Debate Modes[/bold]\n")
+        for key, mode_cfg in modes.items():
+            default_marker = " [dim](default)[/dim]" if mode_cfg.default else ""
+            aliases_str = ", ".join(mode_cfg.aliases)
+            _con.print(
+                f"  {mode_cfg.emoji}  [bold cyan]{key:<7}[/bold cyan]"
+                f"  {mode_cfg.description}{default_marker}"
+            )
+            _con.print(f"           [dim]aliases: {aliases_str}[/dim]\n")
+    else:
+        _con.print("No modes configured.")
+    ctx.exit()
+
+
+@click.command(
+    context_settings={"max_content_width": 100},
+    epilog=_EPILOG,
+)
 @click.argument("question", required=False)
-@click.option("--file", "question_file", type=click.Path(exists=True), help="Read question from .md file")
-@click.option("--rounds", default=None, type=int, help="Number of debate rounds (default: from config)")
-@click.option("--models", default=None, help="Comma-separated model list, overrides panel selection")
-@click.option("--full", "use_full_panel", is_flag=True, help="Use all 5 models. Default uses 3-model panel.")
-@click.option("--output", "output_path", default=None, help="Output directory (default: from config)")
+@click.option("--file", "question_file", type=click.Path(exists=True), help="Read question from a .md file instead of inline argument.")
+@click.option("--rounds", default=None, type=int, help="Number of debate rounds (default: from mode config).")
+@click.option("--models", default=None, help="Comma-separated panel override, e.g. claude,openai,grok. Overrides --full and default panel.")
+@click.option("--full", "use_full_panel", is_flag=True, help="Use the full 5-model panel (claude, gemini, deepseek, openai, grok).")
+@click.option("--output", "output_path", default=None, help="Output directory for saved transcripts (default: ./output).")
 @click.option(
     "--synthesizer", default=None,
-    help="Which model synthesizes: claude, openai, gemini, grok, deepseek (default: claude). "
-         "Automatically removed from the debate panel.",
+    help="Model that writes the final verdict: claude, openai, gemini, grok, deepseek. "
+         "Defaults to claude. Automatically excluded from the debate panel.",
 )
 @click.option(
     "--mode", "-m", "mode_arg", default=None,
-    help="Debate mode: pick (default), ideas, judge — or their aliases. "
-         "Skips auto-detection when set.",
+    help="Debate mode: pick (default), ideas, or judge - or any alias. "
+         "Skips auto-detection when set. Run --modes to see all aliases.",
 )
-@click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging")
-@click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in inbox folder")
-@click.option("--inbox-dir", "inbox_dir_override", default=None, help="Override inbox folder path (default: from config)")
-@click.option("--skip-health-check", is_flag=True, default=False, help="Skip the API connectivity check at startup")
+@click.option(
+    "--modes", is_flag=True, is_eager=True, expose_value=False,
+    callback=_print_modes_callback,
+    help="Print all debate modes with aliases and exit.",
+)
+@click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging.")
+@click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in the inbox folder.")
+@click.option("--inbox-dir", "inbox_dir_override", default=None, help="Override the inbox folder path (default: from config).")
+@click.option("--skip-health-check", is_flag=True, default=False, help="Skip the API connectivity check at startup.")
 def main(
     question: str | None,
     question_file: str | None,
@@ -169,20 +215,23 @@ def main(
     inbox_dir_override: str | None,
     skip_health_check: bool,
 ) -> None:
-    """AI Council -- Multi-model architectural debate tool.
+    """AI Council -- multi-model debate for architectural decisions.
+
+    Pose a QUESTION to a panel of AI models (Claude, Gemini, GPT, Grok, DeepSeek).
+    They debate in parallel rounds with blind critique, then a non-participating model
+    synthesizes the final verdict into a structured decision document.
 
     \b
-    Examples:
-      python -m src.cli "Should we use REST or GraphQL?"           # auto-detects mode
-      python -m src.cli -m pick "REST vs GraphQL?"                 # force pick mode
-      python -m src.cli -m ideas "What features for auth?"         # brainstorm mode
-      python -m src.cli -m judge "Is this architecture solid?"     # assessment mode
-      python -m src.cli --synthesizer openai "question"            # GPT synthesizes
-      python -m src.cli "Monorepo vs polyrepo?" --rounds 1 --full
-      python -m src.cli "SQL or NoSQL?" --rounds 1 --models claude,openai
-      python -m src.cli --file question.md --rounds 3
-      python -m src.cli --inbox
-      python -m src.cli --inbox --inbox-dir ./my_queue
+    MODES  (run --modes for full alias list):
+      pick    Choose between options         [default, auto-detected]
+      ideas   Brainstorm and surface possibilities
+      judge   Evaluate a proposal or design
+
+    \b
+    INPUTS:
+      QUESTION arg       Inline question (auto-detects mode)
+      --file PATH        Read question from a .md file
+      --inbox            Batch-process .md files from the inbox folder
     """
     if sys.platform == "win32":
         if hasattr(sys.stdout, "reconfigure"):
