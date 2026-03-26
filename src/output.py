@@ -164,11 +164,11 @@ def save_to_file(
 
     panel_count = len(panel_providers)
     if result.panel_mode == "default":
-        mode_str = f"default ({panel_count}-model panel)"
+        panel_mode_str = f"default ({panel_count}-model panel)"
     elif result.panel_mode == "full":
-        mode_str = f"full ({panel_count}-model panel)"
+        panel_mode_str = f"full ({panel_count}-model panel)"
     else:
-        mode_str = "custom"
+        panel_mode_str = "custom"
 
     cost_line = ""
     if result.metrics:
@@ -183,7 +183,8 @@ def save_to_file(
         f"**Synthesizer:** {synth_label}",
         f"**Rounds:** {len(result.rounds)}",
         f"**Duration:** {result.total_duration_sec:.1f}s",
-        f"**Mode:** {mode_str}",
+        f"**Panel Mode:** {panel_mode_str}",
+        f"**Debate Mode:** {result.mode}",
         f"**Source:** {result.question.source}",
     ]
     if cost_line:

@@ -50,12 +50,94 @@ class DefaultsConfig:
 
 
 @dataclass
+class ModeConfig:
+    description: str
+    emoji: str
+    aliases: list[str]
+    default: bool
+    max_rounds: int
+    token_budget: int
+    round1_header: str = ""
+    round1_instruction: str = ""
+    round1_structure: str = ""
+    round2_instruction: str = ""
+    synthesis_output: str = ""
+
+    @property
+    def uses_existing_prompts(self) -> bool:
+        """True for pick mode — delegates to prompts.initial/critique/synthesis."""
+        return not self.round1_instruction.strip()
+
+
+@dataclass
 class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
     prompts: PromptsConfig
     inbox: InboxConfig = field(default_factory=lambda: InboxConfig(Path("./council_inbox"), Path("./council_inbox/archive")))
     available_providers: set[str] = field(default_factory=set)
+    modes: dict[str, ModeConfig] = field(default_factory=dict)
+    persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)
+
+
+def resolve_mode(mode_arg: str, modes: dict[str, ModeConfig]) -> str:
+    """Resolve a mode name or alias to canonical mode key.
+
+    Returns the canonical key (e.g. "pick") or raises ValueError.
+    """
+    if mode_arg in modes:
+        return mode_arg
+    for key, cfg in modes.items():
+        if mode_arg in cfg.aliases:
+            return key
+    raise ValueError(
+        f"Unknown mode '{mode_arg}'. Valid modes: {sorted(modes)} "
+        f"and their aliases."
+    )
+
+
+def default_mode(modes: dict[str, ModeConfig]) -> str:
+    """Return the canonical key of the mode marked default: true."""
+    for key, cfg in modes.items():
+        if cfg.default:
+            return key
+    raise ValueError("No default mode configured in settings.yaml")
+
+
+def _validate_modes(modes: dict[str, ModeConfig]) -> None:
+    """Validate mode config invariants. Raises ValueError on violation."""
+    defaults = [k for k, v in modes.items() if v.default]
+    if len(defaults) != 1:
+        raise ValueError(
+            f"Exactly one mode must have default: true, found: {defaults}"
+        )
+
+    seen_aliases: dict[str, str] = {}
+    for key, cfg in modes.items():
+        for alias in cfg.aliases:
+            if alias != alias.lower():
+                raise ValueError(
+                    f"Mode '{key}' alias '{alias}' must be lowercase"
+                )
+            if alias in seen_aliases:
+                raise ValueError(
+                    f"Duplicate alias '{alias}' in modes '{seen_aliases[alias]}' and '{key}'"
+                )
+            seen_aliases[alias] = key
+
+    _TEMPLATE_FIELDS = (
+        "round1_header", "round1_instruction", "round1_structure",
+        "round2_instruction", "synthesis_output",
+    )
+    _REQUIRED_FIELDS = ("round1_instruction", "synthesis_output")
+    for key, cfg in modes.items():
+        has_any_template = any(getattr(cfg, f).strip() for f in _TEMPLATE_FIELDS)
+        if has_any_template:
+            missing = [f for f in _REQUIRED_FIELDS if not getattr(cfg, f).strip()]
+            if missing:
+                raise ValueError(
+                    f"Mode '{key}' missing required template fields: {missing}"
+                )
 
 
 def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
@@ -124,10 +206,39 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         archive_dir=Path(inbox_raw.get("archive_dir", "./council_inbox/archive")),
     )
 
+    # Parse modes (optional — falls back to empty dict if section absent)
+    modes: dict[str, ModeConfig] = {}
+    for mode_key, mode_raw in raw.get("modes", {}).items():
+        modes[mode_key] = ModeConfig(
+            description=str(mode_raw.get("description", "")),
+            emoji=str(mode_raw.get("emoji", "")),
+            aliases=list(mode_raw.get("aliases", [])),
+            default=bool(mode_raw.get("default", False)),
+            max_rounds=int(mode_raw.get("max_rounds", 2)),
+            token_budget=int(mode_raw.get("token_budget", 1500)),
+            round1_header=str(mode_raw.get("round1_header", "")),
+            round1_instruction=str(mode_raw.get("round1_instruction", "")),
+            round1_structure=str(mode_raw.get("round1_structure", "")),
+            round2_instruction=str(mode_raw.get("round2_instruction", "")),
+            synthesis_output=str(mode_raw.get("synthesis_output", "")),
+        )
+
+    if modes:
+        _validate_modes(modes)
+
+    # Parse per-model persona directives: {mode: {provider: directive}}
+    persona_mode_directives: dict[str, dict[str, str]] = {}
+    for mode_key, provider_map in raw.get("persona_mode_directives", {}).items():
+        persona_mode_directives[mode_key] = {
+            k: str(v) for k, v in (provider_map or {}).items()
+        }
+
     return AppConfig(
         defaults=defaults,
         models=models,
         prompts=prompts,
         inbox=inbox,
         available_providers=available_providers,
+        modes=modes,
+        persona_mode_directives=persona_mode_directives,
     )

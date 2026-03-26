@@ -75,7 +75,7 @@ def test_save_to_file_has_mode_header(
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
     content = saved.read_text(encoding="utf-8")
-    assert "**Mode:**" in content
+    assert "**Panel Mode:**" in content
     assert "default" in content
 
 
@@ -101,7 +101,7 @@ def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_
     saved = save_to_file(result, tmp_path)
     content = saved.read_text(encoding="utf-8")
     assert "participant" in content
-    assert "**Mode:** custom" in content
+    assert "**Panel Mode:** custom" in content
 
 
 def test_save_to_file_filename_has_slug(
