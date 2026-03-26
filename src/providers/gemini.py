@@ -23,7 +23,11 @@ class GeminiProvider(AIProvider):
         api_key = os.environ.get(config.api_key_env, "").strip()
         if not api_key:
             raise ProviderError(config.name, f"Missing API key: {config.api_key_env}")
-        self._client = genai.Client(api_key=api_key)
+        # Store key only; client is created per generate() call so its internal async
+        # HTTP session is always bound to the active event loop. Caching the client
+        # across asyncio.run() boundaries (e.g. health check → debate) causes
+        # "Event loop is closed" errors because the session is tied to the first loop.
+        self._api_key = api_key
 
     def name(self) -> str:
         return self._config.name
@@ -33,9 +37,10 @@ class GeminiProvider(AIProvider):
 
     async def generate(self, prompt: str, round_number: int) -> ModelResponse:
         start = time.monotonic()
+        client = genai.Client(api_key=self._api_key)
         try:
             response = await asyncio.wait_for(
-                self._client.aio.models.generate_content(
+                client.aio.models.generate_content(
                     model=self._config.model,
                     contents=prompt,
                     config=genai_types.GenerateContentConfig(
