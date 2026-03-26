@@ -125,12 +125,15 @@ def _validate_modes(modes: dict[str, ModeConfig]) -> None:
                 )
             seen_aliases[alias] = key
 
+    _TEMPLATE_FIELDS = (
+        "round1_header", "round1_instruction", "round1_structure",
+        "round2_instruction", "synthesis_output",
+    )
+    _REQUIRED_FIELDS = ("round1_instruction", "synthesis_output")
     for key, cfg in modes.items():
-        if not cfg.uses_existing_prompts:
-            missing = [
-                f for f in ("round1_instruction", "synthesis_output")
-                if not getattr(cfg, f).strip()
-            ]
+        has_any_template = any(getattr(cfg, f).strip() for f in _TEMPLATE_FIELDS)
+        if has_any_template:
+            missing = [f for f in _REQUIRED_FIELDS if not getattr(cfg, f).strip()]
             if missing:
                 raise ValueError(
                     f"Mode '{key}' missing required template fields: {missing}"
