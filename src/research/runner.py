@@ -11,9 +11,9 @@ from pathlib import Path
 from rich.console import Console
 
 from config.config_loader import AppConfig, ResearchConfig
-from src.research.cache import cache_get, cache_put, make_cache_key
+from src.research.cache import cache_get, cache_put
 from src.research.display import run_research_with_display
-from src.research.merger import make_cache_key as _merger_cache_key, merge_results, summarize_report
+from src.research.merger import make_cache_key, merge_results, summarize_report
 from src.research.models import MergedResearchReport
 from src.research.output import print_research_summary, save_research_to_file
 from src.research.provider import ResearchProvider
