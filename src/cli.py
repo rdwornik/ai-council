@@ -140,6 +140,8 @@ EXAMPLES:
   python -m src.cli -M ideas "What caching strategies should we consider?"
   python -m src.cli -M judge "Is this microservices design production-ready?"
   python -m src.cli -M p "Redis vs Memcached for sessions?" --rounds 1
+  python -m src.cli -M research "Best HTAP databases in 2026"
+  python -m src.cli -M r "LLM inference hardware comparison" --deep
   python -m src.cli "Monorepo vs polyrepo?" --full --synthesizer openai
   python -m src.cli --file question.md --models claude,gemini --rounds 3
   python -m src.cli --inbox
@@ -201,6 +203,8 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 @click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in the inbox folder.")
 @click.option("--inbox-dir", "inbox_dir_override", default=None, help="Override the inbox folder path (default: from config).")
 @click.option("--skip-health-check", is_flag=True, default=False, help="Skip the API connectivity check at startup.")
+@click.option("--deep", is_flag=True, default=False, help="Research mode: include slower deep-research providers (o3-deep-research).")
+@click.option("--no-cache", "no_cache", is_flag=True, default=False, help="Research mode: skip cache read and write.")
 def main(
     question: str | None,
     question_file: str | None,
@@ -214,6 +218,8 @@ def main(
     use_inbox: bool,
     inbox_dir_override: str | None,
     skip_health_check: bool,
+    deep: bool,
+    no_cache: bool,
 ) -> None:
     """AI Council -- multi-model debate for architectural decisions.
 
@@ -223,9 +229,10 @@ def main(
 
     \b
     MODES  (run --modes for full alias list):
-      pick    Choose between options         [default, auto-detected]
-      ideas   Brainstorm and surface possibilities
-      judge   Evaluate a proposal or design
+      pick      Choose between options         [default, auto-detected]
+      ideas     Brainstorm and surface possibilities
+      judge     Evaluate a proposal or design
+      research  Multi-source web research report  [--deep for o3]
 
     \b
     INPUTS:
@@ -361,6 +368,28 @@ def main(
     else:
         effective_mode = "pick"
         mode_source = "default (no modes configured)"
+
+    # Research mode: completely separate code path — no debate rounds
+    if effective_mode == "research":
+        if config.research is None:
+            console.print("[bold red]Error:[/bold red] No research config in settings.yaml.")
+            sys.exit(1)
+        from src.research.runner import run_research
+        try:
+            asyncio.run(
+                run_research(
+                    query=question_text,
+                    config=config,
+                    output_dir=effective_output,
+                    deep=deep,
+                    no_cache=no_cache,
+                    console=console,
+                )
+            )
+        except RuntimeError as exc:
+            console.print(f"[bold red]Research error:[/bold red] {exc}")
+            sys.exit(1)
+        return
 
     mode_cfg = config.modes.get(effective_mode)
     effective_rounds = rounds if rounds is not None else (

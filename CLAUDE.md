@@ -36,10 +36,24 @@ src/
     openai_provider.py — GPT (AsyncOpenAI)
     xai.py             — Grok (OpenAI-compatible, base_url)
     deepseek.py        — DeepSeek (OpenAI-compatible, base_url)
+  research/
+    __init__.py        — Package init
+    models.py          — Dataclasses: Source, ResearchResult, MergedResearchReport
+    provider.py        — ResearchProvider ABC + ResearchProviderError
+    display.py         — run_research_with_display(); Rich Live progress table; asyncio.wait() spinner loop
+    merger.py          — make_cache_key(); merge_results(); summarize_report(); _deduplicate_sources()
+    cache.py           — cache_get(); cache_put(); cache_invalidate(); file-based TTL cache
+    runner.py          — build_research_providers(); run_research(); full pipeline orchestration
+    output.py          — save_research_to_file(); print_research_summary()
+    providers/
+      perplexity.py         — Perplexity sonar-pro (OpenAI-compatible, base_url)
+      openai_mini_research.py — o4-mini-deep-research (Responses API + background polling)
+      openai_deep_research.py — o3-deep-research (--deep only, 45 min timeout)
+      gemini_research.py    — Gemini + Google Search grounding
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-tests/                 — 164 unit tests + 1 integration test
+tests/                 — 199 unit tests + 1 integration test
 ```
 
 ## Dev standards
@@ -75,6 +89,16 @@ python -m src.cli --file question.md --rounds 3
 # Inbox batch mode (reads council_inbox/*.md with optional frontmatter overrides)
 python -m src.cli --inbox
 
+# Research mode — parallel web research (Perplexity + Gemini + o4-mini)
+python -m src.cli -M research "Best HTAP databases in 2026"
+python -m src.cli -M r "LLM inference hardware comparison"
+
+# Research mode — include slow deep providers (o3-deep-research, ~45 min)
+python -m src.cli -M research "LLM inference hardware" --deep
+
+# Research mode — skip cache read/write
+python -m src.cli -M r "Redis vs Valkey" --no-cache
+
 # Debug logging
 python -m src.cli "question" --rounds 1 --verbose
 ```
@@ -91,7 +115,8 @@ python -m src.cli "question" --rounds 1 --verbose
 - **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`
 - **provider_statuses**: Dict tracking per-provider `"ok"` | `"failed"` — surfaced in output and saved to markdown
 - **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
-- **Mode system**: `pick`/`ideas`/`judge` via `--mode`/`-M`; aliases `p`/`i`/`j`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
+- **Mode system**: `pick`/`ideas`/`judge`/`research` via `--mode`/`-M`; aliases `p`/`i`/`j`/`r`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
+- **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()`+`as_completed` progressive display; merges results; summarizes via LLM; writes `{ts}_{slug}_research.md`; file cache under `~/.ai-council/research_cache/` with 7-day TTL
 
 ## Debate modes
 
@@ -100,6 +125,7 @@ python -m src.cli "question" --rounds 1 --verbose
 | `pick` | `p`, `pick`, `d`, `decide` | 2 | Choose between options. **(default)** |
 | `ideas` | `i`, `ideas` | 1 | Brainstorm. Surface unknowns and divergent ideas. |
 | `judge` | `j`, `judge` | 2 | Evaluate a proposal or claim. Get a verdict. |
+| `research` | `r`, `research` | — | Multi-source web research report with citations. |
 
 - `pick` uses `prompts.initial`/`prompts.critique`/`prompts.synthesis` from settings.yaml (backward compat).
 - `ideas`/`judge` use per-mode `round1_header`/`round1_instruction`/`round1_structure`/`round2_instruction`/`synthesis_output` from `modes:` block in settings.yaml.
@@ -107,16 +133,28 @@ python -m src.cli "question" --rounds 1 --verbose
 - Mode auto-detected from question text via cheap LLM call (deepseek > gemini > others); 5s interactive confirm.
 - Inbox frontmatter can specify `mode:` — CLI `--mode` overrides it.
 - `resolve_mode()` in `config_loader.py` maps aliases; raises `ValueError` for unknown modes.
+- `research` mode routes to `src/research/runner.py:run_research()` before the debate pipeline; `--deep` adds o3-deep-research; `--no-cache` bypasses file cache.
+
+## Research providers
+
+| Provider | Key env var | Default | --deep only | Notes |
+|----------|-------------|---------|------------|-------|
+| `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
+| `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
+| `gemini` | `GEMINI_API_KEY` | yes | no | Gemini + Google Search grounding |
+| `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
+
+Missing API keys are silently skipped — remaining providers still run.
 
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 164 unit tests, no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 199 unit tests, no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
 
-Coverage: cli, config, debate, healthcheck, inbox, models, mode_detector, output, synthesis
+Coverage: cli, config, debate, healthcheck, inbox, models, mode_detector, output, synthesis, research (models/cache/merger/display/runner/provider)
 
 ## Dependencies
 
@@ -133,7 +171,7 @@ Keys loaded globally from `Documents/.secrets/.env` via PowerShell profile.
 Do NOT add API keys to local `.env`.
 Check: `keys list` | Update: `keys set KEY value` | Reload: `keys reload`
 
-This repo uses: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`
+This repo uses: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `PERPLEXITY_API_KEY`
 
 ## Integration points
 
@@ -155,6 +193,9 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - **pytest-asyncio**: Needs `asyncio_mode = auto` in `pytest.ini`
 - **Critique template**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
 - **google-genai async**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
+- **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__` — otherwise it binds to the wrong event loop
+- **Research make_cache_key location**: `make_cache_key()` lives in `src/research/merger.py`, NOT `src/research/cache.py`
+- **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
 
 ## Known issues
 

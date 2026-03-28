@@ -155,6 +155,16 @@ modes:
       ## Suggested Next Step
       What to do with the top ideas (prototype? research? run a pick debate?).
 
+  research:
+    description: "What does the internet say? -> multi-source report"
+    emoji: "🔬"
+    aliases: ["r", "research"]
+    default: false
+    max_rounds: 1
+    token_budget: 0
+    # Research mode uses a separate code path — no debate rounds, no synthesis
+    # The round/token fields are here for mode system compatibility only
+
   judge:
     description: "How good is this? -> verdict with evidence"
     emoji: "⚖️"
@@ -330,3 +340,41 @@ prompts:
 
     ## Action Items
     Concrete next steps to implement the recommended decision.
+
+research:
+  default_providers: ["perplexity", "openai_mini", "gemini"]
+  deep_providers: ["perplexity", "openai_mini", "openai_deep", "gemini"]
+  cache_dir: "~/.ai-council/research_cache"
+  cache_ttl_days: 7
+  summary_max_tokens: 2500
+  summary_model: "deepseek"  # cheapest model for summarization
+
+  providers:
+    perplexity:
+      model: "sonar-pro"
+      api_key_env: "PERPLEXITY_API_KEY"
+      base_url: "https://api.perplexity.ai"
+      timeout_sec: 60
+      cost_per_1m_input: 3.00
+      cost_per_1m_output: 15.00
+
+    openai_mini:
+      model: "o4-mini-deep-research"
+      api_key_env: "OPENAI_API_KEY"
+      timeout_sec: 1200
+      cost_per_1m_input: 2.00
+      cost_per_1m_output: 8.00
+
+    openai_deep:
+      model: "o3-deep-research"
+      api_key_env: "OPENAI_API_KEY"
+      timeout_sec: 2700
+      cost_per_1m_input: 10.00
+      cost_per_1m_output: 40.00
+
+    gemini:
+      model: "gemini-2.5-pro-preview-05-06"
+      api_key_env: "GEMINI_API_KEY"
+      timeout_sec: 1800
+      cost_per_1m_input: 0.0
+      cost_per_1m_output: 0.0

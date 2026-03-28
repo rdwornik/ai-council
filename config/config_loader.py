@@ -70,6 +70,28 @@ class ModeConfig:
 
 
 @dataclass
+class ResearchProviderConfig:
+    name: str
+    model: str
+    api_key_env: str
+    timeout_sec: int
+    cost_per_1m_input: float = 0.0
+    cost_per_1m_output: float = 0.0
+    base_url: str | None = None
+
+
+@dataclass
+class ResearchConfig:
+    default_providers: list[str]
+    deep_providers: list[str]
+    cache_dir: Path
+    cache_ttl_days: int
+    summary_max_tokens: int
+    summary_model: str
+    providers: dict[str, ResearchProviderConfig] = field(default_factory=dict)
+
+
+@dataclass
 class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
@@ -78,6 +100,7 @@ class AppConfig:
     available_providers: set[str] = field(default_factory=set)
     modes: dict[str, ModeConfig] = field(default_factory=dict)
     persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)
+    research: ResearchConfig | None = None
 
 
 def resolve_mode(mode_arg: str, modes: dict[str, ModeConfig]) -> str:
@@ -233,6 +256,11 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             k: str(v) for k, v in (provider_map or {}).items()
         }
 
+    # Parse research config (optional section)
+    research: ResearchConfig | None = None
+    if "research" in raw:
+        research = _load_research_config(raw["research"])
+
     return AppConfig(
         defaults=defaults,
         models=models,
@@ -241,4 +269,33 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         available_providers=available_providers,
         modes=modes,
         persona_mode_directives=persona_mode_directives,
+        research=research,
+    )
+
+
+def _load_research_config(raw: dict) -> ResearchConfig:
+    """Parse the research: section of settings.yaml."""
+    providers: dict[str, ResearchProviderConfig] = {}
+    for provider_name, p_raw in raw.get("providers", {}).items():
+        providers[provider_name] = ResearchProviderConfig(
+            name=provider_name,
+            model=str(p_raw["model"]),
+            api_key_env=str(p_raw["api_key_env"]),
+            timeout_sec=int(p_raw.get("timeout_sec", 60)),
+            cost_per_1m_input=float(p_raw.get("cost_per_1m_input", 0.0)),
+            cost_per_1m_output=float(p_raw.get("cost_per_1m_output", 0.0)),
+            base_url=str(p_raw["base_url"]) if "base_url" in p_raw else None,
+        )
+
+    cache_dir_raw = str(raw.get("cache_dir", "~/.ai-council/research_cache"))
+    cache_dir = Path(cache_dir_raw).expanduser()
+
+    return ResearchConfig(
+        default_providers=list(raw.get("default_providers", [])),
+        deep_providers=list(raw.get("deep_providers", [])),
+        cache_dir=cache_dir,
+        cache_ttl_days=int(raw.get("cache_ttl_days", 7)),
+        summary_max_tokens=int(raw.get("summary_max_tokens", 2500)),
+        summary_model=str(raw.get("summary_model", "deepseek")),
+        providers=providers,
     )

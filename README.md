@@ -7,7 +7,7 @@ The result is a structured decision document: consensus points, unresolved disag
 ## Features
 
 - **Multi-model debate** — parallel rounds with 2-5 AI models
-- **Three debate modes** — pick (choose an option), ideas (brainstorm), judge (evaluate a proposal)
+- **Four modes** — pick (choose an option), ideas (brainstorm), judge (evaluate a proposal), research (parallel web research)
 - **Auto-detection** — mode is inferred from the question via a cheap LLM call; you confirm or override
 - **Blind voting** — critique rounds use anonymized proposals to prevent bias
 - **Adversarial personas** — each model has a specialized perspective (Systems, Security, Performance, Product, Contrarian)
@@ -51,9 +51,10 @@ GEMINI_API_KEY=your-key
 OPENAI_API_KEY=your-key
 XAI_API_KEY=your-key
 DEEPSEEK_API_KEY=your-key
+PERPLEXITY_API_KEY=your-key   # optional — for research mode
 ```
 
-You don't need all five. Any models with missing keys are skipped. You need at least 2 panel models.
+You don't need all keys. Any models with missing keys are skipped. For debate modes you need at least 2 panel models; for research mode you need at least one research provider key.
 
 ---
 
@@ -66,6 +67,7 @@ You don't need all five. Any models with missing keys are skipped. You need at l
 | `pick` | `p`, `decide`, `d`, `decision`, `architecture` | Choose between options — 1 recommendation **(default)** |
 | `ideas` | `i`, `brainstorm`, `creative`, `explore`, `e` | Brainstorm — many ideas, clusters, wild cards |
 | `judge` | `j`, `assess`, `evaluate`, `review`, `audit`, `a` | Evaluate a proposal — verdict with evidence |
+| `research` | `r`, `research` | Multi-source web research — parallel providers, merged report with citations |
 
 Mode is auto-detected from your question (5s confirm window). Use `-M` to skip detection.
 
@@ -95,6 +97,11 @@ python -m src.cli "REST or GraphQL?" --synthesizer gemini
 
 # From a markdown file
 python -m src.cli --file question.md --rounds 3
+
+# Research mode — parallel web research (Perplexity, Gemini, o4-mini)
+python -m src.cli -M research "Best HTAP databases in 2026"
+python -m src.cli -M r "LLM inference hardware comparison" --deep   # adds o3-deep-research
+python -m src.cli -M r "Redis vs Valkey" --no-cache                 # skip cache
 ```
 
 ### Inbox mode — batch processing
@@ -124,7 +131,7 @@ Should we use Redis or Memcached for session caching?
 |--------|---------|-------------|
 | `QUESTION` | -- | Question to debate |
 | `--file PATH` | -- | Read question from `.md` file |
-| `-M, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge` (or alias) |
+| `-M, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge`, `research` (or alias) |
 | `--modes` | -- | Print all modes with aliases and exit |
 | `--rounds N` | from mode | Number of debate rounds |
 | `--full` | off | Use all 5 models |
@@ -134,6 +141,8 @@ Should we use Redis or Memcached for session caching?
 | `--inbox` | off | Process all files in `council_inbox/` |
 | `--inbox-dir PATH` | `./council_inbox` | Override inbox folder |
 | `--skip-health-check` | off | Skip API connectivity check at startup |
+| `--deep` | off | Research mode: include slower deep-research providers (o3) |
+| `--no-cache` | off | Research mode: skip cache read and write |
 | `--verbose` | off | Debug logging |
 
 ---
@@ -164,6 +173,15 @@ src/
   healthcheck.py    — Provider health checks at startup
   inbox.py          — Inbox scanning, frontmatter parsing, auto-archive
   providers/        — One file per AI provider (Anthropic, OpenAI, Gemini, xAI, DeepSeek)
+  research/         — Research mode pipeline
+    models.py       — Source, ResearchResult, MergedResearchReport dataclasses
+    provider.py     — ResearchProvider ABC + ResearchProviderError
+    display.py      — Progressive Rich Live display with per-provider status table
+    merger.py       — Result merging, source deduplication, LLM summarization
+    cache.py        — File-based TTL cache (~/.ai-council/research_cache/)
+    runner.py       — Orchestration: providers → display → merge → cache → output
+    output.py       — Markdown file save + Rich console summary
+    providers/      — perplexity, openai_mini_research, openai_deep_research, gemini_research
 config/
   settings.yaml     — All model configs, prompts, personas (single source of truth)
   config_loader.py  — YAML to typed dataclasses
@@ -188,7 +206,7 @@ pytest tests/ -m "not integration" -v
 pytest tests/test_integration.py -v
 ```
 
-164 unit tests covering all modules. Integration test runs a real debate with live API calls.
+199 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
 
 ---
 
