@@ -135,6 +135,22 @@ def _interactive_confirm_mode(
 
 
 _EPILOG = """\b
+MODES  (run --modes for full alias list):
+  pick (p/d)      Choose between options -> recommendation  [default]
+  ideas (i/e)     Generate ideas -> clusters + wild cards
+  judge (j/a)     Evaluate something -> verdict + evidence
+  research (r)    Deep web research -> sourced report
+
+  Mode is auto-detected from question text if -M is not specified.
+
+FLAG GROUPS:
+  Mode:     -M/--mode, --modes
+  Models:   --models, --full, --synthesizer
+  Research: --deep, --no-cache
+  Input:    --file, --inbox, --inbox-dir
+  Output:   --format, --output, --verbose
+  Rounds:   --rounds
+
 EXAMPLES:
   python -m src.cli "Should we use REST or GraphQL?"
   python -m src.cli -M ideas "What caching strategies should we consider?"
@@ -142,9 +158,11 @@ EXAMPLES:
   python -m src.cli -M p "Redis vs Memcached for sessions?" --rounds 1
   python -m src.cli -M research "Best HTAP databases in 2026"
   python -m src.cli -M r "LLM inference hardware comparison" --deep
+  python -m src.cli -M r "Redis vs Valkey" --no-cache
   python -m src.cli "Monorepo vs polyrepo?" --full --synthesizer openai
   python -m src.cli --file question.md --models claude,gemini --rounds 3
   python -m src.cli --inbox
+  python -m src.cli --format json "question" > output.json
 """
 
 
@@ -175,7 +193,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 
 
 @click.command(
-    context_settings={"max_content_width": 100},
+    context_settings={"max_content_width": 120},
     epilog=_EPILOG,
 )
 @click.argument("question", required=False)
@@ -227,25 +245,7 @@ def main(
     no_cache: bool,
     output_format: str,
 ) -> None:
-    """AI Council -- multi-model debate for architectural decisions.
-
-    Pose a QUESTION to a panel of AI models (Claude, Gemini, GPT, Grok, DeepSeek).
-    They debate in parallel rounds with blind critique, then a non-participating model
-    synthesizes the final verdict into a structured decision document.
-
-    \b
-    MODES  (run --modes for full alias list):
-      pick      Choose between options         [default, auto-detected]
-      ideas     Brainstorm and surface possibilities
-      judge     Evaluate a proposal or design
-      research  Multi-source web research report  [--deep for o3]
-
-    \b
-    INPUTS:
-      QUESTION arg       Inline question (auto-detects mode)
-      --file PATH        Read question from a .md file
-      --inbox            Batch-process .md files from the inbox folder
-    """
+    """AI Council -- multi-model debate and research tool. Use --modes for mode details."""
     if sys.platform == "win32":
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
