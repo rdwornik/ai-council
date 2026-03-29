@@ -32,6 +32,7 @@ PROVIDER_CLASSES: dict[str, type[AIProvider]] = {
     "gemini": GeminiProvider,
     "openai": OpenAIProvider,
     "claude": AnthropicProvider,
+    "claude-sonnet": AnthropicProvider,
     "grok": XAIProvider,
     "deepseek": DeepSeekProvider,
 }

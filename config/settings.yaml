@@ -2,7 +2,7 @@ defaults:
   rounds: 2
   max_rounds: 3
   output_dir: "./output"
-  synthesizer: "gemini" # zmiana z "claude"
+  synthesizer: "claude-sonnet"
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
@@ -31,12 +31,21 @@ models:
 
   claude:
     sdk: "anthropic"
-    model: "claude-opus-4-6" # absolutny król rozumowania + najlepszy synthesizer
+    model: "claude-opus-4-6" # high-stakes debates, available as --synthesizer claude
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_sec: 240
     max_tokens: 16384
     cost_per_1m_input: 5.00
     cost_per_1m_output: 25.00
+
+  claude-sonnet:
+    sdk: "anthropic"
+    model: "claude-sonnet-4-6"
+    api_key_env: "ANTHROPIC_API_KEY"
+    timeout_sec: 120
+    max_tokens: 16384
+    cost_per_1m_input: 3.00
+    cost_per_1m_output: 15.00
 
   grok:
     sdk: "openai-compatible"
