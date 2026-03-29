@@ -160,7 +160,7 @@ async def run_research_with_display(
     console.print()
 
     # Return in original order
-    return [results[p.name()] for p in providers]  # type: ignore[return-value]
+    return [results[p.name()] for p in providers]  # type: ignore[misc]
 
 
 def _error_result(provider: ResearchProvider, query: str, error: str) -> ResearchResult:

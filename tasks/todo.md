@@ -8,7 +8,7 @@
 ## Open Items
 
 ### Quality / Tooling
-- [ ] `mypy` — installed in dev deps; no CI enforcement yet; run manually with `mypy src/`
+- [x] `mypy` — enforced via `scripts/check.ps1`; 0 errors in 33 source files
 - [ ] `--help` improvements — flag grouping by mode (Click limitation; `--modes` flag already exists)
 
 ### Research Mode

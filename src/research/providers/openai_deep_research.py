@@ -71,7 +71,7 @@ class OpenAIDeepResearchProvider(ResearchProvider):
 
     async def _run_with_polling(self, client: AsyncOpenAI, query: str) -> ResearchResult:
         """Submit background research job and poll until complete."""
-        response = await client.responses.create(  # type: ignore[attr-defined]
+        response = await client.responses.create(
             model=self._model,
             input=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
@@ -84,7 +84,7 @@ class OpenAIDeepResearchProvider(ResearchProvider):
 
         while response.status not in ("completed", "failed", "cancelled"):
             await asyncio.sleep(_POLL_INTERVAL_SEC)
-            response = await client.responses.retrieve(response_id)  # type: ignore[attr-defined]
+            response = await client.responses.retrieve(response_id)
             logger.debug("openai_deep: job %s status=%s", response_id, response.status)
 
         if response.status != "completed":

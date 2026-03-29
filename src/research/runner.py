@@ -63,14 +63,13 @@ def build_research_providers(
 def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
     """Create the appropriate provider instance by name."""
     if name == "perplexity":
-        from src.research.providers.perplexity import PerplexityResearchProvider
-        return PerplexityResearchProvider(
+        from src.research.providers.perplexity import PerplexityProvider
+        return PerplexityProvider(
             api_key=api_key,
             model=p_cfg.model,
             timeout_sec=p_cfg.timeout_sec,
             cost_per_1m_input=p_cfg.cost_per_1m_input,
             cost_per_1m_output=p_cfg.cost_per_1m_output,
-            base_url=p_cfg.base_url or "https://api.perplexity.ai",
         )
     elif name == "openai_mini":
         from src.research.providers.openai_mini_research import OpenAIMiniResearchProvider
