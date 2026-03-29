@@ -9,7 +9,7 @@
 
 ### Quality / Tooling
 - [x] `mypy` — enforced via `scripts/check.ps1`; 0 errors in 33 source files
-- [ ] `--help` improvements — flag grouping by mode (Click limitation; `--modes` flag already exists)
+- [x] `--help` improvements — MODES, FLAG GROUPS, and expanded EXAMPLES added via epilog (native Click grouping not possible; used epilog workaround)
 
 ### Research Mode
 - [ ] `openai_deep_research.py` — o3-deep-research (~45 min timeout) is wired but untested end-to-end; add integration test
