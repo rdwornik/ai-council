@@ -83,7 +83,7 @@ class CouncilRunner:
         self._providers = all_providers
         self._config = config
 
-    async def run(self, request: RunRequest, output_dir=None) -> DebateResult:
+    async def run(self, request: RunRequest, output_dir=None, output_format: str = "text") -> DebateResult:
         """Healthcheck is caller's responsibility. Runs panel selection → debate → synthesis.
 
         Args:
@@ -204,5 +204,12 @@ class CouncilRunner:
 
         saved_path = save_to_file(result, output_dir, slug_override=request.slug_override)
         console.print(f"\n[dim]Saved to: {saved_path}[/dim]")
+
+        if output_format == "json":
+            import dataclasses
+            import json
+            import sys
+
+            print(json.dumps(dataclasses.asdict(result), indent=2, default=str), file=sys.stdout)
 
         return result

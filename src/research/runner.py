@@ -110,6 +110,7 @@ async def run_research(
     deep: bool = False,
     no_cache: bool = False,
     console: Console | None = None,
+    output_format: str = "text",
 ) -> MergedResearchReport:
     """Run full research pipeline for a query. Returns merged report."""
     if console is None:
@@ -128,6 +129,12 @@ async def run_research(
             console.print(f"\n[dim]Research cache hit (key: {cache_key})[/dim]")
             file_path = save_research_to_file(cached, output_dir, from_cache=True)
             print_research_summary(cached, file_path, from_cache=True, console=console)
+            if output_format == "json":
+                import dataclasses
+                import json
+                import sys
+
+                print(json.dumps(dataclasses.asdict(cached), indent=2, default=str), file=sys.stdout)
             return cached
 
     # Build providers
@@ -154,5 +161,12 @@ async def run_research(
     # Output
     file_path = save_research_to_file(report, output_dir, from_cache=False)
     print_research_summary(report, file_path, from_cache=False, console=console)
+
+    if output_format == "json":
+        import dataclasses
+        import json
+        import sys
+
+        print(json.dumps(dataclasses.asdict(report), indent=2, default=str), file=sys.stdout)
 
     return report

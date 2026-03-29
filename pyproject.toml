@@ -18,7 +18,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
     "ruff>=0.9",
+    "mypy>=1.10",
 ]
 
 [project.scripts]
@@ -31,6 +33,20 @@ markers = [
     "integration: marks tests as integration tests (require real API keys)",
     "envcheck: marks tests that verify environment setup (API keys present)",
 ]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/research/providers/openai_deep_research.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+strict = false
 
 [tool.ruff]
 target-version = "py312"

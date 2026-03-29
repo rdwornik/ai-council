@@ -205,6 +205,11 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 @click.option("--skip-health-check", is_flag=True, default=False, help="Skip the API connectivity check at startup.")
 @click.option("--deep", is_flag=True, default=False, help="Research mode: include slower deep-research providers (o3-deep-research).")
 @click.option("--no-cache", "no_cache", is_flag=True, default=False, help="Research mode: skip cache read and write.")
+@click.option(
+    "--format", "output_format", default="text",
+    type=click.Choice(["text", "json"], case_sensitive=False),
+    help="Output format: text (default) or json (prints structured result to stdout).",
+)
 def main(
     question: str | None,
     question_file: str | None,
@@ -220,6 +225,7 @@ def main(
     skip_health_check: bool,
     deep: bool,
     no_cache: bool,
+    output_format: str,
 ) -> None:
     """AI Council -- multi-model debate for architectural decisions.
 
@@ -334,13 +340,14 @@ def main(
                 mode=fm_mode,
             )
             try:
-                asyncio.run(runner.run(request, output_dir=effective_output))
+                asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
                 archived = archive_file(file_path, archive_dir)
                 click.echo(f"Archived: {file_path.name} -> {archived.name}")
             except Exception as e:
                 logger.error("Failed: %s -- %s", file_path.name, e)
                 archive_file(file_path, archive_dir, failed=True)
         return
+
 
     if question_file:
         question_text = Path(question_file).read_text(encoding="utf-8").strip()
@@ -384,6 +391,7 @@ def main(
                     deep=deep,
                     no_cache=no_cache,
                     console=console,
+                    output_format=output_format,
                 )
             )
         except RuntimeError as exc:
@@ -407,7 +415,7 @@ def main(
         synthesizer_specified=synthesizer is not None,
         mode=effective_mode,
     )
-    asyncio.run(runner.run(request, output_dir=effective_output))
+    asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
 
 
 if __name__ == "__main__":
