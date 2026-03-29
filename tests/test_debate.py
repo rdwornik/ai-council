@@ -345,6 +345,36 @@ async def test_retry_uses_15x_timeout(sample_prompts_config, sample_question):
     assert slow._config.timeout_sec == 100  # restored after retry
 
 
+async def test_was_retry_set_on_retry_response(sample_prompts_config, sample_question):
+    """Response from a retry attempt has was_retry=True; first-attempt responses have was_retry=False."""
+    good = MockProvider("good", "Good response")
+    slow = MockProvider("slow", "Recovered response")
+    slow._config = _make_mock_config(10)
+
+    call_count = 0
+
+    async def timeout_then_succeed(prompt: str, round_number: int) -> ModelResponse:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ProviderError("slow", "Request timed out after 10s")
+        return ModelResponse("slow", "m", round_number, "Recovered response", 0.1, 5)
+
+    slow.generate = AsyncMock(side_effect=timeout_then_succeed)
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[good, slow],
+        prompts=sample_prompts_config,
+        num_rounds=1,
+    )
+
+    good_resp = next(r for r in outcome.rounds[0].responses if r.provider == "good")
+    slow_resp = next(r for r in outcome.rounds[0].responses if r.provider == "slow")
+    assert good_resp.was_retry is False
+    assert slow_resp.was_retry is True
+
+
 # --- Quality gate tests ---
 
 

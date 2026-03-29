@@ -103,3 +103,43 @@ async def test_timeout_counts_as_failure():
     ok, err = results["slow"]
     assert ok is False
     assert "timed out" in err
+
+
+# --- Error classification in healthcheck messages ---
+
+
+async def test_auth_error_returns_specific_message():
+    """401/403 errors produce 'authentication failed' message, not raw status code."""
+    providers = {"deepseek": MockProvider("deepseek")}
+    providers["deepseek"].generate = AsyncMock(
+        side_effect=ProviderError("deepseek", "401 Unauthorized")
+    )
+    results = await run_health_checks(providers)
+    ok, err = results["deepseek"]
+    assert ok is False
+    assert "authentication failed" in err
+    assert "check API key" in err
+
+
+async def test_connection_error_returns_specific_message():
+    """Connection errors produce 'endpoint unreachable' message."""
+    providers = {"deepseek": MockProvider("deepseek")}
+    providers["deepseek"].generate = AsyncMock(
+        side_effect=ProviderError("deepseek", "Connection refused")
+    )
+    results = await run_health_checks(providers)
+    ok, err = results["deepseek"]
+    assert ok is False
+    assert "unreachable" in err
+
+
+async def test_unknown_error_falls_back_to_raw_message():
+    """Unclassified errors return the raw exception message."""
+    providers = {"deepseek": MockProvider("deepseek")}
+    providers["deepseek"].generate = AsyncMock(
+        side_effect=Exception("some completely novel failure xyzzy")
+    )
+    results = await run_health_checks(providers)
+    ok, err = results["deepseek"]
+    assert ok is False
+    assert "xyzzy" in err

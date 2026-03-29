@@ -109,3 +109,52 @@ def test_save_to_file_filename_has_slug(
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
     assert "yaml" in saved.name or "should" in saved.name  # slug from question
+
+
+def test_provider_notes_retried_provider(tmp_path, sample_question):
+    """Provider Notes line appears when a response has was_retry=True."""
+    retried_response = ModelResponse(
+        provider="claude",
+        model="claude-opus-4-6",
+        round_number=1,
+        content="Retried response",
+        latency_sec=2.0,
+        token_count=10,
+        was_retry=True,
+    )
+    result = DebateResult(
+        question=sample_question,
+        rounds=[Round(number=1, responses=[retried_response])],
+        synthesis="## Decision",
+        synthesizer="openai",
+        total_duration_sec=5.0,
+        provider_statuses={"claude": "ok"},
+    )
+    saved = save_to_file(result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Provider Notes:**" in content
+    assert "claude retried" in content
+    assert "recovered" in content
+
+
+def test_provider_notes_skipped_provider(tmp_path, sample_question, sample_round):
+    """Provider Notes line appears when a provider is in provider_statuses as 'failed'."""
+    result = DebateResult(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesis="## Decision",
+        synthesizer="openai",
+        total_duration_sec=5.0,
+        provider_statuses={"claude": "ok", "deepseek": "failed"},
+    )
+    saved = save_to_file(result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Provider Notes:**" in content
+    assert "deepseek skipped" in content
+
+
+def test_provider_notes_absent_when_all_ok(tmp_path, sample_debate_result):
+    """No Provider Notes line when all providers succeeded without retry."""
+    saved = save_to_file(sample_debate_result, tmp_path)
+    content = saved.read_text(encoding="utf-8")
+    assert "**Provider Notes:**" not in content
