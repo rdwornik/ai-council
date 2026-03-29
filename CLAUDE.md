@@ -206,6 +206,18 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - DeepSeek API key may not be available in current environment
 
 
+## Folder governance
+- `src/` — all Python source code
+- `tests/` — all tests
+- `config/` — settings.yaml and config_loader.py
+- `scripts/` — check.ps1 and utility scripts
+- `docs/` — HANDOFF.md, decisions/ (ADRs), archive/ (frozen snapshots)
+- `output/` — gitignored; debate transcripts and research reports
+- `council_inbox/` — gitignored; drop .md files for batch processing
+- `eval/` — evaluation data (eval_history.jsonl)
+- `tasks/` — todo.md, lessons.md (local task tracking)
+- Do not create files outside these directories without updating this section
+
 ## Global Skills
 Before modifying code, consult ~/.claude/skills/gotchas/ for known ecosystem traps.
 After pytest passes, check ~/.claude/skills/verify/ for verification scripts.
