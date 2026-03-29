@@ -4,6 +4,59 @@ from abc import ABC, abstractmethod
 
 from src.models import ModelResponse
 
+# Error categories returned by classify_error()
+RETRYABLE_ERRORS: frozenset[str] = frozenset(
+    {"timeout", "rate_limit", "connection_error", "server_error"}
+)
+NON_RETRYABLE_ERRORS: frozenset[str] = frozenset(
+    {"auth", "model_not_found", "content_policy", "invalid_request"}
+)
+
+
+def classify_error(exc: Exception) -> str:
+    """Map an exception to a canonical error category string.
+
+    Returns one of: timeout, rate_limit, auth, model_not_found, connection_error,
+    server_error, content_policy, invalid_request, unknown.
+    Used by healthcheck and retry logic to produce specific messages.
+    """
+    msg = str(exc).lower()
+    if "timeout" in msg or "timed out" in msg:
+        return "timeout"
+    if "429" in msg or "rate limit" in msg or "rate_limit" in msg:
+        return "rate_limit"
+    if (
+        "401" in msg
+        or "403" in msg
+        or "unauthorized" in msg
+        or "forbidden" in msg
+        or "auth" in msg
+        or "api key" in msg
+        or "api_key" in msg
+    ):
+        return "auth"
+    if "404" in msg or "model_not_found" in msg:
+        return "model_not_found"
+    if (
+        "connection" in msg
+        or "unreachable" in msg
+        or "network" in msg
+        or "connect" in msg
+    ):
+        return "connection_error"
+    if "500" in msg or "502" in msg or "503" in msg or "server error" in msg:
+        return "server_error"
+    if "content_policy" in msg or "content policy" in msg or "safety" in msg:
+        return "content_policy"
+    if "invalid" in msg:
+        return "invalid_request"
+    return "unknown"
+
+
+def is_retryable(error_type: str) -> bool:
+    """True when the error category warrants a single retry attempt."""
+    return error_type in RETRYABLE_ERRORS
+
 
 class ProviderError(Exception):
     """Raised when a provider call fails."""

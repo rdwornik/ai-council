@@ -195,6 +195,22 @@ def save_to_file(
         lines.append(f"**Status:** DEGRADED — {degradation_note}")
         if failed:
             lines.append(f"**Failed providers:** {', '.join(failed)}")
+
+    # Provider notes: retried-and-recovered + skipped providers
+    retried = sorted({
+        r.provider
+        for rnd in result.rounds
+        for r in rnd.responses
+        if r.was_retry
+    })
+    failed_providers = [k for k, v in result.provider_statuses.items() if v == "failed"]
+    provider_note_parts: list[str] = []
+    for p in retried:
+        provider_note_parts.append(f"{p} retried (timeout, recovered)")
+    for p in failed_providers:
+        provider_note_parts.append(f"{p} skipped")
+    if provider_note_parts:
+        lines.append(f"**Provider Notes:** {'; '.join(provider_note_parts)}.")
     lines += [
         "",
         "---",

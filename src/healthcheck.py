@@ -3,9 +3,20 @@
 import asyncio
 import logging
 
-from src.providers.base import AIProvider
+from src.providers.base import AIProvider, classify_error
 
 logger = logging.getLogger(__name__)
+
+_HEALTHCHECK_MESSAGES: dict[str, str] = {
+    "timeout": "health check timed out",
+    "rate_limit": "rate limited during health check",
+    "auth": "authentication failed (check API key)",
+    "model_not_found": "model not found (check model string in settings.yaml)",
+    "connection_error": "endpoint unreachable",
+    "server_error": "server error during health check",
+    "content_policy": "content policy rejection during health check",
+    "invalid_request": "invalid request during health check",
+}
 
 _PING_PROMPT = "Reply with the word OK only."
 _DEFAULT_TIMEOUT_SEC = 30.0
@@ -37,7 +48,9 @@ async def _check_one(name: str, provider: AIProvider) -> tuple[str, bool, str]:
     except asyncio.TimeoutError:
         return name, False, f"health check timed out after {timeout:.0f}s"
     except Exception as exc:
-        msg = str(exc) or repr(exc)
+        error_type = classify_error(exc)
+        specific_msg = _HEALTHCHECK_MESSAGES.get(error_type)
+        msg = specific_msg if specific_msg else (str(exc) or repr(exc))
         return name, False, msg
 
 

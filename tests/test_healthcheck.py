@@ -53,7 +53,7 @@ async def test_one_provider_fails():
     assert results["claude"] == (True, "")
     ok, err = results["grok"]
     assert ok is False
-    assert "403" in err
+    assert "authentication failed" in err
 
 
 async def test_all_providers_fail():

@@ -67,7 +67,9 @@ async def _call_provider(
                     round_number,
                 )
             try:
-                return await provider.generate(prompt, round_number)
+                result = await provider.generate(prompt, round_number)
+                result.was_retry = True
+                return result
             except ProviderError as retry_exc:
                 logger.warning(
                     "Provider %s failed after retry in round %d: %s",

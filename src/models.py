@@ -25,6 +25,7 @@ class ModelResponse:
     token_count: int | None  # combined total; kept for display/backward compat
     input_tokens: int | None = None  # prompt tokens (for cost calculation)
     output_tokens: int | None = None  # completion tokens (for cost calculation)
+    was_retry: bool = False  # True when this response came from a retry attempt
 
 
 @dataclass
