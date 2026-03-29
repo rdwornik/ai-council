@@ -218,12 +218,12 @@ async def test_runner_run_returns_debate_result(all_providers, multi_model_confi
     )
 
     with (
-        patch("src.runner.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
-        patch("src.runner.synthesize", new=AsyncMock(return_value=fake_result)),
-        patch("src.runner.save_to_file", return_value=tmp_path / "out.md"),
-        patch("src.runner.print_round_summary"),
-        patch("src.runner.print_synthesis"),
-        patch("src.runner.print_cost_summary"),
+        patch("src.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
+        patch("src.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
+        patch("src.orchestrator.save_to_file", return_value=tmp_path / "out.md"),
+        patch("src.orchestrator.print_round_summary"),
+        patch("src.orchestrator.print_synthesis"),
+        patch("src.orchestrator.print_cost_summary"),
     ):
         runner = CouncilRunner(all_providers, multi_model_config)
         result = await runner.run(request, output_dir=tmp_path)
@@ -260,12 +260,12 @@ async def test_runner_run_uses_output_dir_from_config_when_none(all_providers, m
     saved_path = multi_model_config.defaults.output_dir / "out.md"
 
     with (
-        patch("src.runner.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
-        patch("src.runner.synthesize", new=AsyncMock(return_value=fake_result)),
-        patch("src.runner.save_to_file", return_value=saved_path) as mock_save,
-        patch("src.runner.print_round_summary"),
-        patch("src.runner.print_synthesis"),
-        patch("src.runner.print_cost_summary"),
+        patch("src.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
+        patch("src.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
+        patch("src.orchestrator.save_to_file", return_value=saved_path) as mock_save,
+        patch("src.orchestrator.print_round_summary"),
+        patch("src.orchestrator.print_synthesis"),
+        patch("src.orchestrator.print_cost_summary"),
     ):
         runner = CouncilRunner(all_providers, multi_model_config)
         await runner.run(request, output_dir=None)
