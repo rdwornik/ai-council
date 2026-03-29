@@ -64,6 +64,7 @@ tests/                 — 199 unit tests + 1 integration test
 - Logging not print, dataclasses not dicts
 - Click CLI, Rich console output
 - Do NOT merge OpenAI-compatible providers (xai.py, deepseek.py) — keep separate
+- Before merging any branch, run: `.\scripts\check.ps1` (pytest + mypy + ruff)
 
 ## Key commands
 
