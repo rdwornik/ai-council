@@ -1,45 +1,36 @@
 # AI Council — Task Tracking
 
-## Phase 1 Implementation
+## Current Status
 
-### Wave 1 — Foundation
-- [x] Create feat/phase1-foundation branch
-- [x] requirements.txt
-- [x] config/settings.yaml
-- [x] src/models.py
-- [x] tasks/todo.md + tasks/lessons.md
+**Phase 1 complete.** All providers, debate pipeline, modes, research, and tests implemented.
+199 unit tests passing (6 deselected: integration + envcheck).
 
-### Wave 2 — Config + Base
-- [ ] config/__init__.py
-- [ ] config/config_loader.py
-- [ ] src/providers/base.py
+## Open Items
 
-### Wave 3 — Provider Implementations
-- [ ] src/providers/gemini.py
-- [ ] src/providers/openai_provider.py
-- [ ] src/providers/anthropic.py
-- [ ] src/providers/xai.py
+### Provider Unit Tests
+- [ ] `tests/test_providers.py` — unit tests for individual providers (anthropic, gemini, openai_provider, xai, deepseek) with mocked SDK clients
+  - Currently only covered by integration test (live keys required)
+  - See CLAUDE.md "Known issues"
 
-### Wave 4 — Orchestration
-- [ ] src/debate.py
-- [ ] src/synthesis.py
-- [ ] src/output.py
+### Quality / Tooling
+- [ ] Add `pytest-cov` and configure coverage reporting
+- [ ] Add `mypy` for static type checking in CI
+- [ ] `--help` improvements — group flags by mode, surface mode aliases more clearly
 
-### Wave 5 — CLI + Tests
-- [ ] src/cli.py
-- [ ] tests/__init__.py
-- [ ] tests/conftest.py
-- [ ] tests/test_config.py
-- [ ] tests/test_models.py
-- [ ] tests/test_debate.py
-- [ ] tests/test_synthesis.py
-- [ ] tests/test_output.py
-- [ ] tests/test_integration.py
-- [ ] pytest.ini
-- [ ] README.md
+### Phase 2 Candidates
+- [ ] Orchestrator extraction — pull `CouncilRunner` coordination logic into a standalone `orchestrator.py` (currently mixed into `runner.py`)
+- [x] Retry logic — `classify_error()` in base.py, `was_retry` on `ModelResponse`, 1x retry with 1.5x timeout in `_call_provider`; provider notes in output
+- [x] DeepSeek graceful skip — healthcheck returns specific messages (auth/timeout/unreachable) via `classify_error()`
 
-### Verification
-- [ ] pip install -r requirements.txt
-- [ ] pytest tests/ -m "not integration" -v
-- [ ] python -m src.cli "test question" --rounds 1 --models claude,openai
-- [ ] pytest tests/test_integration.py -v
+### Research Mode
+- [ ] `openai_deep_research.py` — o3-deep-research (~45 min timeout) is wired but untested end-to-end; add integration test
+- [ ] Research output: consider `--format json` flag for structured citation output
+
+## Completed (archived)
+
+Phase 1 Waves 1–5: all foundation, config, providers, debate pipeline, CLI, tests — done.
+Research mode (Perplexity, o4-mini, Gemini + grounding, o3-deep, cache, merger, display) — done.
+Mode system (pick/ideas/judge/research + auto-detection) — done.
+Inbox batch mode — done.
+Cost tracking + metrics — done.
+Healthcheck — done.
