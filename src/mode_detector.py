@@ -40,7 +40,7 @@ async def detect_mode(
     prompt = CLASSIFICATION_PROMPT.format(question=question)
     try:
         response = await asyncio.wait_for(
-            provider.generate(prompt),
+            provider.generate(prompt, round_number=1),
             timeout=timeout_sec,
         )
         mode = response.content.strip().lower()

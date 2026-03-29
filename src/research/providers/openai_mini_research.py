@@ -71,7 +71,7 @@ class OpenAIMiniResearchProvider(ResearchProvider):
     async def _run_with_polling(self, client: AsyncOpenAI, query: str) -> ResearchResult:
         """Submit background research job and poll until complete."""
         # Submit the research job in background mode
-        response = await client.responses.create(  # type: ignore[attr-defined]
+        response = await client.responses.create(
             model=self._model,
             input=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
@@ -85,7 +85,7 @@ class OpenAIMiniResearchProvider(ResearchProvider):
         # Poll until complete
         while response.status not in ("completed", "failed", "cancelled"):
             await asyncio.sleep(_POLL_INTERVAL_SEC)
-            response = await client.responses.retrieve(response_id)  # type: ignore[attr-defined]
+            response = await client.responses.retrieve(response_id)
             elapsed = time.monotonic()
             logger.debug("openai_mini: job %s status=%s (%.0fs elapsed)", response_id, response.status, elapsed)
 
