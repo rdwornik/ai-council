@@ -1,14 +1,13 @@
-"""CouncilRunner: executes the full debate lifecycle."""
+"""Panel and provider utility functions.
+
+CouncilRunner (the debate orchestrator) lives in src/orchestrator.py.
+This module re-exports it for backward compatibility.
+"""
 
 import logging
 
 from config.config_loader import AppConfig, ModelConfig
-from src.debate import run_debate
-from src.models import DebateOutcome, DebateResult, RunRequest
-from src.output import print_cost_summary, print_round_summary, print_synthesis, save_to_file
-from src.policy import RunPolicy
 from src.providers.base import AIProvider
-from src.synthesis import synthesize
 
 logger = logging.getLogger(__name__)
 
@@ -76,133 +75,5 @@ def pick_synthesizer(
     return next(iter(all_providers.values())), True
 
 
-class CouncilRunner:
-    """Executes the full debate lifecycle: panel → rounds → synthesis → output."""
-
-    def __init__(self, all_providers: dict[str, AIProvider], config: AppConfig) -> None:
-        self._providers = all_providers
-        self._config = config
-
-    async def run(self, request: RunRequest, output_dir=None) -> DebateResult:
-        """Healthcheck is caller's responsibility. Runs panel selection → debate → synthesis.
-
-        Args:
-            request: Fully resolved RunRequest.
-            output_dir: Where to save output. Defaults to config.defaults.output_dir.
-
-        Returns:
-            DebateResult with metrics attached.
-        """
-        import time
-
-        from rich.console import Console
-
-        console = Console(legacy_windows=False)
-
-        if output_dir is None:
-            output_dir = self._config.defaults.output_dir
-
-        panel_names = request.panel_names
-        synthesizer_name = request.synthesizer_name
-
-        panel_names = exclude_synthesizer_from_panel(
-            panel_names, synthesizer_name, self._providers
-        )
-        panel_providers = [self._providers[n] for n in panel_names if n in self._providers]
-
-        if len(panel_providers) < request.policy.min_panel_size:
-            raise RuntimeError(
-                f"Need at least {request.policy.min_panel_size} providers in panel, "
-                f"got {len(panel_providers)}. Check API keys or adjust --models."
-            )
-
-        synthesizer, is_participant = pick_synthesizer(
-            self._providers, panel_names, synthesizer_name
-        )
-
-        mode_config = self._config.modes.get(request.mode) if self._config.modes else None
-        persona_directives = (
-            self._config.persona_mode_directives.get(request.mode, {})
-            if self._config.persona_mode_directives else {}
-        )
-
-        provider_names = [p.name() for p in panel_providers]
-        synth_label = synthesizer.name() + (
-            " (user-selected)" if request.synthesizer_specified
-            else " (participant)" if is_participant
-            else " (non-participant)"
-        )
-
-        mode_emoji = mode_config.emoji if mode_config else ""
-        console.print(
-            f"\n[bold cyan]AI Council[/bold cyan] — {len(panel_providers)} models, "
-            f"{request.rounds} rounds [{request.panel_mode}] "
-            f"{mode_emoji} {request.mode}"
-        )
-        console.print(f"Panel: {', '.join(provider_names)}")
-        console.print(f"Synthesizer: {synth_label}")
-        console.print(
-            f"Question: [italic]{request.question.text[:80]}"
-            f"{'...' if len(request.question.text) > 80 else ''}[/italic]\n"
-        )
-
-        from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-
-        debate_start = time.monotonic()
-        completed_rounds = []
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            TimeElapsedColumn(),
-            console=console,
-            transient=True,
-        ) as progress:
-
-            def on_round_complete(rnd) -> None:
-                completed_rounds.append(rnd)
-                progress.print(
-                    f"[green]OK[/green] Round {rnd.number} complete ({len(rnd.responses)} responses)"
-                )
-
-            debate_task = progress.add_task("Running debate rounds...", total=None)
-            outcome: DebateOutcome = await run_debate(
-                question=request.question,
-                providers=panel_providers,
-                prompts=self._config.prompts,
-                num_rounds=request.rounds,
-                on_round_complete=on_round_complete,
-                policy=request.policy,
-                mode_config=mode_config,
-                persona_directives=persona_directives,
-            )
-            progress.update(debate_task, description="Running synthesis...")
-
-            result = await synthesize(
-                question=request.question,
-                rounds=outcome.rounds,
-                synthesizer=synthesizer,
-                prompts=self._config.prompts,
-                debate_start_time=debate_start,
-                panel_mode=request.panel_mode,
-                synthesizer_is_participant=is_participant,
-                model_configs=self._config.models,
-                degraded=outcome.degraded,
-                degradation_summary=outcome.degradation_summary,
-                provider_statuses=outcome.provider_statuses,
-                mode_config=mode_config,
-                debate_mode=request.mode,
-            )
-
-        for rnd in outcome.rounds:
-            print_round_summary(rnd.number, rnd.responses)
-
-        print_synthesis(result)
-
-        if result.metrics:
-            print_cost_summary(result.metrics)
-
-        saved_path = save_to_file(result, output_dir, slug_override=request.slug_override)
-        console.print(f"\n[dim]Saved to: {saved_path}[/dim]")
-
-        return result
+# Backward-compat re-export — new code should import from src.orchestrator directly
+from src.orchestrator import CouncilRunner as CouncilRunner  # noqa: E402, F401
