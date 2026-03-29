@@ -2,9 +2,9 @@ defaults:
   rounds: 2
   max_rounds: 3
   output_dir: "./output"
-  synthesizer: "claude"
-  default_panel: ["claude", "gemini", "openai"]  # Systems + Security + Product; best for most decisions
-  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"]  # add Performance + Contrarian for high-stakes debates
+  synthesizer: "gemini" # zmiana z "claude"
+  default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
+  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
 inbox:
   dir: "./council_inbox"
@@ -347,7 +347,7 @@ research:
   cache_dir: "~/.ai-council/research_cache"
   cache_ttl_days: 7
   summary_max_tokens: 2500
-  summary_model: "deepseek"  # cheapest model for summarization
+  summary_model: "deepseek" # cheapest model for summarization
 
   providers:
     perplexity:
