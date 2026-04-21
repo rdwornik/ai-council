@@ -19,7 +19,8 @@ pytest tests/ -m "not integration" -v
 ```
 src/
   cli.py               — Click entry point; PROVIDER_CLASSES dict; builds RunRequest, delegates to CouncilRunner
-  runner.py            — CouncilRunner.run(); build_all_providers(); determine_panel(); pick_synthesizer()
+  orchestrator.py      — CouncilRunner.run(); debate lifecycle coordination (extracted from runner.py)
+  runner.py            — build_all_providers(); determine_panel(); pick_synthesizer(); re-exports CouncilRunner
   debate.py            — run_debate() → DebateOutcome; persona injection; blind voting via _anonymize_responses()
   synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer → DebateResult
   output.py            — save_to_file(); print_round_summary(); print_synthesis(); print_cost_summary()
@@ -200,10 +201,8 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 
 ## Known issues
 
-- **No unit tests for individual providers** — `providers/anthropic.py`, `gemini.py`, `openai_provider.py`, `xai.py`, `deepseek.py` are only covered by the integration test (requires live API keys). Unit tests with mocked SDK clients would improve coverage.
-- No `pytest-cov` configured for coverage reporting
-- `mypy` not installed — no static type checking in CI
 - DeepSeek API key may not be available in current environment
+- o3-deep-research integration test not run (blocked — $10+ per run)
 
 
 ## Folder governance
@@ -211,7 +210,7 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - `tests/` — all tests
 - `config/` — settings.yaml and config_loader.py
 - `scripts/` — check.ps1 and utility scripts
-- `docs/` — HANDOFF.md, decisions/ (ADRs), archive/ (frozen snapshots)
+- `docs/` — HANDOFF.md, decisions/ (ADRs), handoffs/ (session handoffs), archive/ (frozen snapshots)
 - `output/` — gitignored; debate transcripts and research reports
 - `council_inbox/` — gitignored; drop .md files for batch processing
 - `eval/` — evaluation data (eval_history.jsonl)
