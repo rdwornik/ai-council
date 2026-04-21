@@ -3,8 +3,8 @@ defaults:
   max_rounds: 3
   output_dir: "./output"
   synthesizer: "claude-sonnet"
-  default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
-  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
+  default_panel: [ "claude", "gemini", "openai" ] # Systems + Security + Product; best for most decisions
+  full_panel: [ "claude", "gemini", "deepseek", "openai", "grok" ] # add Performance + Contrarian for high-stakes debates
 
 inbox:
   dir: "./council_inbox"
@@ -13,16 +13,18 @@ inbox:
 models:
   gemini:
     sdk: "google-genai"
-    model: "gemini-3.1-pro-preview" # najmocniejszy Pro Google
+    model: "gemini-3.1-pro-preview" # nadal najmocniejszy Pro (Gemini 3.1 Pro)
     api_key_env: "GEMINI_API_KEY"
     timeout_sec: 180
-    max_tokens: 16384 # zwiększone z 8192 → lepsze odpowiedzi
+    max_tokens: 16384
     cost_per_1m_input: 2.00
     cost_per_1m_output: 12.00
+    # Uwaga: Gemini 3 Pro Preview został wyłączony w marcu 2026 → migracja na 3.1 jest obowiązkowa
 
   openai:
     sdk: "openai"
-    model: "gpt-5.4" # najnowszy frontier (lepszy niż 5.2)
+    model: "gpt-5.4" # aktualny flagship (marzec 2026)
+    # alternatywa: "gpt-5.4-pro" jeśli chcesz maksymalną jakość (drożej)
     api_key_env: "OPENAI_API_KEY"
     timeout_sec: 180
     max_tokens: 16384
@@ -31,7 +33,7 @@ models:
 
   claude:
     sdk: "anthropic"
-    model: "claude-opus-4-6" # high-stakes debates, available as --synthesizer claude
+    model: "claude-opus-4-7" # najnowszy Opus (kwiecień 2026) — lepszy niż 4.6
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_sec: 240
     max_tokens: 16384
@@ -40,7 +42,7 @@ models:
 
   claude-sonnet:
     sdk: "anthropic"
-    model: "claude-sonnet-4-6"
+    model: "claude-sonnet-4-6" # nadal aktualny i bardzo dobry (luty 2026)
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_sec: 120
     max_tokens: 16384
@@ -49,17 +51,18 @@ models:
 
   grok:
     sdk: "openai-compatible"
-    model: "grok-4.20-beta" # najnowsza beta xAI (2M context!)
+    model: "grok-4.20" # lub "grok-4.20-reasoning" / "grok-4.20-0309-reasoning"
     api_key_env: "XAI_API_KEY"
     base_url: "https://api.x.ai/v1"
     timeout_sec: 180
-    max_tokens: 16384
-    cost_per_1m_input: 3.00
-    cost_per_1m_output: 15.00
+    max_tokens: 16384 # xAI oferuje nawet 2M context w niektórych wariantach
+    cost_per_1m_input: 2.00 # aktualna cena reasoning ~$2/$6
+    cost_per_1m_output: 6.00
 
   deepseek:
     sdk: "openai-compatible"
-    model: "deepseek-reasoner" # najlepszy reasoner + ekstremalnie tani przy cache
+    model: "deepseek-reasoner" # nadal aktualny (mapuje na V3.2 lub nowszy)
+    # jeśli pojawi się V4 / R2 — model zmieni się na "deepseek-v4" lub podobny
     api_key_env: "DEEPSEEK_API_KEY"
     base_url: "https://api.deepseek.com/v1"
     timeout_sec: 300
@@ -100,19 +103,25 @@ personas:
 
 persona_mode_directives:
   ideas:
-    claude: "BRAINSTORM MODE: Suspend your preference for clean architecture. Generate volume. Messy ideas are welcome."
-    gemini: "BRAINSTORM MODE: Suspend your security focus. Generate ideas freely without threat modeling."
-    deepseek: "BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even if computationally expensive."
-    openai: "BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship ideas."
-    grok: "BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else is too responsible to suggest."
+    claude: "BRAINSTORM MODE: Suspend your preference for clean architecture.
+      Generate volume. Messy ideas are welcome."
+    gemini: "BRAINSTORM MODE: Suspend your security focus. Generate ideas freely
+      without threat modeling."
+    deepseek: "BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even
+      if computationally expensive."
+    openai: "BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship
+      ideas."
+    grok: "BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else
+      is too responsible to suggest."
   judge:
-    grok: "ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine weaknesses with evidence."
+    grok: "ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine
+      weaknesses with evidence."
 
 modes:
   pick:
     description: "Which option should I choose? -> 1 recommendation"
     emoji: "🎯"
-    aliases: ["p", "pick", "decide", "d", "decision", "architecture"]
+    aliases: [ "p", "pick", "decide", "d", "decision", "architecture" ]
     default: true
     max_rounds: 2
     token_budget: 1500
@@ -121,7 +130,7 @@ modes:
   ideas:
     description: "What could I do? -> many ideas, clusters, wild cards"
     emoji: "💡"
-    aliases: ["i", "ideas", "brainstorm", "creative", "explore", "e"]
+    aliases: [ "i", "ideas", "brainstorm", "creative", "explore", "e" ]
     default: false
     max_rounds: 1
     token_budget: 1000
@@ -167,7 +176,7 @@ modes:
   research:
     description: "What does the internet say? -> multi-source report"
     emoji: "🔬"
-    aliases: ["r", "research"]
+    aliases: [ "r", "research" ]
     default: false
     max_rounds: 1
     token_budget: 0
@@ -177,7 +186,7 @@ modes:
   judge:
     description: "How good is this? -> verdict with evidence"
     emoji: "⚖️"
-    aliases: ["j", "judge", "assess", "evaluate", "review", "audit", "a"]
+    aliases: [ "j", "judge", "assess", "evaluate", "review", "audit", "a" ]
     default: false
     max_rounds: 2
     token_budget: 1200
@@ -351,8 +360,8 @@ prompts:
     Concrete next steps to implement the recommended decision.
 
 research:
-  default_providers: ["perplexity", "openai_mini", "gemini"]
-  deep_providers: ["perplexity", "openai_mini", "openai_deep", "gemini"]
+  default_providers: [ "perplexity", "openai_mini", "gemini" ]
+  deep_providers: [ "perplexity", "openai_mini", "openai_deep", "gemini" ]
   cache_dir: "~/.ai-council/research_cache"
   cache_ttl_days: 7
   summary_max_tokens: 2500
