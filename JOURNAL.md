@@ -1,5 +1,11 @@
 # Journal — ai-council
 
+### 2026-04-24 | Fix research providers (Gemini 404, OpenAI mini 400)
+- Gemini research: `gemini-2.5-pro-preview-05-06` → `gemini-2.5-pro` (preview was not yet released)
+- OpenAI mini: added `tools=[{"type": "web_search_preview"}]` to Responses API call (deep research models require at least one search tool)
+- Full smoke test: Perplexity + Gemini both completed; OpenAI mini job accepted + completes (~3min for simple queries, may be transient-fail on complex topics)
+- 255 tests passing
+
 ### 2026-03-29 | Sonnet 4.6 synthesizer + mypy CI
 - Added `claude-sonnet` provider; set as default synthesizer (5x cheaper than Opus)
 - mypy CI enforcement via `scripts/check.ps1` (pytest + mypy + ruff, 0 errors)
