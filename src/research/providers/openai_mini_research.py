@@ -71,12 +71,14 @@ class OpenAIMiniResearchProvider(ResearchProvider):
     async def _run_with_polling(self, client: AsyncOpenAI, query: str) -> ResearchResult:
         """Submit background research job and poll until complete."""
         # Submit the research job in background mode
+        # Deep research models require at least one search tool
         response = await client.responses.create(
             model=self._model,
             input=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": query},
             ],
+            tools=[{"type": "web_search_preview"}],
             background=True,
         )
         response_id = response.id
