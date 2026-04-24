@@ -1,11 +1,12 @@
 # AI Council — Handoff
 
-**Last updated:** 2026-04-21
+**Last updated:** 2026-04-24
 
 ## Status
-Feature-complete. 255 unit tests (6 deselected). 5 debate + 4 research providers. 4 modes (pick/ideas/judge/research). mypy + ruff + pytest-cov all enforced via `scripts/check.ps1`. **8 commits ahead of origin/main — not pushed.**
+Feature-complete. 255 unit tests (6 deselected). 5 debate + 4 research providers. 4 modes (pick/ideas/judge/research). mypy + ruff + pytest-cov all enforced via `scripts/check.ps1`. **12 commits ahead of origin/main — not pushed.**
 
 ## Recent
+- Research providers fixed: Gemini model updated to `gemini-2.5-pro`; OpenAI mini now passes required `web_search_preview` tool
 - Playbook compliance shipped: docs/, 6 ADRs, JOURNAL.md, CHANGELOG.md, folder governance
 - `scripts/check.ps1` with mypy enforcement (0 errors)
 - Provider unit tests added — all 5 providers covered with mocked SDKs (24 tests)
