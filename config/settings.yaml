@@ -61,8 +61,7 @@ models:
 
   deepseek:
     sdk: "openai-compatible"
-    model: "deepseek-reasoner" # nadal aktualny (mapuje na V3.2 lub nowszy)
-    # jeśli pojawi się V4 / R2 — model zmieni się na "deepseek-v4" lub podobny
+    model: "deepseek-v4-pro"
     api_key_env: "DEEPSEEK_API_KEY"
     base_url: "https://api.deepseek.com/v1"
     timeout_sec: 300
