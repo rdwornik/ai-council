@@ -159,6 +159,10 @@ Should we use Redis or Memcached for session caching?
 
 Each model has an adversarial persona baked in (Systems Architect, Security Architect, Performance Architect, etc.) to push disagreement and surface blind spots.
 
+The default synthesizer is **Claude Sonnet 4.6** — a non-participating model that reads the full transcript and renders the final verdict.
+
+> **Note:** `openai_mini` (`o4-mini-deep-research`) may transiently fail on complex research queries — this is an upstream API limitation. Remaining providers will still complete and produce a merged report.
+
 ---
 
 ## Architecture
@@ -206,7 +210,7 @@ pytest tests/ -m "not integration" -v
 pytest tests/test_integration.py -v
 ```
 
-199 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
+255 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
 
 ---
 

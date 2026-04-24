@@ -17,6 +17,7 @@
 - Progressive research display with Rich Live + `asyncio.wait()`
 - File cache for research results (`~/.ai-council/research_cache/`, 7-day TTL)
 - Claude Sonnet 4.6 provider + set as default synthesizer
+- Grouped flags and usage examples in `--help` epilog
 
 ### Changed
 - Default panel: Claude + Gemini + OpenAI (was: Claude + Gemini + DeepSeek)
@@ -31,6 +32,8 @@
 - Windows cp1252 encoding: `Console(legacy_windows=False)` permanent fix
 - `FAILED_` prefix inherited in output filenames (slug stripping)
 - `--full` flag ignored when inbox frontmatter had `models` field
+- Gemini research model: updated to `gemini-2.5-pro` (preview slug returned 404)
+- OpenAI mini research: added required `web_search_preview` tool to Responses API call (deep-research endpoint rejects calls without a search tool)
 
 ## [1.0.0] — 2026-03-15
 
