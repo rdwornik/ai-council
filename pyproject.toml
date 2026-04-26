@@ -25,6 +25,11 @@ dev = [
 
 [project.scripts]
 ai-council = "src.cli:main"
+council = "src.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "config*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
