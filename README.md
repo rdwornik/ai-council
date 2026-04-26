@@ -13,6 +13,7 @@ The result is a structured decision document: consensus points, unresolved disag
 - **Adversarial personas** — each model has a specialized perspective (Systems, Security, Performance, Product, Contrarian)
 - **Non-participating synthesizer** — a model outside the debate panel renders the final verdict
 - **Inbox mode** — drop `.md` files into a folder for batch processing with YAML frontmatter overrides
+- **Downloads scanning** — `--inbox` auto-detects council questions in `~/Downloads` by frontmatter keys; files are archived after processing
 - **Health checks** — providers are pinged before debate starts; unhealthy ones are skipped
 - **Structured output** — markdown reports saved to `output/` with full transcripts and panel metadata
 
@@ -72,55 +73,60 @@ You don't need all keys. Any models with missing keys are skipped. For debate mo
 Mode is auto-detected from your question (5s confirm window). Use `-M` to skip detection.
 
 ```bash
-python -m src.cli --modes           # print the full modes table
+council --modes           # print the full modes table
 ```
 
 ### Single question
 
 ```bash
-# Default panel: claude, gemini, openai (mode auto-detected)
-python -m src.cli "Should we adopt a monorepo?"
+# Full 5-model panel by default (mode auto-detected)
+council "Should we adopt a monorepo?"
+
+# 3-model panel (claude, gemini, openai)
+council --lite "Quick question"
 
 # Force a specific mode
-python -m src.cli -M ideas "What caching strategies should we consider?"
-python -m src.cli -M judge "Is this microservices design production-ready?"
-python -m src.cli -M pick "REST vs GraphQL?" --rounds 1
-
-# All 5 models
-python -m src.cli "Microservices vs monolith?" --full
+council -M ideas "What caching strategies should we consider?"
+council -M judge "Is this microservices design production-ready?"
+council -M pick "REST vs GraphQL?" --rounds 1
 
 # Specific models
-python -m src.cli "SQL or NoSQL?" --models claude,openai,grok
+council "SQL or NoSQL?" --models claude,openai,grok
 
 # Custom synthesizer
-python -m src.cli "REST or GraphQL?" --synthesizer gemini
+council "REST or GraphQL?" --synthesizer gemini
 
 # From a markdown file
-python -m src.cli --file question.md --rounds 3
+council --file question.md --rounds 3
 
 # Research mode — parallel web research (Perplexity, Gemini, o4-mini)
-python -m src.cli -M research "Best HTAP databases in 2026"
-python -m src.cli -M r "LLM inference hardware comparison" --deep   # adds o3-deep-research
-python -m src.cli -M r "Redis vs Valkey" --no-cache                 # skip cache
+council -M research "Best HTAP databases in 2026"
+council -M r "LLM inference hardware comparison" --deep   # adds o3-deep-research
+council -M r "Redis vs Valkey" --no-cache                 # skip cache
 ```
+
+> `python -m src.cli` also works in place of `council` — same binary.
 
 ### Inbox mode — batch processing
 
 Drop `.md` files into `council_inbox/` and process them all at once:
 
 ```bash
-python -m src.cli --inbox
+council --inbox
 ```
 
 Each file is archived to `council_inbox/archive/` after processing (prefixed `FAILED_` on error). Input files and archives are gitignored.
+
+**Downloads folder auto-scan:** `--inbox` also scans `~/Downloads/*.md` for council questions. A file is detected as a council question if its YAML frontmatter contains any of these keys: `mode`, `rounds`, `models`, `synthesizer`, `full` (case-insensitive). Files without frontmatter or with non-council keys are silently skipped. Detected files are processed and archived to `council_inbox/archive/`.
+
+This means you can write a question in your browser chat, save it to Downloads as a `.md`, and `council --inbox` will pick it up automatically.
 
 You can add YAML frontmatter to override settings per file:
 
 ```markdown
 ---
-models: claude,openai
-rounds: 1
 mode: judge
+rounds: 2
 ---
 Should we use Redis or Memcached for session caching?
 ```
@@ -134,11 +140,12 @@ Should we use Redis or Memcached for session caching?
 | `-M, --mode NAME` | auto-detected | Debate mode: `pick`, `ideas`, `judge`, `research` (or alias) |
 | `--modes` | -- | Print all modes with aliases and exit |
 | `--rounds N` | from mode | Number of debate rounds |
-| `--full` | off | Use all 5 models |
-| `--models LIST` | 3-model panel | Comma-separated: `claude,openai,grok` |
+| `--lite` | off | Use the 3-model panel (claude, gemini, openai) instead of default full panel |
+| `--full` | no-op | Full panel is now the default; kept for backward compatibility |
+| `--models LIST` | full 5-model panel | Comma-separated: `claude,openai,grok` |
 | `--synthesizer NAME` | `claude` | Model that writes the final verdict |
 | `--output PATH` | `./output` | Where to save transcripts |
-| `--inbox` | off | Process all files in `council_inbox/` |
+| `--inbox` | off | Process all files in `council_inbox/` and `~/Downloads` |
 | `--inbox-dir PATH` | `./council_inbox` | Override inbox folder |
 | `--skip-health-check` | off | Skip API connectivity check at startup |
 | `--deep` | off | Research mode: include slower deep-research providers (o3) |
@@ -149,13 +156,13 @@ Should we use Redis or Memcached for session caching?
 
 ## Models
 
-| Name | Provider | Default panel |
-|------|----------|---------------|
-| `claude` | Anthropic | yes |
-| `gemini` | Google | yes |
-| `openai` | OpenAI | yes |
-| `deepseek` | DeepSeek | -- |
-| `grok` | xAI | -- |
+| Name | Provider | Full panel | Lite panel (--lite) |
+|------|----------|-----------|---------------------|
+| `claude` | Anthropic | yes | yes |
+| `gemini` | Google | yes | yes |
+| `openai` | OpenAI | yes | yes |
+| `deepseek` | DeepSeek | yes | -- |
+| `grok` | xAI | yes | -- |
 
 Each model has an adversarial persona baked in (Systems Architect, Security Architect, Performance Architect, etc.) to push disagreement and surface blind spots.
 

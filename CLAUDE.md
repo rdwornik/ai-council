@@ -28,7 +28,7 @@ src/
   policy.py            — RunPolicy: min_panel_size, retry_on patterns, should_retry()
   metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
   healthcheck.py       — run_health_checks(); pings all providers before debate starts
-  inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive
+  inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive, Downloads detection
   mode_detector.py     — detect_mode(); _pick_cheapest(); auto-classifies question via cheap LLM call
   providers/
     base.py            — AIProvider ABC + ProviderError
@@ -70,8 +70,12 @@ tests/                 — 199 unit tests + 1 integration test
 ## Key commands
 
 ```bash
-# Default 3-model panel, pick mode (default) — auto-detected or explicit
-python -m src.cli "Should we use REST or GraphQL?" --rounds 1
+# Default: full 5-model panel, pick mode (default) — auto-detected or explicit
+council "Should we use REST or GraphQL?" --rounds 1
+python -m src.cli "Should we use REST or GraphQL?" --rounds 1  # also works
+
+# 3-model panel (lite mode)
+council --lite "Quick question" --rounds 1
 
 # Ideas mode — brainstorm
 python -m src.cli -M i "What features am I not using in my auth system?"
@@ -107,7 +111,7 @@ python -m src.cli "question" --rounds 1 --verbose
 
 ## Key design decisions
 
-- **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full` wins over default
+- **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is now the default; `--lite` uses the 3-model panel; `--full` is a no-op kept for backward compat
 - **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
 - **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; falls back with `is_participant=True` if none available
@@ -187,6 +191,10 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - [ECOSYSTEM.md](../ECOSYSTEM.md) — full ecosystem overview, AI Council binding decisions
 - [corp-by-os](../corp-by-os/) — root orchestrator
 - [corp-os-meta](../corp-os-meta/) — shared schema
+
+## Downloads scanning
+
+`--inbox` auto-scans `~/Downloads/*.md` before the council_inbox folder. Detection: any YAML frontmatter key matching `mode`, `rounds`, `models`, `synthesizer`, or `full` (case-insensitive). Config in `settings.yaml` under `inbox.scan_downloads`, `inbox.downloads_dir`, `inbox.council_frontmatter_keys`. Detected files are archived to `council_inbox/archive/`.
 
 ## Gotchas
 
