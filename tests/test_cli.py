@@ -56,6 +56,20 @@ def test_cli_full_flag_uses_full_panel(sample_app_config):
     assert mode == "full"
 
 
+def test_determine_panel_lite_uses_default_panel(sample_app_config):
+    """--lite passes full_flag=False, yielding the 3-model default panel."""
+    panel, mode = _determine_panel(sample_app_config, models_arg=None, full_flag=False)
+    assert panel == sample_app_config.defaults.default_panel
+    assert mode == "default"
+
+
+def test_determine_panel_full_flag_true_still_works(sample_app_config):
+    """--full (now no-op, still passes full_flag=True) still returns full panel."""
+    panel, mode = _determine_panel(sample_app_config, models_arg=None, full_flag=True)
+    assert panel == sample_app_config.defaults.full_panel
+    assert mode == "full"
+
+
 def test_non_participant_synthesizer_not_in_panel(mock_all_providers):
     panel_names = ["claude", "gemini", "deepseek"]
     synth, is_participant = _pick_non_participant_synthesizer(

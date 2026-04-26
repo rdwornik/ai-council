@@ -3,9 +3,7 @@
 import textwrap
 from pathlib import Path
 
-import pytest
-
-from src.inbox import archive_file, clean_slug, parse_file, scan_inbox
+from src.inbox import archive_file, clean_slug, parse_file, scan_downloads_folder, scan_inbox
 
 
 def test_parse_file_no_frontmatter(tmp_path: Path) -> None:
@@ -131,3 +129,86 @@ def test_scan_inbox_excludes_archive_subdir(tmp_path: Path) -> None:
     names = [p.name for p in result]
     assert names == ["valid_question.md"]
     assert not any("FAILED_" in n for n in names)
+
+
+# ---------------------------------------------------------------------------
+# scan_downloads_folder
+# ---------------------------------------------------------------------------
+
+_COUNCIL_KEYS = ["mode", "rounds", "models", "synthesizer", "full"]
+
+_FM_TEMPLATE = "---\n{}\n---\nIs REST or GraphQL better?\n"
+
+
+def _write_md(path: Path, name: str, frontmatter: str) -> Path:
+    f = path / name
+    f.write_text(_FM_TEMPLATE.format(frontmatter), encoding="utf-8")
+    return f
+
+
+def test_scan_downloads_detects_mode_key(tmp_path: Path) -> None:
+    """Frontmatter with 'mode: pick' is detected as a council question."""
+    _write_md(tmp_path, "question.md", "mode: pick")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+    assert result[0].name == "question.md"
+
+
+def test_scan_downloads_detects_mixed_case_key(tmp_path: Path) -> None:
+    """Frontmatter key 'Mode: pick' (mixed case) is normalized and detected."""
+    _write_md(tmp_path, "question.md", "Mode: pick")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+
+
+def test_scan_downloads_detects_uppercase_key(tmp_path: Path) -> None:
+    """Frontmatter key 'ROUNDS: 2' (uppercase) is normalized and detected."""
+    _write_md(tmp_path, "question.md", "ROUNDS: 2")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+
+
+def test_scan_downloads_single_key_enough(tmp_path: Path) -> None:
+    """A single matching key (synthesizer) is sufficient for detection."""
+    _write_md(tmp_path, "question.md", "synthesizer: gemini")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+
+
+def test_scan_downloads_no_frontmatter_skipped(tmp_path: Path) -> None:
+    """Plain .md file without frontmatter is silently skipped."""
+    f = tmp_path / "plain.md"
+    f.write_text("No frontmatter here.", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert result == []
+
+
+def test_scan_downloads_noncouncil_keys_skipped(tmp_path: Path) -> None:
+    """File with frontmatter but no council keys (e.g. 'title:') is skipped."""
+    _write_md(tmp_path, "notes.md", "title: My Notes\nauthor: Rob")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert result == []
+
+
+def test_scan_downloads_malformed_yaml_skipped(tmp_path: Path) -> None:
+    """File with malformed YAML frontmatter is skipped without crashing."""
+    f = tmp_path / "broken.md"
+    f.write_text("---\n: bad: yaml: [\n---\nContent\n", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert result == []
+
+
+def test_scan_downloads_missing_dir_returns_empty(tmp_path: Path) -> None:
+    """Non-existent downloads dir returns empty list without error."""
+    missing = tmp_path / "does_not_exist"
+    result = scan_downloads_folder(missing, _COUNCIL_KEYS)
+    assert result == []
+
+
+def test_scan_downloads_case_insensitive_extension(tmp_path: Path) -> None:
+    """Files with .MD extension are also scanned."""
+    f = tmp_path / "question.MD"
+    f.write_text(_FM_TEMPLATE.format("mode: pick"), encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+    assert result[0].name == "question.MD"
