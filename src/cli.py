@@ -144,26 +144,32 @@ MODES  (run --modes for full alias list):
 
   Mode is auto-detected from question text if -M is not specified.
 
+PANEL DEFAULTS:
+  Full 5-model panel is used by default (claude, gemini, deepseek, openai, grok).
+  Use --lite for the 3-model panel (claude, gemini, openai).
+  Use --models to specify a custom panel.
+
 FLAG GROUPS:
   Mode:     -M/--mode, --modes
-  Models:   --models, --full, --synthesizer
+  Models:   --models, --full, --lite, --synthesizer
   Research: --deep, --no-cache
   Input:    --file, --inbox, --inbox-dir
   Output:   --format, --output, --verbose
   Rounds:   --rounds
 
 EXAMPLES:
-  python -m src.cli "Should we use REST or GraphQL?"
-  python -m src.cli -M ideas "What caching strategies should we consider?"
-  python -m src.cli -M judge "Is this microservices design production-ready?"
-  python -m src.cli -M p "Redis vs Memcached for sessions?" --rounds 1
-  python -m src.cli -M research "Best HTAP databases in 2026"
-  python -m src.cli -M r "LLM inference hardware comparison" --deep
-  python -m src.cli -M r "Redis vs Valkey" --no-cache
-  python -m src.cli "Monorepo vs polyrepo?" --full --synthesizer openai
-  python -m src.cli --file question.md --models claude,gemini --rounds 3
-  python -m src.cli --inbox
-  python -m src.cli --format json "question" > output.json
+  council "Should we use REST or GraphQL?"
+  council --lite "Quick question with 3-model panel"
+  council -M ideas "What caching strategies should we consider?"
+  council -M judge "Is this microservices design production-ready?"
+  council -M p "Redis vs Memcached for sessions?" --rounds 1
+  council -M research "Best HTAP databases in 2026"
+  council -M r "LLM inference hardware comparison" --deep
+  council -M r "Redis vs Valkey" --no-cache
+  council "Monorepo vs polyrepo?" --synthesizer openai
+  council --file question.md --models claude,gemini --rounds 3
+  council --inbox
+  council --format json "question" > output.json
 """
 
 
@@ -201,7 +207,8 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 @click.option("--file", "question_file", type=click.Path(exists=True), help="Read question from a .md file instead of inline argument.")
 @click.option("--rounds", default=None, type=int, help="Number of debate rounds (default: from mode config).")
 @click.option("--models", default=None, help="Comma-separated panel override, e.g. claude,openai,grok. Overrides --full and default panel.")
-@click.option("--full", "use_full_panel", is_flag=True, help="Use the full 5-model panel (claude, gemini, deepseek, openai, grok).")
+@click.option("--full", "use_full_panel", is_flag=True, help="[No-op] Full panel is now the default. Kept for backward compatibility.")
+@click.option("--lite", is_flag=True, default=False, help="Use the 3-model panel (claude, gemini, openai) instead of the full 5-model default.")
 @click.option("--output", "output_path", default=None, help="Output directory for saved transcripts (default: ./output).")
 @click.option(
     "--synthesizer", default=None,
@@ -235,6 +242,7 @@ def main(
     rounds: int | None,
     models: str | None,
     use_full_panel: bool,
+    lite: bool,
     output_path: str | None,
     synthesizer: str | None,
     mode_arg: str | None,
@@ -301,7 +309,7 @@ def main(
             question_text, meta = parse_file(file_path)
             fm_rounds = int(meta["rounds"]) if "rounds" in meta else config.defaults.rounds
             fm_models = str(meta["models"]) if "models" in meta and not use_full_panel else None
-            fm_full = use_full_panel or bool(meta.get("full", False))
+            fm_full = (use_full_panel or not lite) or bool(meta.get("full", False))
             fm_synthesizer = (
                 synthesizer if synthesizer is not None
                 else str(meta["synthesizer"]) if "synthesizer" in meta
@@ -363,7 +371,6 @@ def main(
     # Mode resolution for interactive: CLI --mode > auto-detect > default
     if mode_arg is not None and config.modes:
         effective_mode = resolve_mode(mode_arg, config.modes)
-        mode_source = "user-specified"
     elif config.modes:
         valid_modes = set(config.modes.keys())
         detected, source_label = asyncio.run(
@@ -372,10 +379,8 @@ def main(
         effective_mode = _interactive_confirm_mode(
             detected, source_label, config.modes
         )
-        mode_source = source_label
     else:
         effective_mode = "pick"
-        mode_source = "default (no modes configured)"
 
     # Research mode: completely separate code path — no debate rounds
     if effective_mode == "research":
@@ -405,7 +410,7 @@ def main(
         mode_cfg.max_rounds if mode_cfg else config.defaults.rounds
     )
 
-    panel_names, panel_mode = determine_panel(config, models, use_full_panel)
+    panel_names, panel_mode = determine_panel(config, models, use_full_panel or not lite)
     request = RunRequest(
         question=Question(text=question_text, source=question_source),
         panel_names=panel_names,
