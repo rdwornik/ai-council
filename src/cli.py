@@ -13,7 +13,7 @@ from rich.logging import RichHandler
 
 from config.config_loader import default_mode, load_config, resolve_mode
 from src.healthcheck import run_health_checks
-from src.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_inbox
+from src.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
 from src.mode_detector import detect_mode
 from src.models import Question, RunRequest
 from src.policy import RunPolicy
@@ -299,13 +299,22 @@ def main(
         inbox_dir = Path(inbox_dir_override) if inbox_dir_override else config.inbox.dir
         archive_dir = config.inbox.archive_dir
         ensure_dirs(inbox_dir, archive_dir)
-        files = scan_inbox(inbox_dir)
 
-        if not files:
+        dl_files: list[Path] = []
+        if config.inbox.scan_downloads:
+            dl_files = scan_downloads_folder(
+                config.inbox.downloads_dir, config.inbox.council_frontmatter_keys
+            )
+        dl_set = set(dl_files)
+
+        files = scan_inbox(inbox_dir)
+        all_files = dl_files + files
+
+        if not all_files:
             click.echo("No files in inbox.")
             return
 
-        for file_path in files:
+        for file_path in all_files:
             question_text, meta = parse_file(file_path)
             fm_rounds = int(meta["rounds"]) if "rounds" in meta else config.defaults.rounds
             fm_models = str(meta["models"]) if "models" in meta and not use_full_panel else None
@@ -351,7 +360,10 @@ def main(
             try:
                 asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
                 archived = archive_file(file_path, archive_dir)
-                click.echo(f"Archived: {file_path.name} -> {archived.name}")
+                if file_path in dl_set:
+                    click.echo(f"Processed from Downloads: {file_path.name} -> archived")
+                else:
+                    click.echo(f"Archived: {file_path.name} -> {archived.name}")
             except Exception as e:
                 logger.error("Failed: %s -- %s", file_path.name, e)
                 archive_file(file_path, archive_dir, failed=True)

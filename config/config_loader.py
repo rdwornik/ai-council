@@ -37,6 +37,11 @@ class PromptsConfig:
 class InboxConfig:
     dir: Path
     archive_dir: Path
+    downloads_dir: Path = field(default_factory=lambda: Path.home() / "Downloads")
+    scan_downloads: bool = True
+    council_frontmatter_keys: list[str] = field(
+        default_factory=lambda: ["mode", "rounds", "models", "synthesizer", "full"]
+    )
 
 
 @dataclass
@@ -227,6 +232,11 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     inbox = InboxConfig(
         dir=Path(inbox_raw.get("dir", "./council_inbox")),
         archive_dir=Path(inbox_raw.get("archive_dir", "./council_inbox/archive")),
+        downloads_dir=Path(inbox_raw.get("downloads_dir", "~/Downloads")).expanduser(),
+        scan_downloads=bool(inbox_raw.get("scan_downloads", True)),
+        council_frontmatter_keys=list(
+            inbox_raw.get("council_frontmatter_keys", ["mode", "rounds", "models", "synthesizer", "full"])
+        ),
     )
 
     # Parse modes (optional — falls back to empty dict if section absent)

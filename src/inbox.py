@@ -1,11 +1,14 @@
 """Inbox folder scanning, frontmatter parsing, and archive logic."""
 
+import logging
 import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 import frontmatter
+
+logger = logging.getLogger(__name__)
 
 # Matches optional FAILED_ prefix and optional YYYY-MM-DDTHHMM_ timestamp prefix.
 # Group 1 captures everything after those prefixes.
@@ -38,6 +41,46 @@ def scan_inbox(inbox_dir: Path) -> list[Path]:
     """Return all .md files in inbox_dir, sorted by mtime ascending (oldest first)."""
     files = list(inbox_dir.glob("*.md"))
     return sorted(files, key=lambda p: p.stat().st_mtime)
+
+
+def scan_downloads_folder(downloads_dir: Path, council_keys: list[str]) -> list[Path]:
+    """Return .md files in downloads_dir that contain council frontmatter keys.
+
+    Detection: any frontmatter key (case-insensitive) must match an entry in council_keys.
+    Files without frontmatter or with no matching keys are silently skipped.
+    Malformed YAML frontmatter is logged as a warning and skipped.
+    """
+    if not downloads_dir.exists():
+        logger.info("Downloads folder not found, skipping: %s", downloads_dir)
+        return []
+
+    # Case-insensitive extension match: *.md and *.MD etc.
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    for pattern in ("*.md", "*.MD", "*.Md", "*.mD"):
+        for p in downloads_dir.glob(pattern):
+            if p not in seen:
+                seen.add(p)
+                candidates.append(p)
+
+    council_keys_lower = {k.lower() for k in council_keys}
+    detected: list[Path] = []
+
+    for file_path in candidates:
+        try:
+            post = frontmatter.load(str(file_path))
+        except Exception:
+            logger.warning("Skipping malformed frontmatter: %s", file_path.name)
+            continue
+
+        if not post.metadata:
+            continue
+
+        file_keys = {k.lower() for k in post.metadata}
+        if file_keys & council_keys_lower:
+            detected.append(file_path)
+
+    return sorted(detected, key=lambda p: p.stat().st_mtime)
 
 
 def parse_file(file_path: Path) -> tuple[str, dict]:
