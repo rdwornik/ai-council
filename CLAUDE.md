@@ -10,8 +10,8 @@ Multi-model AI debate tool. Pose an architectural question; a panel of AI models
 python -m venv .venv && .venv\Scripts\Activate.ps1  # Windows
 pip install -e ".[dev]"
 cp .env.example .env  # add API keys
-python -m src.cli "Should we use REST or GraphQL?" --rounds 1
-pytest tests/ -m "not integration" -v
+council "Should we use REST or GraphQL?" --rounds 1
+pytest tests/ -m "not integration and not envcheck" -v
 ```
 
 ## Architecture
@@ -54,7 +54,10 @@ src/
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-tests/                 — 199 unit tests + 1 integration test
+scripts/
+  check.ps1            — pytest + mypy + ruff pre-merge check
+  council-ask.ps1      — helper script for quick CLI invocations
+tests/                 — 266 unit tests + integration tests
 ```
 
 ## Dev standards
@@ -78,35 +81,35 @@ python -m src.cli "Should we use REST or GraphQL?" --rounds 1  # also works
 council --lite "Quick question" --rounds 1
 
 # Ideas mode — brainstorm
-python -m src.cli -M i "What features am I not using in my auth system?"
+council -M i "What features am I not using in my auth system?"
 
 # Judge mode — evaluate a proposal
-python -m src.cli -M j "Is this microservices architecture production-ready?"
+council -M j "Is this microservices architecture production-ready?"
 
-# Full 5-model panel
-python -m src.cli "Monorepo vs polyrepo?" --rounds 2 --full
+# Full 5-model panel (no-op — default is already full)
+council "Monorepo vs polyrepo?" --rounds 2 --full
 
 # Custom models + custom synthesizer
-python -m src.cli "SQL or NoSQL?" --models claude,openai --synthesizer gemini
+council "SQL or NoSQL?" --models claude,openai --synthesizer gemini
 
 # From file
-python -m src.cli --file question.md --rounds 3
+council --file question.md --rounds 3
 
 # Inbox batch mode (reads council_inbox/*.md with optional frontmatter overrides)
-python -m src.cli --inbox
+council --inbox
 
 # Research mode — parallel web research (Perplexity + Gemini + o4-mini)
-python -m src.cli -M research "Best HTAP databases in 2026"
-python -m src.cli -M r "LLM inference hardware comparison"
+council -M research "Best HTAP databases in 2026"
+council -M r "LLM inference hardware comparison"
 
 # Research mode — include slow deep providers (o3-deep-research, ~45 min)
-python -m src.cli -M research "LLM inference hardware" --deep
+council -M research "LLM inference hardware" --deep
 
 # Research mode — skip cache read/write
-python -m src.cli -M r "Redis vs Valkey" --no-cache
+council -M r "Redis vs Valkey" --no-cache
 
 # Debug logging
-python -m src.cli "question" --rounds 1 --verbose
+council "question" --rounds 1 --verbose
 ```
 
 ## Key design decisions
@@ -114,7 +117,7 @@ python -m src.cli "question" --rounds 1 --verbose
 - **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is now the default; `--lite` uses the 3-model panel; `--full` is a no-op kept for backward compat
 - **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
-- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; falls back with `is_participant=True` if none available
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default synthesizer is `claude-sonnet` (Sonnet 4.6); falls back with `is_participant=True` if none available
 - **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `settings.yaml`
 - **RunPolicy**: Retry logic (`retry_on` patterns, `min_panel_size`) decoupled from debate logic; passed into `run_debate()`
 - **DebateOutcome**: `run_debate()` returns `DebateOutcome` (rounds + degradation fields); not `list[Round]`
@@ -155,7 +158,7 @@ Missing API keys are silently skipped — remaining providers still run.
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 255 unit tests (6 deselected), no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 266 unit tests (6 deselected), no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
@@ -209,7 +212,6 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 
 ## Known issues
 
-- DeepSeek API key may not be available in current environment
 - o3-deep-research integration test not run (blocked — $10+ per run)
 
 
