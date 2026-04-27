@@ -23,3 +23,10 @@
 9. **No bare except**: Always catch specific exceptions. Log with `logging`, never `print()`.
 
 10. **Type hints**: Use `X | None` not `Optional[X]`. Use `Path` objects, not raw strings.
+
+---
+
+### 2026-04-27 | Inbox path must mirror interactive path
+- CONTEXT: Research mode worked in interactive CLI but not via --inbox
+- MISTAKE: Third time this pattern appeared (--full, --mode, now research routing). Inbox loop is a separate code path that doesn't automatically inherit interactive features.
+- RULE: After adding ANY new feature to the interactive CLI path, immediately check: does the inbox loop handle this too? If not, add it. This is a recurring blind spot.
