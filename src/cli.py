@@ -336,6 +336,34 @@ def main(
             else:
                 fm_mode = default_mode(config.modes) if config.modes else "pick"
 
+            if fm_mode == "research":
+                if config.research is None:
+                    logger.error("No research config in settings.yaml -- skipping %s", file_path.name)
+                    archive_file(file_path, archive_dir, failed=True)
+                    continue
+                from src.research.runner import run_research
+                try:
+                    asyncio.run(
+                        run_research(
+                            query=question_text,
+                            config=config,
+                            output_dir=effective_output,
+                            deep=deep,
+                            no_cache=no_cache,
+                            console=console,
+                            output_format=output_format,
+                        )
+                    )
+                    archived = archive_file(file_path, archive_dir)
+                    if file_path in dl_set:
+                        click.echo(f"Processed from Downloads: {file_path.name} -> archived")
+                    else:
+                        click.echo(f"Archived: {file_path.name} -> {archived.name}")
+                except Exception as exc:
+                    logger.error("Research failed: %s -- %s", file_path.name, exc)
+                    archive_file(file_path, archive_dir, failed=True)
+                continue
+
             mode_cfg = config.modes.get(fm_mode)
             fm_effective_rounds = rounds if rounds is not None else fm_rounds
             if mode_cfg and rounds is None and "rounds" not in meta:
