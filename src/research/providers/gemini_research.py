@@ -13,6 +13,8 @@ import time
 import warnings
 from datetime import datetime
 
+from google import genai
+
 from src.research.models import ResearchResult, Source
 from src.research.provider import ResearchProvider, ResearchProviderError
 
@@ -70,9 +72,8 @@ class GeminiResearchProvider(ResearchProvider):
         return result
 
     async def _run_research(self, query: str) -> ResearchResult:
-        # Import inside method: genai.Client must be created per event loop (gotcha)
-        from google import genai
-
+        # genai.Client() must be created here (inside async method) — not in __init__
+        # The nextgen client it spawns binds to the running event loop (gotcha).
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             client = genai.Client(api_key=self._api_key)
