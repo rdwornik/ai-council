@@ -50,7 +50,7 @@ src/
       perplexity.py         — Perplexity sonar-pro (OpenAI-compatible, base_url)
       openai_mini_research.py — o4-mini-deep-research (Responses API + background polling)
       openai_deep_research.py — o3-deep-research (--deep only, 45 min timeout)
-      gemini_research.py    — Gemini + Google Search grounding
+      gemini_research.py    — Gemini Deep Research (Interactions API, autonomous agent, ~5-20 min)
 config/
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
@@ -150,7 +150,7 @@ council "question" --rounds 1 --verbose
 |----------|-------------|---------|------------|-------|
 | `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
 | `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
-| `gemini` | `GEMINI_API_KEY` | yes | no | Gemini + Google Search grounding |
+| `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API (`deep-research-pro-preview-12-2025`); autonomous agent; ~5-20 min |
 | `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
 
 Missing API keys are silently skipped — remaining providers still run.
@@ -207,12 +207,15 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - **Critique template**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
 - **google-genai async**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
 - **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__` — otherwise it binds to the wrong event loop
+- **Interactions API experimental warnings**: `client.aio.interactions` emits `UserWarning: Interactions usage is experimental` on every access — suppress with `warnings.catch_warnings()` + `warnings.simplefilter("ignore", UserWarning)` in the call site
+- **Interactions API agent IDs**: The SDK type hint only knows `"deep-research-pro-preview-12-2025"` as of google-genai 1.73. Agent ID is configured in `settings.yaml` under `research.providers.gemini.model` — update there to switch agents
 - **Research make_cache_key location**: `make_cache_key()` lives in `src/research/merger.py`, NOT `src/research/cache.py`
 - **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
 
 ## Known issues
 
 - o3-deep-research integration test not run (blocked — $10+ per run)
+- gemini deep-research integration test not run (blocked — takes 5-20 min per call)
 
 
 ## Folder governance
