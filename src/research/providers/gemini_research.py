@@ -1,45 +1,44 @@
-"""Gemini research provider with Google Search grounding."""
+"""Gemini Deep Research provider via Interactions API.
 
-# NOTE: Google's "Gemini Deep Research" (the consumer feature) uses an "Interactions API"
-# that is not yet exposed in the google-genai SDK as of early 2026. This implementation
-# uses the Gemini API with Google Search grounding, which is the closest available API
-# equivalent. It enables web search and returns grounded responses with citations.
-# When the Interactions API becomes available, this provider can be upgraded.
+Uses client.aio.interactions.create() with an autonomous deep-research agent
+that browses the web, reads sources, and writes a cited report (~5-20 min).
+
+The Interactions API is experimental as of google-genai 1.55+. Known agent IDs:
+  - "deep-research-pro-preview-12-2025"  (configured in settings.yaml)
+"""
 
 import asyncio
 import logging
 import time
+import warnings
 from datetime import datetime
+
+from google import genai
 
 from src.research.models import ResearchResult, Source
 from src.research.provider import ResearchProvider, ResearchProviderError
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_DEFAULT = 1800  # 30 minutes
-_SYSTEM_PROMPT = (
-    "You are a research analyst with access to current web search. "
-    "Conduct comprehensive research on the given topic. "
-    "Include specific facts, recent data, expert opinions, and cite all sources. "
-    "Structure your report with: Executive Summary, Key Findings (numbered), "
-    "Detailed Analysis, Competing Perspectives, and Sources."
-)
+_TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", "incomplete"})
 
 
 class GeminiResearchProvider(ResearchProvider):
-    """Research via Gemini with Google Search grounding."""
+    """Deep research via Gemini Interactions API — autonomous agent, real web browsing."""
 
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.5-pro-preview-05-06",
-        timeout_sec: int = _TIMEOUT_DEFAULT,
+        agent: str = "deep-research-pro-preview-12-2025",
+        timeout_sec: int = 1800,
+        poll_interval_sec: int = 10,
         cost_per_1m_input: float = 0.0,
         cost_per_1m_output: float = 0.0,
     ) -> None:
         self._api_key = api_key
-        self._model = model
+        self._agent = agent
         self._timeout_sec = timeout_sec
+        self._poll_interval_sec = poll_interval_sec
         self._cost_per_1m_input = cost_per_1m_input
         self._cost_per_1m_output = cost_per_1m_output
 
@@ -47,7 +46,7 @@ class GeminiResearchProvider(ResearchProvider):
         return "gemini"
 
     def model_string(self) -> str:
-        return self._model
+        return self._agent
 
     async def research(self, query: str) -> ResearchResult:
         start = time.monotonic()
@@ -62,6 +61,8 @@ class GeminiResearchProvider(ResearchProvider):
             raise ResearchProviderError(
                 "gemini", f"Timed out after {self._timeout_sec}s"
             ) from exc
+        except ResearchProviderError:
+            raise
         except Exception as exc:
             raise ResearchProviderError("gemini", f"API error: {exc}") from exc
 
@@ -71,31 +72,48 @@ class GeminiResearchProvider(ResearchProvider):
         return result
 
     async def _run_research(self, query: str) -> ResearchResult:
-        # Import inside method: google-genai Client must be created per event loop (see gotchas)
-        from google import genai
-        from google.genai import types
+        # genai.Client() must be created here (inside async method) — not in __init__
+        # The nextgen client it spawns binds to the running event loop (gotcha).
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            client = genai.Client(api_key=self._api_key)
 
-        client = genai.Client(api_key=self._api_key)
+            interaction = await client.aio.interactions.create(
+                agent=self._agent,
+                input=query,
+                background=True,
+            )
 
-        full_prompt = f"{_SYSTEM_PROMPT}\n\nResearch topic: {query}"
+        interaction_id = interaction.id
+        logger.info("gemini: research started (interaction_id=%s, agent=%s)", interaction_id, self._agent)
 
-        response = await client.aio.models.generate_content(
-            model=self._model,
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-            ),
-        )
+        while True:
+            await asyncio.sleep(self._poll_interval_sec)
 
-        content = response.text or ""
-        sources = self._extract_grounding_sources(response)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                interaction = await client.aio.interactions.get(interaction_id)
+
+            status = interaction.status
+            logger.debug("gemini: poll status=%s (interaction_id=%s)", status, interaction_id)
+
+            if status == "completed":
+                break
+            if status in _TERMINAL_STATUSES:
+                raise ResearchProviderError(
+                    "gemini",
+                    f"Research {status} (interaction_id={interaction_id})",
+                )
+
+        content = self._extract_text(interaction)
+        sources = self._extract_sources(interaction)
 
         input_tokens = 0
         output_tokens = 0
-        if response.usage_metadata:
-            input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
-            output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
+        usage = getattr(interaction, "usage", None)
+        if usage:
+            input_tokens = getattr(usage, "total_input_tokens", 0) or 0
+            output_tokens = getattr(usage, "total_output_tokens", 0) or 0
 
         cost = (
             input_tokens / 1_000_000 * self._cost_per_1m_input
@@ -111,29 +129,30 @@ class GeminiResearchProvider(ResearchProvider):
             cost_usd=cost,
         )
 
-    def _extract_grounding_sources(self, response: object) -> list[Source]:
-        """Extract grounding search entry point citations from Gemini response."""
+    def _extract_text(self, interaction: object) -> str:
+        outputs = getattr(interaction, "outputs", None) or []
+        texts = []
+        for output in outputs:
+            text = getattr(output, "text", None)
+            if text:
+                texts.append(str(text))
+        return "\n\n".join(texts)
+
+    def _extract_sources(self, interaction: object) -> list[Source]:
+        """Extract URLs from URLContextResultContent items in outputs."""
         sources: list[Source] = []
+        seen: set[str] = set()
         try:
-            candidates = getattr(response, "candidates", None)
-            if not candidates:
-                return sources
-            for candidate in candidates:
-                grounding = getattr(candidate, "grounding_metadata", None)
-                if not grounding:
+            outputs = getattr(interaction, "outputs", None) or []
+            for output in outputs:
+                result_list = getattr(output, "result", None)
+                if not isinstance(result_list, list):
                     continue
-                chunks = getattr(grounding, "grounding_chunks", None)
-                if chunks:
-                    for chunk in chunks:
-                        web = getattr(chunk, "web", None)
-                        if web:
-                            uri = getattr(web, "uri", None)
-                            title = getattr(web, "title", None)
-                            if uri:
-                                sources.append(Source(
-                                    title=str(title or uri),
-                                    url=str(uri),
-                                ))
+                for r in result_list:
+                    url = getattr(r, "url", None)
+                    if url and url not in seen:
+                        seen.add(url)
+                        sources.append(Source(title=str(url), url=str(url)))
         except Exception:
-            logger.debug("gemini: could not extract grounding sources", exc_info=True)
+            logger.debug("gemini: could not extract sources", exc_info=True)
         return sources

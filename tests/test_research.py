@@ -22,7 +22,6 @@ from src.research.merger import (
 from src.research.models import MergedResearchReport, ResearchResult, Source
 from src.research.provider import ResearchProvider, ResearchProviderError
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
@@ -331,8 +330,9 @@ class TestMockResearchProvider:
 
 class TestRunResearchWithDisplay:
     async def test_collects_results_in_order(self) -> None:
-        from src.research.display import run_research_with_display
         from rich.console import Console
+
+        from src.research.display import run_research_with_display
 
         results_by_provider = {
             "p1": _make_result("p1", "content 1"),
@@ -349,8 +349,9 @@ class TestRunResearchWithDisplay:
         assert results[1].provider == "p2"
 
     async def test_handles_provider_error(self) -> None:
-        from src.research.display import run_research_with_display
         from rich.console import Console
+
+        from src.research.display import run_research_with_display
 
         providers = [
             MockResearchProvider("ok", result=_make_result("ok")),
@@ -365,8 +366,9 @@ class TestRunResearchWithDisplay:
         assert fail_result.error is not None
 
     async def test_empty_providers_returns_empty(self) -> None:
-        from src.research.display import run_research_with_display
         from rich.console import Console
+
+        from src.research.display import run_research_with_display
 
         con = Console(file=io.StringIO())
         results = await run_research_with_display([], "query", console=con)
@@ -389,14 +391,267 @@ class TestResearchProviderError:
 
 
 # ---------------------------------------------------------------------------
+# GeminiResearchProvider (Interactions API)
+# ---------------------------------------------------------------------------
+
+def _make_interaction(
+    status: str = "completed",
+    text_outputs: list[str] | None = None,
+    url_results: list[str] | None = None,
+) -> MagicMock:
+    """Build a mock Interaction object matching the real SDK shape."""
+    interaction = MagicMock()
+    interaction.id = "test-interaction-id"
+    interaction.status = status
+
+    outputs = []
+    for text in (text_outputs or []):
+        output = MagicMock()
+        output.text = text
+        output.result = None
+        outputs.append(output)
+
+    for url in (url_results or []):
+        output = MagicMock()
+        output.text = None
+        r = MagicMock()
+        r.url = url
+        output.result = [r]
+        outputs.append(output)
+
+    interaction.outputs = outputs
+
+    usage = MagicMock()
+    usage.total_input_tokens = 500
+    usage.total_output_tokens = 1000
+    interaction.usage = usage
+
+    return interaction
+
+
+class TestGeminiResearchProvider:
+    """Unit tests for GeminiResearchProvider — all API calls mocked."""
+
+    def _make_provider(self, **kwargs):  # type: ignore[return]
+        from src.research.providers.gemini_research import GeminiResearchProvider
+        defaults = dict(
+            api_key="test-key",
+            agent="deep-research-pro-preview-12-2025",
+            timeout_sec=60,
+            poll_interval_sec=0,  # no sleep in tests
+        )
+        defaults.update(kwargs)
+        return GeminiResearchProvider(**defaults)
+
+    def _make_mock_client(
+        self,
+        create_interaction: MagicMock,
+        poll_interactions: list[MagicMock],
+    ) -> MagicMock:
+        """Build a mock genai.Client whose aio.interactions.create/get return the given values."""
+        client = MagicMock()
+        client.aio.interactions.create = AsyncMock(return_value=create_interaction)
+        client.aio.interactions.get = AsyncMock(side_effect=poll_interactions)
+        return client
+
+    async def test_name_and_model_string(self) -> None:
+        provider = self._make_provider()
+        assert provider.name() == "gemini"
+        assert provider.model_string() == "deep-research-pro-preview-12-2025"
+
+    async def test_completed_on_first_poll(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        completed = _make_interaction(status="completed", text_outputs=["Report text."])
+
+        client = self._make_mock_client(started, [completed])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("What is HTAP?")
+
+        assert result.provider == "gemini"
+        assert result.content == "Report text."
+        assert result.error is None
+        client.aio.interactions.create.assert_called_once_with(
+            agent="deep-research-pro-preview-12-2025",
+            input="What is HTAP?",
+            background=True,
+        )
+        client.aio.interactions.get.assert_called_once_with("test-interaction-id")
+
+    async def test_polls_until_completed(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        poll1 = _make_interaction(status="in_progress")
+        poll2 = _make_interaction(status="in_progress")
+        done = _make_interaction(status="completed", text_outputs=["Final report."])
+
+        client = self._make_mock_client(started, [poll1, poll2, done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert result.content == "Final report."
+        assert client.aio.interactions.get.call_count == 3
+
+    async def test_failed_status_raises(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        failed = _make_interaction(status="failed")
+
+        client = self._make_mock_client(started, [failed])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "failed" in str(exc_info.value)
+
+    async def test_cancelled_status_raises(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        cancelled = _make_interaction(status="cancelled")
+
+        client = self._make_mock_client(started, [cancelled])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "cancelled" in str(exc_info.value)
+
+    async def test_timeout_raises(self) -> None:
+        provider = self._make_provider(timeout_sec=0)
+        started = _make_interaction(status="in_progress")
+        poll = _make_interaction(status="in_progress")
+
+        async def slow_get(_id: str) -> MagicMock:
+            await asyncio.sleep(0.1)
+            return poll
+
+        client = MagicMock()
+        client.aio.interactions.create = AsyncMock(return_value=started)
+        client.aio.interactions.get = slow_get
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "Timed out" in str(exc_info.value)
+
+    async def test_extracts_multiple_text_outputs(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(
+            status="completed", text_outputs=["Part 1.", "Part 2.", "Part 3."]
+        )
+
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert "Part 1." in result.content
+        assert "Part 2." in result.content
+        assert "Part 3." in result.content
+
+    async def test_extracts_url_sources(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(
+            status="completed",
+            text_outputs=["Report."],
+            url_results=["https://example.com", "https://other.org"],
+        )
+
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        urls = {s.url for s in result.sources}
+        assert "https://example.com" in urls
+        assert "https://other.org" in urls
+
+    async def test_deduplicates_sources(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(
+            status="completed",
+            text_outputs=["Report."],
+            url_results=["https://example.com", "https://example.com"],
+        )
+
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
+
+    async def test_uses_configured_agent_id(self) -> None:
+        custom_agent = "custom-agent-id"
+        provider = self._make_provider(agent=custom_agent)
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(status="completed", text_outputs=["Done."])
+
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            await provider.research("test")
+
+        client.aio.interactions.create.assert_called_once_with(
+            agent=custom_agent,
+            input="test",
+            background=True,
+        )
+
+    async def test_api_error_wrapped_as_provider_error(self) -> None:
+        provider = self._make_provider()
+        client = MagicMock()
+        client.aio.interactions.create = AsyncMock(side_effect=RuntimeError("connection refused"))
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "API error" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
 # build_research_providers (no API calls)
 # ---------------------------------------------------------------------------
 
 class TestBuildResearchProviders:
     def test_skips_providers_with_missing_api_key(self, tmp_path: Path, monkeypatch) -> None:
         from config.config_loader import (
-            AppConfig, DefaultsConfig, InboxConfig, ModelConfig,
-            PromptsConfig, ResearchConfig, ResearchProviderConfig,
+            AppConfig,
+            DefaultsConfig,
+            InboxConfig,
+            ModelConfig,
+            PromptsConfig,
+            ResearchConfig,
+            ResearchProviderConfig,
         )
         from src.research.runner import build_research_providers
 
@@ -437,7 +692,11 @@ class TestBuildResearchProviders:
 
     def test_returns_empty_when_no_research_config(self, tmp_path: Path) -> None:
         from config.config_loader import (
-            AppConfig, DefaultsConfig, InboxConfig, ModelConfig, PromptsConfig,
+            AppConfig,
+            DefaultsConfig,
+            InboxConfig,
+            ModelConfig,
+            PromptsConfig,
         )
         from src.research.runner import build_research_providers
 
