@@ -93,8 +93,9 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
         from src.research.providers.gemini_research import GeminiResearchProvider
         return GeminiResearchProvider(
             api_key=api_key,
-            model=p_cfg.model,
+            agent=p_cfg.model,
             timeout_sec=p_cfg.timeout_sec,
+            poll_interval_sec=p_cfg.poll_interval_sec,
             cost_per_1m_input=p_cfg.cost_per_1m_input,
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
