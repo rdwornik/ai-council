@@ -1,5 +1,6 @@
 """Research output: save markdown report to disk and print console summary."""
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -83,7 +84,6 @@ def save_research_to_file(
             secondary_path.write_text(content, encoding="utf-8")
             saved.append(secondary_path)
         else:
-            import logging
             logging.getLogger(__name__).warning(
                 "Secondary output dir not found: %s — research report saved to primary only.",
                 secondary_dir,

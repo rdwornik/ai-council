@@ -1,15 +1,13 @@
 """Tests for dual output path behavior (primary + optional secondary)."""
 
 import logging
-from pathlib import Path
 
 import pytest
 
-from src.models import DebateResult, ModelResponse, Question, Round
+from src.models import DebateResult
 from src.output import save_to_file
-from src.research.models import MergedResearchReport, ResearchResult
+from src.research.models import MergedResearchReport
 from src.research.output import save_research_to_file
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
