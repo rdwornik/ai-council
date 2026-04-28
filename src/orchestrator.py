@@ -5,6 +5,7 @@ lives in one place and can be imported / subclassed independently.
 """
 
 import logging
+from pathlib import Path
 
 from config.config_loader import AppConfig
 from src.debate import run_debate
@@ -43,6 +44,10 @@ class CouncilRunner:
 
         if output_dir is None:
             output_dir = self._config.defaults.output_dir
+
+        secondary_dir: Path | None = None
+        if self._config.defaults.secondary_output_enabled:
+            secondary_dir = self._config.defaults.secondary_output_dir
 
         panel_names = request.panel_names
         synthesizer_name = request.synthesizer_name
@@ -144,8 +149,17 @@ class CouncilRunner:
         if result.metrics:
             print_cost_summary(result.metrics)
 
-        saved_path = save_to_file(result, output_dir, slug_override=request.slug_override)
-        console.print(f"\n[dim]Saved to: {saved_path}[/dim]")
+        saved_paths = save_to_file(
+            result, output_dir, slug_override=request.slug_override, secondary_dir=secondary_dir
+        )
+        console.print(f"\n[dim]Saved: {saved_paths[0]}[/dim]")
+        if len(saved_paths) > 1:
+            for p in saved_paths[1:]:
+                console.print(f"[dim]Copied: {p}[/dim]")
+        elif secondary_dir is not None and not secondary_dir.exists():
+            console.print(
+                f"[dim yellow]Secondary output dir not found: {secondary_dir}[/dim yellow]"
+            )
 
         if output_format == "json":
             import dataclasses

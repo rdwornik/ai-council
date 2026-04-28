@@ -29,8 +29,9 @@ def save_research_to_file(
     report: MergedResearchReport,
     output_dir: Path,
     from_cache: bool = False,
-) -> Path:
-    """Save merged research report as markdown. Returns the saved file path."""
+    secondary_dir: Path | None = None,
+) -> list[Path]:
+    """Save merged research report as markdown. Returns list of paths written."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -72,8 +73,23 @@ def save_research_to_file(
     lines.append("## Full Research Report\n")
     lines.append(report.merged_report)
 
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    return file_path
+    content = "\n".join(lines)
+    file_path.write_text(content, encoding="utf-8")
+    saved = [file_path]
+
+    if secondary_dir is not None:
+        if secondary_dir.exists():
+            secondary_path = secondary_dir / filename
+            secondary_path.write_text(content, encoding="utf-8")
+            saved.append(secondary_path)
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Secondary output dir not found: %s — research report saved to primary only.",
+                secondary_dir,
+            )
+
+    return saved
 
 
 def print_research_summary(

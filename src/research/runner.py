@@ -103,6 +103,17 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
         raise ValueError(f"Unknown research provider name: {name}")
 
 
+def _print_research_paths(console: Console, saved_paths: list[Path], secondary_dir: Path | None) -> None:
+    """Print secondary saved path (print_research_summary already prints primary)."""
+    if len(saved_paths) > 1:
+        for p in saved_paths[1:]:
+            console.print(f"[dim]Copied: {p}[/dim]")
+    elif secondary_dir is not None and not secondary_dir.exists():
+        console.print(
+            f"[dim yellow]Secondary output dir not found: {secondary_dir}[/dim yellow]"
+        )
+
+
 async def run_research(
     query: str,
     config: AppConfig,
@@ -120,6 +131,10 @@ async def run_research(
     if research_cfg is None:
         raise RuntimeError("Research config not loaded. Check settings.yaml.")
 
+    secondary_dir: Path | None = None
+    if config.defaults.secondary_output_enabled:
+        secondary_dir = config.defaults.secondary_output_dir
+
     cache_key = make_cache_key(query)
 
     # Cache check
@@ -127,8 +142,9 @@ async def run_research(
         cached = cache_get(research_cfg.cache_dir, cache_key, research_cfg.cache_ttl_days)
         if cached is not None:
             console.print(f"\n[dim]Research cache hit (key: {cache_key})[/dim]")
-            file_path = save_research_to_file(cached, output_dir, from_cache=True)
-            print_research_summary(cached, file_path, from_cache=True, console=console)
+            saved_paths = save_research_to_file(cached, output_dir, from_cache=True, secondary_dir=secondary_dir)
+            print_research_summary(cached, saved_paths[0], from_cache=True, console=console)
+            _print_research_paths(console, saved_paths, secondary_dir)
             if output_format == "json":
                 import dataclasses
                 import json
@@ -159,8 +175,9 @@ async def run_research(
         cache_put(research_cfg.cache_dir, cache_key, report)
 
     # Output
-    file_path = save_research_to_file(report, output_dir, from_cache=False)
-    print_research_summary(report, file_path, from_cache=False, console=console)
+    saved_paths = save_research_to_file(report, output_dir, from_cache=False, secondary_dir=secondary_dir)
+    print_research_summary(report, saved_paths[0], from_cache=False, console=console)
+    _print_research_paths(console, saved_paths, secondary_dir)
 
     if output_format == "json":
         import dataclasses

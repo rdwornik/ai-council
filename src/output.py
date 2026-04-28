@@ -119,18 +119,17 @@ def print_cost_summary(metrics: DebateMetrics) -> None:
 
 
 def save_to_file(
-    result: DebateResult, output_dir: Path, slug_override: str | None = None
-) -> Path:
+    result: DebateResult,
+    output_dir: Path,
+    slug_override: str | None = None,
+    secondary_dir: Path | None = None,
+) -> list[Path]:
     """Save the full debate transcript as a markdown file.
 
-    Args:
-        result: The completed DebateResult.
-        output_dir: Directory to save the file in.
-        slug_override: If provided, use this as the filename stem instead of
-            deriving one from the question text. Useful for inbox mode.
+    Writes to output_dir (always) and secondary_dir (if it exists on disk).
 
     Returns:
-        Path to the saved file.
+        List of paths written. First entry is always the primary path.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -245,11 +244,26 @@ def save_to_file(
 
     filepath.write_text("\n".join(lines), encoding="utf-8")
     logger.info("Debate saved to: %s", filepath)
+    saved = [filepath]
 
     if result.metrics:
         _save_metrics_json(result, filepath)
 
-    return filepath
+    if secondary_dir is not None:
+        if secondary_dir.exists():
+            secondary_path = secondary_dir / filename
+            secondary_path.write_text("\n".join(lines), encoding="utf-8")
+            logger.info("Transcript copied to: %s", secondary_path)
+            saved.append(secondary_path)
+            if result.metrics:
+                _save_metrics_json(result, secondary_path)
+        else:
+            logger.warning(
+                "Secondary output dir not found: %s — transcript saved to primary only.",
+                secondary_dir,
+            )
+
+    return saved
 
 
 def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
