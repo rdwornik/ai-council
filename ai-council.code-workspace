@@ -24,7 +24,10 @@
     "ruff.organizeImports": true,
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
-    "editor.rulers": [88, 120],
+    "editor.rulers": [
+      88,
+      120
+    ],
     "explorer.sortOrder": "modified",
     "errorLens.enabledDiagnosticLevels": [
       "error",
@@ -36,7 +39,6 @@
     "files.exclude": {
       "**/__pycache__": true,
       "**/*.pyc": true,
-      ".venv": true,
       "*.egg-info": true
     }
   },
