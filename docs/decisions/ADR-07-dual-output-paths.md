@@ -22,7 +22,7 @@ Running `council` from any directory other than the repo root caused transcripts
 - `output_dir` in `DefaultsConfig` is now resolved to an absolute path anchored at `_REPO_ROOT` (`Path(__file__).parent.parent` in `config_loader.py`), eliminating cwd-relative drift
 - `save_to_file` and `save_research_to_file` accept `secondary_dir: Path | None`; if the directory exists at write time, they write there too and return both paths
 - Orchestrator and research runner extract `secondary_dir` from `config.defaults.secondary_output_dir` (gated by `secondary_output_enabled`) and pass it down
-- `_save_metrics_json` also writes to secondary when present (metrics and transcript stay paired)
+- `_save_metrics_json` writes to primary only — metrics are operational data, not curated knowledge
 
 ## Fallback
 
@@ -42,4 +42,6 @@ Set `secondary_output_enabled: false` to disable dual-write entirely.
 ## What does NOT go to secondary
 
 - `--format json` stdout dumps (not a file write, unaffected)
-- JSON metrics files follow transcripts — if transcript goes to secondary, metrics do too
+- `_metrics.json` files — operational telemetry; stay in primary (`output/`) only
+
+**Clarification (2026-04-28):** Secondary path receives `.md` transcripts only. `_metrics.json` files are operational data, not curated knowledge, and must not accumulate in `.dev-knowledge`.
