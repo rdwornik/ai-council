@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 console = Console(legacy_windows=False)
 
 
-def _slug(text: str, max_len: int = 40) -> str:
-    """Convert text to a filename-safe slug."""
+def _slug(text: str, max_len: int = 50) -> str:
+    """Convert text to a filename-safe slug (hyphens, no special chars)."""
     import re
 
     slug = re.sub(r"[^\w\s-]", "", text.lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")
-    return slug[:max_len]
+    return slug[:max_len].rstrip("-")
 
 
 def _response_preview(response: ModelResponse, words: int = 50) -> str:
@@ -135,7 +135,7 @@ def save_to_file(
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = slug_override if slug_override is not None else _slug(result.question.text)
-    filename = f"{timestamp}_{slug}.md"
+    filename = f"council_out_{timestamp}_{result.mode}_{slug}.md"
     filepath = output_dir / filename
 
     # Derive panel info from first round responses

@@ -11,11 +11,11 @@ from rich.rule import Rule
 from src.research.models import MergedResearchReport, ResearchResult
 
 
-def _slug(query: str, max_len: int = 40) -> str:
+def _slug(query: str, max_len: int = 50) -> str:
     s = query.lower()
-    s = re.sub(r"[^a-z0-9 ]+", "", s)
-    s = re.sub(r"\s+", "_", s.strip())
-    return s[:max_len].rstrip("_")
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_-]+", "-", s).strip("-")
+    return s[:max_len].rstrip("-")
 
 
 def _format_duration(seconds: float) -> str:
@@ -37,7 +37,7 @@ def save_research_to_file(
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = _slug(report.query)
-    filename = f"{ts}_{slug}_research.md"
+    filename = f"council_out_{ts}_research_{slug}.md"
     file_path = output_dir / filename
 
     lines: list[str] = [

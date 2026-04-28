@@ -14,7 +14,7 @@ def test_slug_basic():
 
 def test_slug_max_len():
     long_text = "a" * 100
-    assert len(_slug(long_text)) <= 40
+    assert len(_slug(long_text)) <= 50
 
 
 def test_slug_special_chars():
@@ -104,11 +104,15 @@ def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_
     assert "**Panel Mode:** custom" in content
 
 
-def test_save_to_file_filename_has_slug(
+def test_save_to_file_filename_convention(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
-    assert "yaml" in saved[0].name or "should" in saved[0].name  # slug from question
+    name = saved[0].name
+    assert name.startswith("council_out_")
+    assert "_pick_" in name  # mode in filename
+    assert "yaml" in name or "should" in name  # slug from question
+    assert name.endswith(".md")
 
 
 def test_provider_notes_retried_provider(tmp_path, sample_question):

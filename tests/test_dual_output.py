@@ -107,7 +107,8 @@ def test_research_primary_always_written(tmp_path, sample_research_report):
     saved = save_research_to_file(sample_research_report, tmp_path / "primary")
     assert len(saved) == 1
     assert saved[0].exists()
-    assert "_research.md" in saved[0].name
+    assert saved[0].name.startswith("council_out_")
+    assert "_research_" in saved[0].name
 
 
 def test_research_secondary_written_when_dir_exists(tmp_path, sample_research_report):
