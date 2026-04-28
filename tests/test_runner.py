@@ -220,7 +220,7 @@ async def test_runner_run_returns_debate_result(all_providers, multi_model_confi
     with (
         patch("src.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
         patch("src.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
-        patch("src.orchestrator.save_to_file", return_value=tmp_path / "out.md"),
+        patch("src.orchestrator.save_to_file", return_value=[tmp_path / "out.md"]),
         patch("src.orchestrator.print_round_summary"),
         patch("src.orchestrator.print_synthesis"),
         patch("src.orchestrator.print_cost_summary"),
@@ -262,7 +262,7 @@ async def test_runner_run_uses_output_dir_from_config_when_none(all_providers, m
     with (
         patch("src.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
         patch("src.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
-        patch("src.orchestrator.save_to_file", return_value=saved_path) as mock_save,
+        patch("src.orchestrator.save_to_file", return_value=[saved_path]) as mock_save,
         patch("src.orchestrator.print_round_summary"),
         patch("src.orchestrator.print_synthesis"),
         patch("src.orchestrator.print_cost_summary"),

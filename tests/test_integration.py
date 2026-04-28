@@ -104,8 +104,8 @@ async def test_full_debate_pipeline(tmp_path: Path):
     assert result.synthesizer
 
     saved = save_to_file(result, tmp_path / "output")
-    assert saved.exists()
-    content = saved.read_text(encoding="utf-8")
+    assert saved[0].exists()
+    content = saved[0].read_text(encoding="utf-8")
     assert "AI Council Debate" in content
     assert "**Panel:**" in content
     assert len(content) > 500

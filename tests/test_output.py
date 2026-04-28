@@ -39,8 +39,8 @@ def sample_debate_result(sample_question, sample_round) -> DebateResult:
 
 def test_save_to_file_creates_file(tmp_path: Path, sample_debate_result: DebateResult):
     saved = save_to_file(sample_debate_result, tmp_path / "output")
-    assert saved.exists()
-    assert saved.suffix == ".md"
+    assert saved[0].exists()
+    assert saved[0].suffix == ".md"
 
 
 def test_save_to_file_creates_output_dir(
@@ -54,7 +54,7 @@ def test_save_to_file_creates_output_dir(
 
 def test_save_to_file_content(tmp_path: Path, sample_debate_result: DebateResult):
     saved = save_to_file(sample_debate_result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "AI Council Debate" in content
     assert "Round 1" in content
     assert "## Consensus" in content
@@ -66,7 +66,7 @@ def test_save_to_file_has_panel_header(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Panel:**" in content
 
 
@@ -74,7 +74,7 @@ def test_save_to_file_has_mode_header(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Panel Mode:**" in content
     assert "default" in content
 
@@ -83,7 +83,7 @@ def test_save_to_file_has_synthesizer_header(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Synthesizer:**" in content
     assert "non-participant" in content
 
@@ -99,7 +99,7 @@ def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_
         synthesizer_is_participant=True,
     )
     saved = save_to_file(result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "participant" in content
     assert "**Panel Mode:** custom" in content
 
@@ -108,7 +108,7 @@ def test_save_to_file_filename_has_slug(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
-    assert "yaml" in saved.name or "should" in saved.name  # slug from question
+    assert "yaml" in saved[0].name or "should" in saved[0].name  # slug from question
 
 
 def test_provider_notes_retried_provider(tmp_path, sample_question):
@@ -131,7 +131,7 @@ def test_provider_notes_retried_provider(tmp_path, sample_question):
         provider_statuses={"claude": "ok"},
     )
     saved = save_to_file(result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Provider Notes:**" in content
     assert "claude retried" in content
     assert "recovered" in content
@@ -148,7 +148,7 @@ def test_provider_notes_skipped_provider(tmp_path, sample_question, sample_round
         provider_statuses={"claude": "ok", "deepseek": "failed"},
     )
     saved = save_to_file(result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Provider Notes:**" in content
     assert "deepseek skipped" in content
 
@@ -156,5 +156,5 @@ def test_provider_notes_skipped_provider(tmp_path, sample_question, sample_round
 def test_provider_notes_absent_when_all_ok(tmp_path, sample_debate_result):
     """No Provider Notes line when all providers succeeded without retry."""
     saved = save_to_file(sample_debate_result, tmp_path)
-    content = saved.read_text(encoding="utf-8")
+    content = saved[0].read_text(encoding="utf-8")
     assert "**Provider Notes:**" not in content
