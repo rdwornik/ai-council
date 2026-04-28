@@ -10,6 +10,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _SETTINGS_PATH = Path(__file__).parent / "settings.yaml"
+_REPO_ROOT = Path(__file__).parent.parent
 
 
 @dataclass
@@ -52,6 +53,8 @@ class DefaultsConfig:
     synthesizer: str
     default_panel: list[str] = field(default_factory=list)
     full_panel: list[str] = field(default_factory=list)
+    secondary_output_dir: Path | None = None
+    secondary_output_enabled: bool = True
 
 
 @dataclass
@@ -183,13 +186,23 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         raw = yaml.safe_load(f)
 
     defaults_raw = raw["defaults"]
+    # Resolve output_dir relative to repo root so transcripts land in the same
+    # place regardless of which directory the user runs `council` from.
+    output_dir = (_REPO_ROOT / defaults_raw["output_dir"]).resolve()
+
+    secondary_dir_raw = defaults_raw.get("secondary_output_dir")
+    secondary_dir = Path(secondary_dir_raw).expanduser() if secondary_dir_raw else None
+    secondary_enabled = bool(defaults_raw.get("secondary_output_enabled", True))
+
     defaults = DefaultsConfig(
         rounds=int(defaults_raw["rounds"]),
         max_rounds=int(defaults_raw["max_rounds"]),
-        output_dir=Path(defaults_raw["output_dir"]),
+        output_dir=output_dir,
         synthesizer=str(defaults_raw["synthesizer"]),
         default_panel=list(defaults_raw["default_panel"]),
         full_panel=list(defaults_raw["full_panel"]),
+        secondary_output_dir=secondary_dir,
+        secondary_output_enabled=secondary_enabled,
     )
 
     prompts_raw = raw["prompts"]

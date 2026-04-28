@@ -2,6 +2,8 @@ defaults:
   rounds: 2
   max_rounds: 3
   output_dir: "./output"
+  secondary_output_dir: "~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts"
+  secondary_output_enabled: true
   synthesizer: "claude-sonnet"
   default_panel: [ "claude", "gemini", "openai" ] # Systems + Security + Product; best for most decisions
   full_panel: [ "claude", "gemini", "deepseek", "openai", "grok" ] # add Performance + Contrarian for high-stakes debates
