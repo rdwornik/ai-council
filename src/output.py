@@ -255,8 +255,6 @@ def save_to_file(
             secondary_path.write_text("\n".join(lines), encoding="utf-8")
             logger.info("Transcript copied to: %s", secondary_path)
             saved.append(secondary_path)
-            if result.metrics:
-                _save_metrics_json(result, secondary_path)
         else:
             logger.warning(
                 "Secondary output dir not found: %s — transcript saved to primary only.",
