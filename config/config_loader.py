@@ -244,8 +244,8 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
 
     inbox_raw = raw.get("inbox", {})
     inbox = InboxConfig(
-        dir=Path(inbox_raw.get("dir", "./council_inbox")),
-        archive_dir=Path(inbox_raw.get("archive_dir", "./council_inbox/archive")),
+        dir=(_REPO_ROOT / inbox_raw.get("dir", "council_inbox")).resolve(),
+        archive_dir=(_REPO_ROOT / inbox_raw.get("archive_dir", "council_inbox/archive")).resolve(),
         downloads_dir=Path(inbox_raw.get("downloads_dir", "~/Downloads")).expanduser(),
         scan_downloads=bool(inbox_raw.get("scan_downloads", True)),
         council_frontmatter_keys=list(
