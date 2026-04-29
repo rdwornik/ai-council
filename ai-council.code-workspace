@@ -28,7 +28,7 @@
       88,
       120
     ],
-    "explorer.sortOrder": "modified",
+    "explorer.sortOrder": "default",
     "errorLens.enabledDiagnosticLevels": [
       "error",
       "warning",
