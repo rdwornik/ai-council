@@ -212,3 +212,48 @@ def test_scan_downloads_case_insensitive_extension(tmp_path: Path) -> None:
     result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
     assert len(result) == 1
     assert result[0].name == "question.MD"
+
+
+# ---------------------------------------------------------------------------
+# Filename-based detection
+# ---------------------------------------------------------------------------
+
+
+def test_scan_downloads_council_filename_no_frontmatter(tmp_path: Path) -> None:
+    """File named council_xyz.md with no frontmatter is detected by filename."""
+    f = tmp_path / "council_prompt_adr33.md"
+    f.write_text("Should we use REST or GraphQL?", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+    assert result[0].name == "council_prompt_adr33.md"
+
+
+def test_scan_downloads_council_filename_uppercase(tmp_path: Path) -> None:
+    """File named COUNCIL_ABC.MD (uppercase stem) is detected case-insensitively."""
+    f = tmp_path / "COUNCIL_ABC.md"
+    f.write_text("Some question.", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+
+
+def test_scan_downloads_council_anywhere_in_stem(tmp_path: Path) -> None:
+    """'council' anywhere in the filename stem triggers detection."""
+    f = tmp_path / "my_council_question.md"
+    f.write_text("Some question.", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
+
+
+def test_scan_downloads_non_council_no_frontmatter_skipped(tmp_path: Path) -> None:
+    """Plain file without 'council' in name and no frontmatter is skipped."""
+    f = tmp_path / "random.md"
+    f.write_text("Just a random note.", encoding="utf-8")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert result == []
+
+
+def test_scan_downloads_frontmatter_wins_without_council_name(tmp_path: Path) -> None:
+    """File named random.md but with council frontmatter is still detected."""
+    _write_md(tmp_path, "random.md", "rounds: 2")
+    result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
+    assert len(result) == 1
