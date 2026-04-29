@@ -44,11 +44,14 @@ def scan_inbox(inbox_dir: Path) -> list[Path]:
 
 
 def scan_downloads_folder(downloads_dir: Path, council_keys: list[str]) -> list[Path]:
-    """Return .md files in downloads_dir that contain council frontmatter keys.
+    """Return .md files in downloads_dir that look like council files.
 
-    Detection: any frontmatter key (case-insensitive) must match an entry in council_keys.
-    Files without frontmatter or with no matching keys are silently skipped.
-    Malformed YAML frontmatter is logged as a warning and skipped.
+    Detection (either condition is sufficient):
+    1. Filename stem contains "council" (case-insensitive).
+    2. File has frontmatter with a key matching council_keys (case-insensitive).
+
+    Malformed YAML frontmatter is logged as a warning and skipped only if the
+    file doesn't qualify by filename.
     """
     if not downloads_dir.exists():
         logger.info("Downloads folder not found, skipping: %s", downloads_dir)
@@ -67,6 +70,10 @@ def scan_downloads_folder(downloads_dir: Path, council_keys: list[str]) -> list[
     detected: list[Path] = []
 
     for file_path in candidates:
+        if "council" in file_path.stem.lower():
+            detected.append(file_path)
+            continue
+
         try:
             post = frontmatter.load(str(file_path))
         except Exception:
