@@ -10,7 +10,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from config.config_loader import AppConfig, ResearchConfig
+from config.config_loader import AppConfig
 from src.research.cache import cache_get, cache_put
 from src.research.display import run_research_with_display
 from src.research.merger import make_cache_key, merge_results, summarize_report
@@ -96,6 +96,16 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             agent=p_cfg.model,
             timeout_sec=p_cfg.timeout_sec,
             poll_interval_sec=p_cfg.poll_interval_sec,
+            cost_per_1m_input=p_cfg.cost_per_1m_input,
+            cost_per_1m_output=p_cfg.cost_per_1m_output,
+        )
+    elif name == "grok":
+        from src.research.providers.grok_research import GrokResearchProvider
+        return GrokResearchProvider(
+            api_key=api_key,
+            model=p_cfg.model,
+            base_url=p_cfg.base_url or "https://api.x.ai/v1",
+            timeout_sec=p_cfg.timeout_sec,
             cost_per_1m_input=p_cfg.cost_per_1m_input,
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
