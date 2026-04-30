@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ai-council"
 version = "1.0.0"
@@ -24,12 +28,12 @@ dev = [
 ]
 
 [project.scripts]
-ai-council = "src.cli:main"
-council = "src.cli:main"
+ai-council = "ai_council.cli:main"
+council = "ai_council.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*", "config*"]
+where = ["src", "."]
+include = ["ai_council*", "config*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -40,8 +44,8 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
-omit = ["src/research/providers/openai_deep_research.py"]
+source = ["src/ai_council"]
+omit = ["src/ai_council/research/providers/openai_deep_research.py"]
 
 [tool.coverage.report]
 show_missing = true
