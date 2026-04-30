@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+- **ADR-38 compliance:** migrated from flat `src/` layout to `src/ai_council/` namespace package. All Python sources now live under `src/ai_council/`; entry points are `ai_council.cli:main`; imports rewritten from `from src.X` to `from ai_council.X` across 27 source modules and 17 test files.
+- Added `[build-system]` block to `pyproject.toml` with `setuptools.build_meta` backend (was missing).
+- `[tool.setuptools.packages.find]` now uses `where = ["src", "."]` / `include = ["ai_council*", "config*"]` to keep `config/` (top-level package, sibling of `src/`) discoverable alongside `ai_council`.
+- `[tool.coverage.run]` source/omit paths updated to `src/ai_council/`.
+- Consolidated pytest configuration into `pyproject.toml`'s `[tool.pytest.ini_options]`; deleted `pytest.ini` (contents were duplicated).
+- Updated `python -m src.cli` → `python -m ai_council.cli` in CLAUDE.md, README.md, docs/COUNCIL_QUESTION_GUIDE.md.
+- All 310 unit tests pass post-migration (matches pre-migration baseline; zero functional changes).
+
 ### Added
 - Mode system: pick/ideas/judge/research with auto-detection via cheap LLM call
 - Research mode: 4 providers (Perplexity sonar-pro, o4-mini-deep-research, o3-deep-research, Gemini+Search)

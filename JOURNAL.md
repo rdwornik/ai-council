@@ -1,5 +1,10 @@
 # Journal — ai-council
 
+### 2026-04-30 | ADR-38 migration: src/ → src/ai_council/
+- Moved all 34 source files under `src/ai_council/` via `git mv` (history preserved); rewrote 73 internal imports in src/, 83 imports + 56 mock.patch string literals in tests/
+- Updated pyproject.toml: added `[build-system]` (`setuptools.build_meta`), `where=["src","."]` for packages.find, new entry points, coverage paths; deleted pytest.ini (consolidated into `[tool.pytest.ini_options]`)
+- 310 unit tests pass, identical to pre-migration baseline; zero functional changes
+
 ### 2026-04-24 | Fix research providers (Gemini 404, OpenAI mini 400)
 - Gemini research: `gemini-2.5-pro-preview-05-06` → `gemini-2.5-pro` (preview was not yet released)
 - OpenAI mini: added `tools=[{"type": "web_search_preview"}]` to Responses API call (deep research models require at least one search tool)

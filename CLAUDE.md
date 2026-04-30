@@ -16,8 +16,10 @@ pytest tests/ -m "not integration and not envcheck" -v
 
 ## Architecture
 
+Per ADR-38, all source modules live under `src/ai_council/` (namespace package).
+
 ```
-src/
+src/ai_council/
   cli.py               — Click entry point; PROVIDER_CLASSES dict; builds RunRequest, delegates to CouncilRunner
   orchestrator.py      — CouncilRunner.run(); debate lifecycle coordination (extracted from runner.py)
   runner.py            — build_all_providers(); determine_panel(); pick_synthesizer(); re-exports CouncilRunner
@@ -51,13 +53,13 @@ src/
       openai_mini_research.py — o4-mini-deep-research (Responses API + background polling)
       openai_deep_research.py — o3-deep-research (--deep only, 45 min timeout)
       gemini_research.py    — Gemini Deep Research (Interactions API, autonomous agent, ~5-20 min)
-config/
+config/                — top-level package, sibling of src/ (NOT under src/ai_council/)
   settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
   config_loader.py     — YAML -> typed dataclasses; API key detection at startup
 scripts/
   check.ps1            — pytest + mypy + ruff pre-merge check
   council-ask.ps1      — helper script for quick CLI invocations
-tests/                 — 266 unit tests + integration tests
+tests/                 — 310 unit tests + integration tests
 ```
 
 ## Dev standards
@@ -75,7 +77,7 @@ tests/                 — 266 unit tests + integration tests
 ```bash
 # Default: full 5-model panel, pick mode (default) — auto-detected or explicit
 council "Should we use REST or GraphQL?" --rounds 1
-python -m src.cli "Should we use REST or GraphQL?" --rounds 1  # also works
+python -m ai_council.cli "Should we use REST or GraphQL?" --rounds 1  # also works
 
 # 3-model panel (lite mode)
 council --lite "Quick question" --rounds 1

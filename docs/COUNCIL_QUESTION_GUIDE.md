@@ -226,5 +226,5 @@ rounds: 2
 
 Then run:
 ```bash
-python -m src.cli --inbox
+python -m ai_council.cli --inbox
 ```

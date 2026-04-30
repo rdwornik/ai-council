@@ -105,7 +105,7 @@ council -M r "LLM inference hardware comparison" --deep   # adds o3-deep-researc
 council -M r "Redis vs Valkey" --no-cache                 # skip cache
 ```
 
-> `python -m src.cli` also works in place of `council` — same binary.
+> `python -m ai_council.cli` also works in place of `council` — same binary.
 
 ### Inbox mode — batch processing
 
