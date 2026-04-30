@@ -78,6 +78,7 @@ class GrokResearchProvider(ResearchProvider):
             raise ResearchProviderError("grok", f"API error: {exc}") from exc
 
         duration = time.monotonic() - start
+        logger.debug("Grok raw response output: %r", getattr(response, "output", None))
         content = self._extract_content(response)
         sources = self._extract_sources(response)
 
@@ -124,8 +125,9 @@ class GrokResearchProvider(ResearchProvider):
         return str(output)
 
     def _extract_sources(self, response: object) -> list[Source]:
-        """Extract citations from Responses API output items."""
+        """Extract citations from Responses API output items and content blocks."""
         sources: list[Source] = []
+        seen: set[str] = set()
         output = getattr(response, "output", None)
         if not output or not isinstance(output, list):
             return sources
@@ -133,11 +135,22 @@ class GrokResearchProvider(ResearchProvider):
             item_type = getattr(item, "type", None)
             if item_type in ("x_search_call", "web_search_call"):
                 continue
-            annotations = getattr(item, "annotations", None)
-            if annotations:
-                for ann in annotations:
-                    url = getattr(ann, "url", None)
-                    title = getattr(ann, "title", None)
-                    if url:
-                        sources.append(Source(title=str(title or url), url=str(url)))
+            # Annotations may be on the item directly or nested in content blocks
+            self._collect_annotations(getattr(item, "annotations", None), sources, seen)
+            content = getattr(item, "content", None)
+            if isinstance(content, list):
+                for block in content:
+                    self._collect_annotations(getattr(block, "annotations", None), sources, seen)
         return sources
+
+    def _collect_annotations(
+        self, annotations: object, sources: list[Source], seen: set[str]
+    ) -> None:
+        if not annotations:
+            return
+        for ann in annotations:
+            url = getattr(ann, "url", None)
+            title = getattr(ann, "title", None)
+            if url and url not in seen:
+                seen.add(url)
+                sources.append(Source(title=str(title or url), url=str(url)))

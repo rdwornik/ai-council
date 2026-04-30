@@ -903,3 +903,202 @@ class TestGrokResearchProvider:
 
         providers = build_research_providers(config, deep=False)
         assert providers == []
+
+    async def test_source_extraction_from_content_block_annotations(self) -> None:
+        """Annotations nested in content blocks (real Responses API path) are extracted."""
+        provider = self._make_provider()
+
+        ann = MagicMock()
+        ann.url = "https://example.com/article"
+        ann.title = "Example Article"
+
+        content_block = MagicMock()
+        content_block.annotations = [ann]
+        content_block.text = "Some text."
+
+        item = MagicMock()
+        item.type = "message"
+        item.text = None
+        item.content = [content_block]
+        item.annotations = []
+
+        response = MagicMock()
+        response.output = [item]
+        usage = MagicMock()
+        usage.input_tokens = 100
+        usage.output_tokens = 200
+        response.usage = usage
+
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
+        assert result.sources[0].url == "https://example.com/article"
+        assert result.sources[0].title == "Example Article"
+
+    async def test_deduplicates_sources_across_item_and_content_block(self) -> None:
+        """Same URL in item annotations and content block annotations counts once."""
+        provider = self._make_provider()
+
+        url = "https://shared.com"
+        ann1 = MagicMock()
+        ann1.url = url
+        ann1.title = "Shared"
+        ann2 = MagicMock()
+        ann2.url = url
+        ann2.title = "Shared Duplicate"
+
+        content_block = MagicMock()
+        content_block.annotations = [ann2]
+
+        item = MagicMock()
+        item.type = "message"
+        item.text = None
+        item.content = [content_block]
+        item.annotations = [ann1]
+
+        response = MagicMock()
+        response.output = [item]
+        usage = MagicMock()
+        usage.input_tokens = 0
+        usage.output_tokens = 0
+        response.usage = usage
+
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
+
+    async def test_no_annotations_returns_empty_sources(self) -> None:
+        """Response with no annotations produces 0 sources without crashing."""
+        provider = self._make_provider()
+        mock_response = _make_grok_response("Report with no citations.", annotations=[])
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("test")
+
+        assert result.sources == []
+        assert result.error is None
+
+
+# ---------------------------------------------------------------------------
+# GeminiResearchProvider — additional citation tests
+# ---------------------------------------------------------------------------
+
+class TestGeminiCitationParsing:
+    """Tests for the markdown-link citation parser in GeminiResearchProvider."""
+
+    def _make_provider(self) -> object:
+        from src.research.providers.gemini_research import GeminiResearchProvider
+        return GeminiResearchProvider(
+            api_key="test-key",
+            agent="deep-research-pro-preview-12-2025",
+            timeout_sec=60,
+            poll_interval_sec=0,
+        )
+
+    def _make_mock_client(self, create_interaction, poll_interactions):  # type: ignore[return]
+        client = MagicMock()
+        client.aio.interactions.create = AsyncMock(return_value=create_interaction)
+        client.aio.interactions.get = AsyncMock(side_effect=poll_interactions)
+        return client
+
+    async def test_markdown_links_in_text_become_sources(self) -> None:
+        provider = self._make_provider()
+        report_text = (
+            "See [Paper A](https://arxiv.org/abs/1234) and "
+            "[Blog Post](https://dev.to/post/abc) for details."
+        )
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(status="completed", text_outputs=[report_text])
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        urls = {s.url for s in result.sources}
+        titles = {s.title for s in result.sources}
+        assert "https://arxiv.org/abs/1234" in urls
+        assert "https://dev.to/post/abc" in urls
+        assert "Paper A" in titles
+        assert "Blog Post" in titles
+
+    async def test_deduplicates_markdown_links(self) -> None:
+        provider = self._make_provider()
+        report_text = (
+            "[Link](https://example.com) mentioned here and "
+            "[Same Link](https://example.com) mentioned again."
+        )
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(status="completed", text_outputs=[report_text])
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
+        assert result.sources[0].url == "https://example.com"
+
+    async def test_no_links_in_text_returns_empty_sources(self) -> None:
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(status="completed", text_outputs=["Plain text with no links."])
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert result.sources == []
+
+    async def test_markdown_links_and_structured_results_combined(self) -> None:
+        """Markdown links from text and structured URL results are both captured."""
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(
+            status="completed",
+            text_outputs=["See [Docs](https://docs.example.com) for info."],
+            url_results=["https://structured.example.com"],
+        )
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        urls = {s.url for s in result.sources}
+        assert "https://docs.example.com" in urls
+        assert "https://structured.example.com" in urls
+
+    async def test_url_in_both_text_and_structured_deduplicated(self) -> None:
+        """URL appearing in both markdown text and structured results counts once."""
+        provider = self._make_provider()
+        shared_url = "https://shared.example.com"
+        started = _make_interaction(status="in_progress")
+        done = _make_interaction(
+            status="completed",
+            text_outputs=[f"See [Link]({shared_url})."],
+            url_results=[shared_url],
+        )
+        client = self._make_mock_client(started, [done])
+
+        with patch("src.research.providers.gemini_research.warnings"), \
+             patch("src.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
