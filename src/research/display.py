@@ -69,12 +69,14 @@ def _make_status_table(
         elif status == "timeout":
             status_text = Text("✗ timeout", style="red")
             time_str = _format_duration(dur)
-            cost_str = "—"
+            reason = result.error if result and result.error else "timed out"
+            cost_str = f"({reason[:40]})" if len(reason) <= 40 else f"({reason[:39]}…)"
             src_str = "—"
         else:  # error
-            status_text = Text("✗ error", style="red")
+            status_text = Text("✗ failed", style="red")
             time_str = _format_duration(dur)
-            cost_str = "—"
+            reason = result.error if result and result.error else "unknown error"
+            cost_str = f"({reason[:40]})" if len(reason) <= 40 else f"({reason[:39]}…)"
             src_str = "—"
 
         table.add_row(name, status_text, time_str, cost_str, src_str)
