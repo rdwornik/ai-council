@@ -352,6 +352,7 @@ def main(
                             no_cache=no_cache,
                             console=console,
                             output_format=output_format,
+                            models_filter=[m.strip() for m in fm_models.split(",")] if fm_models else None,
                         )
                     )
                     archived = archive_file(file_path, archive_dir)
@@ -438,6 +439,7 @@ def main(
                     no_cache=no_cache,
                     console=console,
                     output_format=output_format,
+                    models_filter=[m.strip() for m in models.split(",")] if models else None,
                 )
             )
         except RuntimeError as exc:

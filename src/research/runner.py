@@ -24,10 +24,12 @@ logger = logging.getLogger(__name__)
 def build_research_providers(
     config: AppConfig,
     deep: bool = False,
+    models_filter: list[str] | None = None,
 ) -> list[ResearchProvider]:
     """Instantiate available research providers based on config and --deep flag.
 
     Skips providers with missing API keys; logs a warning for each.
+    If models_filter is provided, only instantiate providers whose names are in the list.
     """
     research_cfg = config.research
     if research_cfg is None:
@@ -35,6 +37,9 @@ def build_research_providers(
         return []
 
     provider_names = research_cfg.deep_providers if deep else research_cfg.default_providers
+    if models_filter:
+        provider_names = [n for n in provider_names if n in models_filter]
+        logger.debug("Research providers filtered to: %s", provider_names)
     providers: list[ResearchProvider] = []
 
     for name in provider_names:
@@ -132,6 +137,7 @@ async def run_research(
     no_cache: bool = False,
     console: Console | None = None,
     output_format: str = "text",
+    models_filter: list[str] | None = None,
 ) -> MergedResearchReport:
     """Run full research pipeline for a query. Returns merged report."""
     if console is None:
@@ -164,7 +170,7 @@ async def run_research(
             return cached
 
     # Build providers
-    providers = build_research_providers(config, deep=deep)
+    providers = build_research_providers(config, deep=deep, models_filter=models_filter)
     if not providers:
         raise RuntimeError(
             "No research providers available. Check API keys for "
