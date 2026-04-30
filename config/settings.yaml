@@ -4,7 +4,7 @@ defaults:
   output_dir: "./output"
   secondary_output_dir: "~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts"
   secondary_output_enabled: true
-  synthesizer: "claude-sonnet"
+  synthesizer: "gemini"
   default_panel: [ "claude", "gemini", "openai" ] # Systems + Security + Product; best for most decisions
   full_panel: [ "claude", "gemini", "deepseek", "openai", "grok" ] # add Performance + Contrarian for high-stakes debates
 
@@ -395,7 +395,7 @@ research:
       cost_per_1m_output: 40.00
 
     grok:
-      model: "grok-3"
+      model: "grok-4.20-reasoning"
       api_key_env: "XAI_API_KEY"
       base_url: "https://api.x.ai/v1"
       timeout_sec: 120
