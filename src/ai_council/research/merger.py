@@ -10,13 +10,11 @@ Two-phase process:
 import hashlib
 import logging
 import os
-import time
-from datetime import datetime
 
 from openai import AsyncOpenAI
 
+from ai_council.research.models import MergedResearchReport, ResearchResult, Source
 from config.config_loader import ResearchConfig
-from src.research.models import MergedResearchReport, ResearchResult, Source
 
 logger = logging.getLogger(__name__)
 

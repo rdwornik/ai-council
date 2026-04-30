@@ -5,10 +5,10 @@ import logging
 import time
 from datetime import datetime
 
-from openai import AsyncOpenAI, APIError, APITimeoutError
+from openai import APIError, APITimeoutError, AsyncOpenAI
 
-from src.research.models import ResearchResult, Source
-from src.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.models import ResearchResult, Source
+from ai_council.research.provider import ResearchProvider, ResearchProviderError
 
 logger = logging.getLogger(__name__)
 

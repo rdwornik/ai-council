@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.research.models import ResearchResult
+from ai_council.research.models import ResearchResult
 
 
 class ResearchProviderError(Exception):

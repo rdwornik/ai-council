@@ -11,19 +11,19 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.logging import RichHandler
 
+from ai_council.healthcheck import run_health_checks
+from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
+from ai_council.mode_detector import detect_mode
+from ai_council.models import Question, RunRequest
+from ai_council.policy import RunPolicy
+from ai_council.providers.anthropic import AnthropicProvider
+from ai_council.providers.base import AIProvider
+from ai_council.providers.deepseek import DeepSeekProvider
+from ai_council.providers.gemini import GeminiProvider
+from ai_council.providers.openai_provider import OpenAIProvider
+from ai_council.providers.xai import XAIProvider
+from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
 from config.config_loader import default_mode, load_config, resolve_mode
-from src.healthcheck import run_health_checks
-from src.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
-from src.mode_detector import detect_mode
-from src.models import Question, RunRequest
-from src.policy import RunPolicy
-from src.providers.anthropic import AnthropicProvider
-from src.providers.base import AIProvider
-from src.providers.deepseek import DeepSeekProvider
-from src.providers.gemini import GeminiProvider
-from src.providers.openai_provider import OpenAIProvider
-from src.providers.xai import XAIProvider
-from src.runner import CouncilRunner, build_all_providers, determine_panel
 
 logger = logging.getLogger(__name__)
 console = Console(legacy_windows=False)
@@ -341,7 +341,7 @@ def main(
                     logger.error("No research config in settings.yaml -- skipping %s", file_path.name)
                     archive_file(file_path, archive_dir, failed=True)
                     continue
-                from src.research.runner import run_research
+                from ai_council.research.runner import run_research
                 try:
                     asyncio.run(
                         run_research(
@@ -428,7 +428,7 @@ def main(
         if config.research is None:
             console.print("[bold red]Error:[/bold red] No research config in settings.yaml.")
             sys.exit(1)
-        from src.research.runner import run_research
+        from ai_council.research.runner import run_research
         try:
             asyncio.run(
                 run_research(

@@ -5,10 +5,10 @@ import logging
 import random
 from collections.abc import Callable
 
+from ai_council.models import DebateOutcome, ModelResponse, Question, Round
+from ai_council.policy import RunPolicy
+from ai_council.providers.base import AIProvider, ProviderError
 from config.config_loader import ModeConfig, PromptsConfig
-from src.models import DebateOutcome, ModelResponse, Question, Round
-from src.policy import RunPolicy
-from src.providers.base import AIProvider, ProviderError
 
 logger = logging.getLogger(__name__)
 

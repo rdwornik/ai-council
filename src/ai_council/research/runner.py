@@ -10,13 +10,13 @@ from pathlib import Path
 
 from rich.console import Console
 
+from ai_council.research.cache import cache_get, cache_put
+from ai_council.research.display import run_research_with_display
+from ai_council.research.merger import make_cache_key, merge_results, summarize_report
+from ai_council.research.models import MergedResearchReport
+from ai_council.research.output import print_research_summary, save_research_to_file
+from ai_council.research.provider import ResearchProvider
 from config.config_loader import AppConfig
-from src.research.cache import cache_get, cache_put
-from src.research.display import run_research_with_display
-from src.research.merger import make_cache_key, merge_results, summarize_report
-from src.research.models import MergedResearchReport
-from src.research.output import print_research_summary, save_research_to_file
-from src.research.provider import ResearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def build_research_providers(
 def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
     """Create the appropriate provider instance by name."""
     if name == "perplexity":
-        from src.research.providers.perplexity import PerplexityProvider
+        from ai_council.research.providers.perplexity import PerplexityProvider
         return PerplexityProvider(
             api_key=api_key,
             model=p_cfg.model,
@@ -77,7 +77,7 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
     elif name == "openai_mini":
-        from src.research.providers.openai_mini_research import OpenAIMiniResearchProvider
+        from ai_council.research.providers.openai_mini_research import OpenAIMiniResearchProvider
         return OpenAIMiniResearchProvider(
             api_key=api_key,
             model=p_cfg.model,
@@ -86,7 +86,7 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
     elif name == "openai_deep":
-        from src.research.providers.openai_deep_research import OpenAIDeepResearchProvider
+        from ai_council.research.providers.openai_deep_research import OpenAIDeepResearchProvider
         return OpenAIDeepResearchProvider(
             api_key=api_key,
             model=p_cfg.model,
@@ -95,7 +95,7 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
     elif name == "gemini":
-        from src.research.providers.gemini_research import GeminiResearchProvider
+        from ai_council.research.providers.gemini_research import GeminiResearchProvider
         return GeminiResearchProvider(
             api_key=api_key,
             agent=p_cfg.model,
@@ -105,7 +105,7 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             cost_per_1m_output=p_cfg.cost_per_1m_output,
         )
     elif name == "grok":
-        from src.research.providers.grok_research import GrokResearchProvider
+        from ai_council.research.providers.grok_research import GrokResearchProvider
         return GrokResearchProvider(
             api_key=api_key,
             model=p_cfg.model,

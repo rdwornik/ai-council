@@ -6,8 +6,8 @@ This module re-exports it for backward compatibility.
 
 import logging
 
-from config.config_loader import AppConfig, ModelConfig
-from src.providers.base import AIProvider
+from ai_council.providers.base import AIProvider
+from config.config_loader import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -75,5 +75,5 @@ def pick_synthesizer(
     return next(iter(all_providers.values())), True
 
 
-# Backward-compat re-export — new code should import from src.orchestrator directly
-from src.orchestrator import CouncilRunner as CouncilRunner  # noqa: E402, F401
+# Backward-compat re-export — new code should import from ai_council.orchestrator directly
+from ai_council.orchestrator import CouncilRunner as CouncilRunner  # noqa: E402, F401

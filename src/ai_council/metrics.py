@@ -1,7 +1,7 @@
 """Cost and performance metric computation for debate runs."""
 
+from ai_council.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round
 from config.config_loader import ModelConfig
-from src.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round
 
 
 def compute_call_cost(

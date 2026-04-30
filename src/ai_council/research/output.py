@@ -8,7 +8,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.rule import Rule
 
-from src.research.models import MergedResearchReport, ResearchResult
+from ai_council.research.models import MergedResearchReport
 
 
 def _slug(query: str, max_len: int = 50) -> str:
@@ -41,7 +41,7 @@ def save_research_to_file(
     file_path = output_dir / filename
 
     lines: list[str] = [
-        f"# Research Report\n",
+        "# Research Report\n",
         f"**Query:** {report.query}\n",
         f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     ]

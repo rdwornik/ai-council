@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from src.research.models import MergedResearchReport, ResearchResult, Source
+from ai_council.research.models import MergedResearchReport, ResearchResult
 
 logger = logging.getLogger(__name__)
 

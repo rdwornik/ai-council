@@ -14,8 +14,8 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from src.research.models import ResearchResult
-from src.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.models import ResearchResult
+from ai_council.research.provider import ResearchProvider, ResearchProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ async def run_research_with_display(
 
 
 def _error_result(provider: ResearchProvider, query: str, error: str) -> ResearchResult:
-    from src.research.models import ResearchResult
+    from ai_council.research.models import ResearchResult
     return ResearchResult(
         provider=provider.name(),
         query=query,

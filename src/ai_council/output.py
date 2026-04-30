@@ -12,7 +12,7 @@ from rich.rule import Rule
 from rich.text import Text
 from rich.tree import Tree
 
-from src.models import DebateMetrics, DebateResult, ModelResponse
+from ai_council.models import DebateMetrics, DebateResult, ModelResponse
 
 logger = logging.getLogger(__name__)
 

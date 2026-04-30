@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from src.providers.base import AIProvider, classify_error
+from ai_council.providers.base import AIProvider, classify_error
 
 logger = logging.getLogger(__name__)
 

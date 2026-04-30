@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.models import ModelResponse
+from ai_council.models import ModelResponse
 
 # Error categories returned by classify_error()
 RETRYABLE_ERRORS: frozenset[str] = frozenset(

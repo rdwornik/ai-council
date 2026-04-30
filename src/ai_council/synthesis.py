@@ -3,10 +3,10 @@
 import logging
 import time
 
+from ai_council.metrics import build_call_metrics, build_debate_metrics
+from ai_council.models import DebateResult, ModelResponse, Question, Round
+from ai_council.providers.base import AIProvider
 from config.config_loader import ModeConfig, ModelConfig, PromptsConfig
-from src.metrics import build_call_metrics, build_debate_metrics
-from src.models import DebateResult, ModelResponse, Question, Round
-from src.providers.base import AIProvider
 
 logger = logging.getLogger(__name__)
 

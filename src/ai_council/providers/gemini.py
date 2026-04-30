@@ -8,9 +8,9 @@ import time
 from google import genai
 from google.genai import types as genai_types
 
+from ai_council.models import ModelResponse
+from ai_council.providers.base import AIProvider, ProviderError
 from config.config_loader import ModelConfig
-from src.models import ModelResponse
-from src.providers.base import AIProvider, ProviderError
 
 logger = logging.getLogger(__name__)
 
