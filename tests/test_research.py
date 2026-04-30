@@ -716,3 +716,190 @@ class TestBuildResearchProviders:
         )
         providers = build_research_providers(config, deep=False)
         assert providers == []
+
+
+# ---------------------------------------------------------------------------
+# GrokResearchProvider
+# ---------------------------------------------------------------------------
+
+def _make_grok_response(
+    text: str = "Grok research report.",
+    input_tokens: int = 200,
+    output_tokens: int = 500,
+    annotations: list | None = None,
+) -> MagicMock:
+    """Build a mock xAI Responses API response."""
+    response = MagicMock()
+
+    item = MagicMock()
+    item.type = "message"
+    item.text = text
+    item.content = None
+    item.annotations = annotations or []
+    response.output = [item]
+
+    usage = MagicMock()
+    usage.input_tokens = input_tokens
+    usage.output_tokens = output_tokens
+    response.usage = usage
+
+    return response
+
+
+class TestGrokResearchProvider:
+    """Unit tests for GrokResearchProvider — all API calls mocked."""
+
+    def _make_provider(self, **kwargs):  # type: ignore[return]
+        from src.research.providers.grok_research import GrokResearchProvider
+        defaults = dict(
+            api_key="test-xai-key",
+            model="grok-3",
+            base_url="https://api.x.ai/v1",
+            timeout_sec=120,
+            cost_per_1m_input=3.00,
+            cost_per_1m_output=15.00,
+        )
+        defaults.update(kwargs)
+        return GrokResearchProvider(**defaults)
+
+    async def test_name_and_model_string(self) -> None:
+        provider = self._make_provider()
+        assert provider.name() == "grok"
+        assert provider.model_string() == "grok-3"
+
+    async def test_successful_research(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_grok_response("Grok analysis of the topic.")
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("What is multi-agent LLM debate?")
+
+        assert result.provider == "grok"
+        assert "Grok analysis" in result.content
+        assert result.error is None
+
+    async def test_tools_include_x_search_and_web_search(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_grok_response()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            await provider.research("test query")
+
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        tool_types = [t["type"] for t in call_kwargs["tools"]]
+        assert "x_search" in tool_types
+        assert "web_search" in tool_types
+
+    async def test_token_counting(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_grok_response(input_tokens=300, output_tokens=700)
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("tokens test")
+
+        assert result.token_count == 1000
+        expected_cost = (300 / 1_000_000 * 3.00) + (700 / 1_000_000 * 15.00)
+        assert result.cost_usd == pytest.approx(expected_cost)
+
+    async def test_source_extraction_from_annotations(self) -> None:
+        provider = self._make_provider()
+        ann = MagicMock()
+        ann.url = "https://x.com/user/status/123"
+        ann.title = "Interesting tweet"
+        mock_response = _make_grok_response(annotations=[ann])
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            result = await provider.research("test")
+
+        assert len(result.sources) == 1
+        assert result.sources[0].url == "https://x.com/user/status/123"
+        assert result.sources[0].title == "Interesting tweet"
+
+    async def test_timeout_raises_provider_error(self) -> None:
+        from src.research.provider import ResearchProviderError
+        provider = self._make_provider(timeout_sec=1)
+        mock_client = MagicMock()
+
+        async def slow_call(**kwargs):  # type: ignore[return]
+            await asyncio.sleep(10)
+
+        mock_client.responses.create = slow_call
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "Timed out" in str(exc_info.value)
+        assert "grok" in str(exc_info.value)
+
+    async def test_api_error_wrapped_as_provider_error(self) -> None:
+        from openai import APIError
+
+        from src.research.provider import ResearchProviderError
+        provider = self._make_provider()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(
+            side_effect=APIError("server error", request=MagicMock(), body=None)
+        )
+
+        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+            with pytest.raises(ResearchProviderError) as exc_info:
+                await provider.research("test")
+
+        assert "API error" in str(exc_info.value)
+
+    async def test_missing_api_key_skips_provider(self, tmp_path: Path, monkeypatch) -> None:
+        from config.config_loader import (
+            AppConfig,
+            DefaultsConfig,
+            InboxConfig,
+            ModelConfig,
+            PromptsConfig,
+            ResearchConfig,
+            ResearchProviderConfig,
+        )
+        from src.research.runner import build_research_providers
+
+        research_cfg = ResearchConfig(
+            default_providers=["grok"],
+            deep_providers=["grok"],
+            cache_dir=tmp_path,
+            cache_ttl_days=7,
+            summary_max_tokens=2500,
+            summary_model="deepseek",
+            providers={
+                "grok": ResearchProviderConfig(
+                    name="grok",
+                    model="grok-3",
+                    api_key_env="XAI_API_KEY_MISSING_TEST",
+                    timeout_sec=120,
+                    base_url="https://api.x.ai/v1",
+                )
+            },
+        )
+        model_cfg = ModelConfig(
+            name="claude", sdk="anthropic", model="claude-opus-4-7",
+            api_key_env="ANTHROPIC_API_KEY", timeout_sec=120, max_tokens=8192,
+        )
+        config = AppConfig(
+            defaults=DefaultsConfig(
+                rounds=2, max_rounds=3, output_dir=tmp_path,
+                synthesizer="claude", default_panel=[], full_panel=[],
+            ),
+            models={"claude": model_cfg},
+            prompts=PromptsConfig(initial="", critique="", synthesis=""),
+            inbox=InboxConfig(dir=tmp_path, archive_dir=tmp_path),
+            research=research_cfg,
+        )
+        monkeypatch.delenv("XAI_API_KEY_MISSING_TEST", raising=False)
+
+        providers = build_research_providers(config, deep=False)
+        assert providers == []
