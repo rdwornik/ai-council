@@ -2,12 +2,9 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
-
-from src.healthcheck import run_health_checks
-from src.models import ModelResponse
-from src.providers.base import AIProvider, ProviderError
-
+from ai_council.healthcheck import run_health_checks
+from ai_council.models import ModelResponse
+from ai_council.providers.base import ProviderError
 from tests.conftest import MockProvider
 
 
@@ -91,7 +88,7 @@ async def test_timeout_counts_as_failure():
     providers["slow"].generate = AsyncMock(side_effect=hang)
 
     # Patch the default timeout to 0.05s so the test runs fast
-    import src.healthcheck as hc
+    import ai_council.healthcheck as hc
 
     original = hc._DEFAULT_TIMEOUT_SEC
     hc._DEFAULT_TIMEOUT_SEC = 0.05

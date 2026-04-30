@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.models import DebateResult, ModelResponse, Question, Round
-from src.output import _slug, save_to_file
+from ai_council.models import DebateResult, ModelResponse, Round
+from ai_council.output import _slug, save_to_file
 
 
 def test_slug_basic():

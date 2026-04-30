@@ -1,9 +1,7 @@
 """Tests for classify_error() and is_retryable() in src/providers/base.py."""
 
-import pytest
 
-from src.providers.base import ProviderError, classify_error, is_retryable
-
+from ai_council.providers.base import ProviderError, classify_error, is_retryable
 
 # --- classify_error ---
 

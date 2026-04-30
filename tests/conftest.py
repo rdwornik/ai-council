@@ -1,8 +1,7 @@
 """Shared pytest fixtures."""
 
-import os
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from dotenv import load_dotenv
@@ -12,9 +11,9 @@ _global_env = Path.home() / "Documents" / ".secrets" / ".env"
 if _global_env.exists():
     load_dotenv(_global_env, override=False)
 
+from ai_council.models import ModelResponse, Question, Round
+from ai_council.providers.base import AIProvider
 from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig
-from src.models import ModelResponse, Question, Round
-from src.providers.base import AIProvider
 
 
 @pytest.fixture

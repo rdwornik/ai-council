@@ -37,16 +37,16 @@ if len(_AVAILABLE_KEYS) < 2:
 
 async def test_full_debate_pipeline(tmp_path: Path):
     """Run a real 1-round debate with available providers, verify no crash."""
-    from config.config_loader import load_config
-    from src.cli import (
+    from ai_council.cli import (
         _build_all_providers,
         _determine_panel,
         _pick_non_participant_synthesizer,
     )
-    from src.debate import run_debate
-    from src.models import Question
-    from src.output import save_to_file
-    from src.synthesis import synthesize
+    from ai_council.debate import run_debate
+    from ai_council.models import Question
+    from ai_council.output import save_to_file
+    from ai_council.synthesis import synthesize
+    from config.config_loader import load_config
 
     config = load_config()
     all_providers = _build_all_providers(config)

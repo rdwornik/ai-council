@@ -4,10 +4,10 @@ import logging
 
 import pytest
 
-from src.models import DebateResult
-from src.output import save_to_file
-from src.research.models import MergedResearchReport
-from src.research.output import save_research_to_file
+from ai_council.models import DebateResult
+from ai_council.output import save_to_file
+from ai_council.research.models import MergedResearchReport
+from ai_council.research.output import save_research_to_file
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -87,7 +87,7 @@ def test_both_files_have_same_filename(tmp_path, sample_result):
 
 def test_secondary_missing_logs_warning(tmp_path, sample_result, caplog):
     missing = tmp_path / "does_not_exist"
-    with caplog.at_level(logging.WARNING, logger="src.output"):
+    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
         save_to_file(sample_result, tmp_path / "primary", secondary_dir=missing)
     assert any("not found" in r.message for r in caplog.records)
 

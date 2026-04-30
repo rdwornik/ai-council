@@ -1,13 +1,10 @@
 """Tests for src/metrics.py — cost computation and metric aggregation."""
 
-from dataclasses import dataclass, field
-from pathlib import Path
 
-import pytest
 
+from ai_council.metrics import build_call_metrics, build_debate_metrics, compute_call_cost
+from ai_council.models import ModelResponse, ProviderCallMetrics, Round
 from config.config_loader import ModelConfig
-from src.metrics import build_call_metrics, build_debate_metrics, compute_call_cost
-from src.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round
 
 
 def _make_config(name: str, cost_in: float, cost_out: float) -> ModelConfig:

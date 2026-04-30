@@ -2,9 +2,13 @@
 
 import pytest
 
-from src.runner import (
+from ai_council.runner import (
     determine_panel as _determine_panel,
+)
+from ai_council.runner import (
     exclude_synthesizer_from_panel as _exclude_synthesizer_from_panel,
+)
+from ai_council.runner import (
     pick_synthesizer as _pick_non_participant_synthesizer,
 )
 from tests.conftest import MockProvider

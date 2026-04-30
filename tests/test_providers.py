@@ -1,15 +1,12 @@
 """Unit tests for individual AI providers — all SDK calls mocked, no real API keys needed."""
 
-import os
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from ai_council.models import ModelResponse
+from ai_council.providers.base import ProviderError
 from config.config_loader import ModelConfig
-from src.models import ModelResponse
-from src.providers.base import ProviderError
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -67,7 +64,7 @@ def _anthropic_response(content: str = "Claude says hi", in_tokens: int = 5, out
 
 async def test_anthropic_generate_returns_model_response(monkeypatch):
     monkeypatch.setenv("CLAUDE_API_KEY", "sk-test")
-    from src.providers.anthropic import AnthropicProvider
+    from ai_council.providers.anthropic import AnthropicProvider
 
     cfg = _model_cfg("claude")
     cfg = ModelConfig(
@@ -90,7 +87,7 @@ async def test_anthropic_generate_returns_model_response(monkeypatch):
 
 async def test_anthropic_generate_propagates_api_error(monkeypatch):
     monkeypatch.setenv("CLAUDE_API_KEY", "sk-test")
-    from src.providers.anthropic import AnthropicProvider
+    from ai_council.providers.anthropic import AnthropicProvider
 
     cfg = ModelConfig(
         name="claude", sdk="anthropic", model="claude-opus-4-6",
@@ -105,7 +102,7 @@ async def test_anthropic_generate_propagates_api_error(monkeypatch):
 
 async def test_anthropic_generate_raises_on_empty_content(monkeypatch):
     monkeypatch.setenv("CLAUDE_API_KEY", "sk-test")
-    from src.providers.anthropic import AnthropicProvider
+    from ai_council.providers.anthropic import AnthropicProvider
 
     cfg = ModelConfig(
         name="claude", sdk="anthropic", model="claude-opus-4-6",
@@ -123,7 +120,7 @@ async def test_anthropic_generate_raises_on_empty_content(monkeypatch):
 
 async def test_anthropic_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("CLAUDE_API_KEY", raising=False)
-    from src.providers.anthropic import AnthropicProvider
+    from ai_council.providers.anthropic import AnthropicProvider
 
     cfg = ModelConfig(
         name="claude", sdk="anthropic", model="claude-opus-4-6",
@@ -135,7 +132,7 @@ async def test_anthropic_missing_api_key_raises(monkeypatch):
 
 async def test_anthropic_no_usage_gives_none_tokens(monkeypatch):
     monkeypatch.setenv("CLAUDE_API_KEY", "sk-test")
-    from src.providers.anthropic import AnthropicProvider
+    from ai_council.providers.anthropic import AnthropicProvider
 
     cfg = ModelConfig(
         name="claude", sdk="anthropic", model="claude-opus-4-6",
@@ -174,7 +171,7 @@ def _gemini_response(text: str = "Gemini says hi", total_tokens: int = 30) -> Ma
 
 async def test_gemini_generate_returns_model_response(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    from src.providers.gemini import GeminiProvider
+    from ai_council.providers.gemini import GeminiProvider
 
     cfg = ModelConfig(
         name="gemini", sdk="google-genai", model="gemini-2.5-pro",
@@ -184,7 +181,7 @@ async def test_gemini_generate_returns_model_response(monkeypatch):
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(return_value=_gemini_response())
 
-    with patch("src.providers.gemini.genai.Client", return_value=mock_client):
+    with patch("ai_council.providers.gemini.genai.Client", return_value=mock_client):
         provider = GeminiProvider(cfg)
         result = await provider.generate("Test prompt", round_number=1)
 
@@ -196,7 +193,7 @@ async def test_gemini_generate_returns_model_response(monkeypatch):
 
 async def test_gemini_generate_propagates_api_error(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    from src.providers.gemini import GeminiProvider
+    from ai_council.providers.gemini import GeminiProvider
 
     cfg = ModelConfig(
         name="gemini", sdk="google-genai", model="gemini-2.5-pro",
@@ -205,7 +202,7 @@ async def test_gemini_generate_propagates_api_error(monkeypatch):
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(side_effect=Exception("403 Forbidden"))
 
-    with patch("src.providers.gemini.genai.Client", return_value=mock_client):
+    with patch("ai_council.providers.gemini.genai.Client", return_value=mock_client):
         provider = GeminiProvider(cfg)
         with pytest.raises(ProviderError, match="API call failed"):
             await provider.generate("Test", round_number=1)
@@ -213,7 +210,7 @@ async def test_gemini_generate_propagates_api_error(monkeypatch):
 
 async def test_gemini_empty_text_raises(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    from src.providers.gemini import GeminiProvider
+    from ai_council.providers.gemini import GeminiProvider
 
     cfg = ModelConfig(
         name="gemini", sdk="google-genai", model="gemini-2.5-pro",
@@ -225,7 +222,7 @@ async def test_gemini_empty_text_raises(monkeypatch):
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(return_value=empty_resp)
 
-    with patch("src.providers.gemini.genai.Client", return_value=mock_client):
+    with patch("ai_council.providers.gemini.genai.Client", return_value=mock_client):
         provider = GeminiProvider(cfg)
         with pytest.raises(ProviderError, match="Empty response text"):
             await provider.generate("Test", round_number=1)
@@ -233,7 +230,7 @@ async def test_gemini_empty_text_raises(monkeypatch):
 
 async def test_gemini_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    from src.providers.gemini import GeminiProvider
+    from ai_council.providers.gemini import GeminiProvider
 
     cfg = ModelConfig(
         name="gemini", sdk="google-genai", model="gemini-2.5-pro",
@@ -245,7 +242,7 @@ async def test_gemini_missing_api_key_raises(monkeypatch):
 
 async def test_gemini_no_usage_metadata_gives_none_tokens(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    from src.providers.gemini import GeminiProvider
+    from ai_council.providers.gemini import GeminiProvider
 
     cfg = ModelConfig(
         name="gemini", sdk="google-genai", model="gemini-2.5-pro",
@@ -257,7 +254,7 @@ async def test_gemini_no_usage_metadata_gives_none_tokens(monkeypatch):
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(return_value=resp)
 
-    with patch("src.providers.gemini.genai.Client", return_value=mock_client):
+    with patch("ai_council.providers.gemini.genai.Client", return_value=mock_client):
         provider = GeminiProvider(cfg)
         result = await provider.generate("prompt", round_number=1)
 
@@ -271,7 +268,7 @@ async def test_gemini_no_usage_metadata_gives_none_tokens(monkeypatch):
 
 async def test_openai_generate_returns_model_response(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
-    from src.providers.openai_provider import OpenAIProvider
+    from ai_council.providers.openai_provider import OpenAIProvider
 
     cfg = ModelConfig(
         name="openai", sdk="openai", model="gpt-4o",
@@ -294,7 +291,7 @@ async def test_openai_generate_returns_model_response(monkeypatch):
 
 async def test_openai_generate_propagates_api_error(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
-    from src.providers.openai_provider import OpenAIProvider
+    from ai_council.providers.openai_provider import OpenAIProvider
 
     cfg = ModelConfig(
         name="openai", sdk="openai", model="gpt-4o",
@@ -309,7 +306,7 @@ async def test_openai_generate_propagates_api_error(monkeypatch):
 
 async def test_openai_empty_choices_raises(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
-    from src.providers.openai_provider import OpenAIProvider
+    from ai_council.providers.openai_provider import OpenAIProvider
 
     cfg = ModelConfig(
         name="openai", sdk="openai", model="gpt-4o",
@@ -327,7 +324,7 @@ async def test_openai_empty_choices_raises(monkeypatch):
 
 async def test_openai_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    from src.providers.openai_provider import OpenAIProvider
+    from ai_council.providers.openai_provider import OpenAIProvider
 
     cfg = ModelConfig(
         name="openai", sdk="openai", model="gpt-4o",
@@ -344,7 +341,7 @@ async def test_openai_missing_api_key_raises(monkeypatch):
 
 async def test_xai_generate_returns_model_response(monkeypatch):
     monkeypatch.setenv("XAI_API_KEY", "xai-test")
-    from src.providers.xai import XAIProvider
+    from ai_council.providers.xai import XAIProvider
 
     cfg = ModelConfig(
         name="grok", sdk="openai-compat", model="grok-3",
@@ -366,7 +363,7 @@ async def test_xai_generate_returns_model_response(monkeypatch):
 
 async def test_xai_missing_base_url_raises(monkeypatch):
     monkeypatch.setenv("XAI_API_KEY", "xai-test")
-    from src.providers.xai import XAIProvider
+    from ai_council.providers.xai import XAIProvider
 
     cfg = ModelConfig(
         name="grok", sdk="openai-compat", model="grok-3",
@@ -379,7 +376,7 @@ async def test_xai_missing_base_url_raises(monkeypatch):
 
 async def test_xai_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("XAI_API_KEY", raising=False)
-    from src.providers.xai import XAIProvider
+    from ai_council.providers.xai import XAIProvider
 
     cfg = ModelConfig(
         name="grok", sdk="openai-compat", model="grok-3",
@@ -392,7 +389,7 @@ async def test_xai_missing_api_key_raises(monkeypatch):
 
 async def test_xai_generate_propagates_api_error(monkeypatch):
     monkeypatch.setenv("XAI_API_KEY", "xai-test")
-    from src.providers.xai import XAIProvider
+    from ai_council.providers.xai import XAIProvider
 
     cfg = ModelConfig(
         name="grok", sdk="openai-compat", model="grok-3",
@@ -413,7 +410,7 @@ async def test_xai_generate_propagates_api_error(monkeypatch):
 
 async def test_deepseek_generate_returns_model_response(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-test")
-    from src.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
 
     cfg = ModelConfig(
         name="deepseek", sdk="openai-compat", model="deepseek-chat",
@@ -435,7 +432,7 @@ async def test_deepseek_generate_returns_model_response(monkeypatch):
 
 async def test_deepseek_missing_base_url_raises(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-test")
-    from src.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
 
     cfg = ModelConfig(
         name="deepseek", sdk="openai-compat", model="deepseek-chat",
@@ -448,7 +445,7 @@ async def test_deepseek_missing_base_url_raises(monkeypatch):
 
 async def test_deepseek_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    from src.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
 
     cfg = ModelConfig(
         name="deepseek", sdk="openai-compat", model="deepseek-chat",
@@ -461,7 +458,7 @@ async def test_deepseek_missing_api_key_raises(monkeypatch):
 
 async def test_deepseek_generate_propagates_api_error(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-test")
-    from src.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
 
     cfg = ModelConfig(
         name="deepseek", sdk="openai-compat", model="deepseek-chat",
@@ -477,7 +474,7 @@ async def test_deepseek_generate_propagates_api_error(monkeypatch):
 
 async def test_deepseek_empty_choices_raises(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-test")
-    from src.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
 
     cfg = ModelConfig(
         name="deepseek", sdk="openai-compat", model="deepseek-chat",
@@ -507,11 +504,11 @@ async def test_all_providers_name_and_model_string(monkeypatch):
     monkeypatch.setenv("XAI_API_KEY", "x")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
 
-    from src.providers.anthropic import AnthropicProvider
-    from src.providers.deepseek import DeepSeekProvider
-    from src.providers.gemini import GeminiProvider
-    from src.providers.openai_provider import OpenAIProvider
-    from src.providers.xai import XAIProvider
+    from ai_council.providers.anthropic import AnthropicProvider
+    from ai_council.providers.deepseek import DeepSeekProvider
+    from ai_council.providers.gemini import GeminiProvider
+    from ai_council.providers.openai_provider import OpenAIProvider
+    from ai_council.providers.xai import XAIProvider
 
     providers_and_cfgs = [
         (AnthropicProvider, ModelConfig(

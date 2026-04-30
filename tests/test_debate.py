@@ -1,14 +1,14 @@
 """Tests for src/debate.py."""
 
 import logging
-
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
+from ai_council.debate import _anonymize_responses, run_debate
+from ai_council.models import DebateOutcome, ModelResponse, Round
+from ai_council.providers.base import ProviderError
 from config.config_loader import ModelConfig
-from src.debate import _anonymize_responses, run_debate
-from src.models import DebateOutcome, ModelResponse, Question, Round
-from src.providers.base import ProviderError
 from tests.conftest import MockProvider
 
 
@@ -94,7 +94,7 @@ async def test_run_debate_injects_persona_in_round1(
     sample_prompts_config, sample_question
 ):
     """Persona text should appear in the prompt passed to the provider on round 1."""
-    from src.providers.base import AIProvider
+    from ai_council.providers.base import AIProvider
 
     captured_prompts: list[str] = []
 

@@ -1,9 +1,7 @@
 """Tests for RunPolicy abort/retry predicates."""
 
-import pytest
 
-from src.policy import RunPolicy
-
+from ai_council.policy import RunPolicy
 
 # --- should_abort ---
 

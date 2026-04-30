@@ -1,10 +1,12 @@
 """Tests for the mode system: config parsing, alias resolution, prompt assembly, auto-detect."""
 
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from ai_council.debate import _build_round1_prompt, _build_round2_prompt
+from ai_council.mode_detector import _pick_cheapest, detect_mode
+from ai_council.synthesis import _build_synthesis_prompt
 from config.config_loader import (
     ModeConfig,
     _validate_modes,
@@ -12,11 +14,6 @@ from config.config_loader import (
     load_config,
     resolve_mode,
 )
-from src.debate import _build_round1_prompt, _build_round2_prompt
-from src.mode_detector import _pick_cheapest, detect_mode
-from src.models import ModelResponse
-from src.synthesis import _build_synthesis_prompt
-
 
 # ---------------------------------------------------------------------------
 # ModeConfig helpers
@@ -289,7 +286,6 @@ class TestBuildRound2Prompt:
 class TestBuildSynthesisPrompt:
     def test_pick_uses_prompts_synthesis(self):
         prompts = _make_prompts()
-        from src.models import Round  # noqa: PLC0415
         result = _build_synthesis_prompt("my question", "transcript text", [], prompts, None)
         assert "Synth Q: my question" in result
         assert "transcript text" in result
@@ -359,8 +355,9 @@ class TestDetectMode:
         assert "fallback" in source
 
     async def test_fallback_on_timeout(self):
-        from tests.conftest import MockProvider  # noqa: PLC0415
         import asyncio
+
+        from tests.conftest import MockProvider  # noqa: PLC0415
 
         provider = MockProvider("gemini")
 

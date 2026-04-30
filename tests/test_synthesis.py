@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.models import DebateResult, ModelResponse, Question, Round
-from src.synthesis import _format_full_transcript, synthesize
+from ai_council.models import DebateResult, ModelResponse, Round
+from ai_council.synthesis import _format_full_transcript, synthesize
 from tests.conftest import MockProvider
 
 

@@ -1,6 +1,6 @@
 """Tests for src/models.py dataclasses."""
 
-from src.models import DebateResult, ModelResponse, Question, Round
+from ai_council.models import DebateResult, ModelResponse, Question, Round
 
 
 def test_question_fields():

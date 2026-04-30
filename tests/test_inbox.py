@@ -3,7 +3,7 @@
 import textwrap
 from pathlib import Path
 
-from src.inbox import archive_file, clean_slug, parse_file, scan_downloads_folder, scan_inbox
+from ai_council.inbox import archive_file, clean_slug, parse_file, scan_downloads_folder, scan_inbox
 
 
 def test_parse_file_no_frontmatter(tmp_path: Path) -> None:

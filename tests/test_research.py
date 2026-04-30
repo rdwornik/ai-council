@@ -12,15 +12,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.research.cache import cache_get, cache_invalidate, cache_put
-from src.research.merger import (
+from ai_council.research.cache import cache_get, cache_invalidate, cache_put
+from ai_council.research.merger import (
     _deduplicate_sources,
     _truncation_fallback,
     make_cache_key,
     merge_results,
 )
-from src.research.models import MergedResearchReport, ResearchResult, Source
-from src.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.models import MergedResearchReport, ResearchResult, Source
+from ai_council.research.provider import ResearchProvider, ResearchProviderError
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -332,7 +332,7 @@ class TestRunResearchWithDisplay:
     async def test_collects_results_in_order(self) -> None:
         from rich.console import Console
 
-        from src.research.display import run_research_with_display
+        from ai_council.research.display import run_research_with_display
 
         results_by_provider = {
             "p1": _make_result("p1", "content 1"),
@@ -351,7 +351,7 @@ class TestRunResearchWithDisplay:
     async def test_handles_provider_error(self) -> None:
         from rich.console import Console
 
-        from src.research.display import run_research_with_display
+        from ai_council.research.display import run_research_with_display
 
         providers = [
             MockResearchProvider("ok", result=_make_result("ok")),
@@ -368,7 +368,7 @@ class TestRunResearchWithDisplay:
     async def test_empty_providers_returns_empty(self) -> None:
         from rich.console import Console
 
-        from src.research.display import run_research_with_display
+        from ai_council.research.display import run_research_with_display
 
         con = Console(file=io.StringIO())
         results = await run_research_with_display([], "query", console=con)
@@ -433,7 +433,7 @@ class TestGeminiResearchProvider:
     """Unit tests for GeminiResearchProvider — all API calls mocked."""
 
     def _make_provider(self, **kwargs):  # type: ignore[return]
-        from src.research.providers.gemini_research import GeminiResearchProvider
+        from ai_council.research.providers.gemini_research import GeminiResearchProvider
         defaults = dict(
             api_key="test-key",
             agent="deep-research-pro-preview-12-2025",
@@ -466,8 +466,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [completed])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("What is HTAP?")
 
@@ -490,8 +490,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [poll1, poll2, done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -505,8 +505,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [failed])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
@@ -520,8 +520,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [cancelled])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
@@ -541,8 +541,8 @@ class TestGeminiResearchProvider:
         client.aio.interactions.create = AsyncMock(return_value=started)
         client.aio.interactions.get = slow_get
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
@@ -558,8 +558,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -578,8 +578,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -598,8 +598,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -613,8 +613,8 @@ class TestGeminiResearchProvider:
 
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             await provider.research("test")
 
@@ -629,8 +629,8 @@ class TestGeminiResearchProvider:
         client = MagicMock()
         client.aio.interactions.create = AsyncMock(side_effect=RuntimeError("connection refused"))
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
@@ -644,6 +644,7 @@ class TestGeminiResearchProvider:
 
 class TestBuildResearchProviders:
     def test_skips_providers_with_missing_api_key(self, tmp_path: Path, monkeypatch) -> None:
+        from ai_council.research.runner import build_research_providers
         from config.config_loader import (
             AppConfig,
             DefaultsConfig,
@@ -653,7 +654,6 @@ class TestBuildResearchProviders:
             ResearchConfig,
             ResearchProviderConfig,
         )
-        from src.research.runner import build_research_providers
 
         research_cfg = ResearchConfig(
             default_providers=["perplexity"],
@@ -691,6 +691,7 @@ class TestBuildResearchProviders:
         assert providers == []
 
     def test_returns_empty_when_no_research_config(self, tmp_path: Path) -> None:
+        from ai_council.research.runner import build_research_providers
         from config.config_loader import (
             AppConfig,
             DefaultsConfig,
@@ -698,7 +699,6 @@ class TestBuildResearchProviders:
             ModelConfig,
             PromptsConfig,
         )
-        from src.research.runner import build_research_providers
 
         model_cfg = ModelConfig(
             name="claude", sdk="anthropic", model="claude-opus-4-6",
@@ -750,7 +750,7 @@ class TestGrokResearchProvider:
     """Unit tests for GrokResearchProvider — all API calls mocked."""
 
     def _make_provider(self, **kwargs):  # type: ignore[return]
-        from src.research.providers.grok_research import GrokResearchProvider
+        from ai_council.research.providers.grok_research import GrokResearchProvider
         defaults = dict(
             api_key="test-xai-key",
             model="grok-3",
@@ -773,7 +773,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=mock_response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("What is multi-agent LLM debate?")
 
         assert result.provider == "grok"
@@ -786,7 +786,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=mock_response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             await provider.research("test query")
 
         call_kwargs = mock_client.responses.create.call_args.kwargs
@@ -800,7 +800,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=mock_response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("tokens test")
 
         assert result.token_count == 1000
@@ -816,7 +816,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=mock_response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("test")
 
         assert len(result.sources) == 1
@@ -824,7 +824,7 @@ class TestGrokResearchProvider:
         assert result.sources[0].title == "Interesting tweet"
 
     async def test_timeout_raises_provider_error(self) -> None:
-        from src.research.provider import ResearchProviderError
+        from ai_council.research.provider import ResearchProviderError
         provider = self._make_provider(timeout_sec=1)
         mock_client = MagicMock()
 
@@ -833,7 +833,7 @@ class TestGrokResearchProvider:
 
         mock_client.responses.create = slow_call
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
 
@@ -843,20 +843,21 @@ class TestGrokResearchProvider:
     async def test_api_error_wrapped_as_provider_error(self) -> None:
         from openai import APIError
 
-        from src.research.provider import ResearchProviderError
+        from ai_council.research.provider import ResearchProviderError
         provider = self._make_provider()
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(
             side_effect=APIError("server error", request=MagicMock(), body=None)
         )
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             with pytest.raises(ResearchProviderError) as exc_info:
                 await provider.research("test")
 
         assert "API error" in str(exc_info.value)
 
     async def test_missing_api_key_skips_provider(self, tmp_path: Path, monkeypatch) -> None:
+        from ai_council.research.runner import build_research_providers
         from config.config_loader import (
             AppConfig,
             DefaultsConfig,
@@ -866,7 +867,6 @@ class TestGrokResearchProvider:
             ResearchConfig,
             ResearchProviderConfig,
         )
-        from src.research.runner import build_research_providers
 
         research_cfg = ResearchConfig(
             default_providers=["grok"],
@@ -932,7 +932,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("test")
 
         assert len(result.sources) == 1
@@ -970,7 +970,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("test")
 
         assert len(result.sources) == 1
@@ -982,7 +982,7 @@ class TestGrokResearchProvider:
         mock_client = MagicMock()
         mock_client.responses.create = AsyncMock(return_value=mock_response)
 
-        with patch("src.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
+        with patch("ai_council.research.providers.grok_research.AsyncOpenAI", return_value=mock_client):
             result = await provider.research("test")
 
         assert result.sources == []
@@ -997,7 +997,7 @@ class TestGeminiCitationParsing:
     """Tests for the markdown-link citation parser in GeminiResearchProvider."""
 
     def _make_provider(self) -> object:
-        from src.research.providers.gemini_research import GeminiResearchProvider
+        from ai_council.research.providers.gemini_research import GeminiResearchProvider
         return GeminiResearchProvider(
             api_key="test-key",
             agent="deep-research-pro-preview-12-2025",
@@ -1021,8 +1021,8 @@ class TestGeminiCitationParsing:
         done = _make_interaction(status="completed", text_outputs=[report_text])
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -1043,8 +1043,8 @@ class TestGeminiCitationParsing:
         done = _make_interaction(status="completed", text_outputs=[report_text])
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -1057,8 +1057,8 @@ class TestGeminiCitationParsing:
         done = _make_interaction(status="completed", text_outputs=["Plain text with no links."])
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -1075,8 +1075,8 @@ class TestGeminiCitationParsing:
         )
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
@@ -1096,8 +1096,8 @@ class TestGeminiCitationParsing:
         )
         client = self._make_mock_client(started, [done])
 
-        with patch("src.research.providers.gemini_research.warnings"), \
-             patch("src.research.providers.gemini_research.genai") as mock_genai:
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
             mock_genai.Client.return_value = client
             result = await provider.research("test")
 
