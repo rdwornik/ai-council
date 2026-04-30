@@ -9,6 +9,7 @@ The Interactions API is experimental as of google-genai 1.55+. Known agent IDs:
 
 import asyncio
 import logging
+import re
 import time
 import warnings
 from datetime import datetime
@@ -21,6 +22,7 @@ from src.research.provider import ResearchProvider, ResearchProviderError
 logger = logging.getLogger(__name__)
 
 _TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", "incomplete"})
+_MARKDOWN_LINK_RE = re.compile(r'\[([^\]]+)\]\((https?://[^)\s]+)\)')
 
 
 class GeminiResearchProvider(ResearchProvider):
@@ -139,20 +141,27 @@ class GeminiResearchProvider(ResearchProvider):
         return "\n\n".join(texts)
 
     def _extract_sources(self, interaction: object) -> list[Source]:
-        """Extract URLs from URLContextResultContent items in outputs."""
+        """Extract URLs from report text markdown links and structured result items."""
         sources: list[Source] = []
         seen: set[str] = set()
         try:
             outputs = getattr(interaction, "outputs", None) or []
             for output in outputs:
+                # Parse markdown links from the report text
+                text = getattr(output, "text", None)
+                if text:
+                    for title, url in _MARKDOWN_LINK_RE.findall(text):
+                        if url not in seen:
+                            seen.add(url)
+                            sources.append(Source(title=title, url=url))
+                # Also check structured URL result items
                 result_list = getattr(output, "result", None)
-                if not isinstance(result_list, list):
-                    continue
-                for r in result_list:
-                    url = getattr(r, "url", None)
-                    if url and url not in seen:
-                        seen.add(url)
-                        sources.append(Source(title=str(url), url=str(url)))
+                if isinstance(result_list, list):
+                    for r in result_list:
+                        url = getattr(r, "url", None)
+                        if url and url not in seen:
+                            seen.add(url)
+                            sources.append(Source(title=str(url), url=str(url)))
         except Exception:
             logger.debug("gemini: could not extract sources", exc_info=True)
         return sources
