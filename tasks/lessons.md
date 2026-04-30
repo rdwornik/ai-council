@@ -26,6 +26,11 @@
 
 ---
 
+### 2026-04-30 | mock.patch string literals are invisible to import refactoring
+- CONTEXT: ADR-38 migration renamed all src.X imports to ai_council.X
+- MISTAKE: 56 mock.patch("src.debate.X") string literals in tests/ were NOT caught by import-only find-replace. Caused 30 test failures.
+- RULE: After any package rename, do a SECOND pass specifically for mock.patch() string literals. Pattern: `grep -r 'mock.patch.*"old_name\.' tests/`
+
 ### 2026-04-27 | Inbox path must mirror interactive path
 - CONTEXT: Research mode worked in interactive CLI but not via --inbox
 - MISTAKE: Third time this pattern appeared (--full, --mode, now research routing). Inbox loop is a separate code path that doesn't automatically inherit interactive features.
