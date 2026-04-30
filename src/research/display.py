@@ -41,8 +41,8 @@ def _make_status_table(
     table.add_column("Provider", style="bold", min_width=22)
     table.add_column("Status", min_width=14)
     table.add_column("Time", justify="right", min_width=8)
-    table.add_column("Cost", justify="right", min_width=8)
     table.add_column("Sources", justify="right", min_width=7)
+    table.add_column("Cost", justify="right", min_width=8)
 
     spinner = _SPINNER_FRAMES[spinner_frame % len(_SPINNER_FRAMES)]
 
@@ -79,7 +79,7 @@ def _make_status_table(
             cost_str = f"({reason[:40]})" if len(reason) <= 40 else f"({reason[:39]}…)"
             src_str = "—"
 
-        table.add_row(name, status_text, time_str, cost_str, src_str)
+        table.add_row(name, status_text, time_str, src_str, cost_str)
 
     return table
 
