@@ -364,8 +364,8 @@ prompts:
     Concrete next steps to implement the recommended decision.
 
 research:
-  default_providers: [ "perplexity", "openai_mini", "gemini" ]
-  deep_providers: [ "perplexity", "openai_mini", "openai_deep", "gemini" ]
+  default_providers: [ "perplexity", "grok", "openai_mini", "gemini" ]
+  deep_providers: [ "perplexity", "grok", "openai_mini", "openai_deep", "gemini" ]
   cache_dir: "~/.ai-council/research_cache"
   cache_ttl_days: 7
   summary_max_tokens: 2500
@@ -393,6 +393,14 @@ research:
       timeout_sec: 2700
       cost_per_1m_input: 10.00
       cost_per_1m_output: 40.00
+
+    grok:
+      model: "grok-3"
+      api_key_env: "XAI_API_KEY"
+      base_url: "https://api.x.ai/v1"
+      timeout_sec: 120
+      cost_per_1m_input: 3.00
+      cost_per_1m_output: 15.00
 
     gemini:
       model: "deep-research-preview-04-2026"  # Interactions API agent ID (not a Gemini model string); April 2026, Gemini 3.1 Pro
