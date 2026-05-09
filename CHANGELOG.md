@@ -1,5 +1,14 @@
 # Changelog — ai-council
 
+## 2026-05-09
+
+### Changed
+- `config/settings.yaml`: update grok model string to grok-4.3 (commit 62c1f7d)
+
+### Added
+- `VISION.md` — created per ADR-33 (tier M, Lite schema)
+- `CLAUDE.md` — Lessons Discovery section configuring `DEV_KNOWLEDGE_PATH` per ADR-35; ADR naming note (future underscore per ADR-34, existing 7 kebab-case grandfathered per ADR-29)
+
 ## [Unreleased]
 
 ### Changed
