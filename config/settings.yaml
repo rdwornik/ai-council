@@ -5,8 +5,8 @@ defaults:
   secondary_output_dir: "~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts"
   secondary_output_enabled: true
   synthesizer: "gemini"
-  default_panel: [ "claude", "gemini", "openai" ] # Systems + Security + Product; best for most decisions
-  full_panel: [ "claude", "gemini", "deepseek", "openai", "grok" ] # add Performance + Contrarian for high-stakes debates
+  default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
+  full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
 inbox:
   dir: "./council_inbox"
@@ -56,7 +56,7 @@ models:
 
   grok:
     sdk: "openai-compatible"
-    model: "grok-4.20" # lub "grok-4.20-reasoning" / "grok-4.20-0309-reasoning"
+    model: "grok-4.3" # lub "grok-4.20-reasoning" / "grok-4.20-0309-reasoning"
     api_key_env: "XAI_API_KEY"
     base_url: "https://api.x.ai/v1"
     timeout_sec: 180
@@ -111,21 +111,25 @@ persona_mode_directives:
       Generate volume. Messy ideas are welcome."
     gemini: "BRAINSTORM MODE: Suspend your security focus. Generate ideas freely
       without threat modeling."
-    deepseek: "BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even
+    deepseek:
+      "BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even
       if computationally expensive."
-    openai: "BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship
+    openai:
+      "BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship
       ideas."
-    grok: "BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else
+    grok:
+      "BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else
       is too responsible to suggest."
   judge:
-    grok: "ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine
+    grok:
+      "ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine
       weaknesses with evidence."
 
 modes:
   pick:
     description: "Which option should I choose? -> 1 recommendation"
     emoji: "🎯"
-    aliases: [ "p", "pick", "decide", "d", "decision", "architecture" ]
+    aliases: ["p", "pick", "decide", "d", "decision", "architecture"]
     default: true
     max_rounds: 2
     token_budget: 1500
@@ -134,7 +138,7 @@ modes:
   ideas:
     description: "What could I do? -> many ideas, clusters, wild cards"
     emoji: "💡"
-    aliases: [ "i", "ideas", "brainstorm", "creative", "explore", "e" ]
+    aliases: ["i", "ideas", "brainstorm", "creative", "explore", "e"]
     default: false
     max_rounds: 1
     token_budget: 1000
@@ -180,7 +184,7 @@ modes:
   research:
     description: "What does the internet say? -> multi-source report"
     emoji: "🔬"
-    aliases: [ "r", "research" ]
+    aliases: ["r", "research"]
     default: false
     max_rounds: 1
     token_budget: 0
@@ -190,7 +194,7 @@ modes:
   judge:
     description: "How good is this? -> verdict with evidence"
     emoji: "⚖️"
-    aliases: [ "j", "judge", "assess", "evaluate", "review", "audit", "a" ]
+    aliases: ["j", "judge", "assess", "evaluate", "review", "audit", "a"]
     default: false
     max_rounds: 2
     token_budget: 1200
@@ -364,8 +368,8 @@ prompts:
     Concrete next steps to implement the recommended decision.
 
 research:
-  default_providers: [ "perplexity", "grok", "openai_mini", "gemini" ]
-  deep_providers: [ "perplexity", "grok", "openai_mini", "openai_deep", "gemini" ]
+  default_providers: ["perplexity", "grok", "openai_mini", "gemini"]
+  deep_providers: ["perplexity", "grok", "openai_mini", "openai_deep", "gemini"]
   cache_dir: "~/.ai-council/research_cache"
   cache_ttl_days: 7
   summary_max_tokens: 2500
@@ -403,7 +407,7 @@ research:
       cost_per_1m_output: 15.00
 
     gemini:
-      model: "deep-research-preview-04-2026"  # Interactions API agent ID (not a Gemini model string); April 2026, Gemini 3.1 Pro
+      model: "deep-research-preview-04-2026" # Interactions API agent ID (not a Gemini model string); April 2026, Gemini 3.1 Pro
       api_key_env: "GEMINI_API_KEY"
       timeout_sec: 1800
       poll_interval_sec: 10
