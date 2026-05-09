@@ -119,7 +119,7 @@ council "question" --rounds 1 --verbose
 - **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is now the default; `--lite` uses the 3-model panel; `--full` is a no-op kept for backward compat
 - **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
-- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default synthesizer is `claude-sonnet` (Sonnet 4.6); falls back with `is_participant=True` if none available
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default synthesizer is `gemini` (`gemini-3.1-pro-preview`); falls back with `is_participant=True` if none available
 - **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `settings.yaml`
 - **RunPolicy**: Retry logic (`retry_on` patterns, `min_panel_size`) decoupled from debate logic; passed into `run_debate()`
 - **DebateOutcome**: `run_debate()` returns `DebateOutcome` (rounds + degradation fields); not `list[Round]`
