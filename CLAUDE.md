@@ -233,6 +233,23 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - `tasks/` — todo.md, lessons.md (local task tracking)
 - Do not create files outside these directories without updating this section
 
+## Lessons Discovery
+
+Set `DEV_KNOWLEDGE_PATH` to point to the .dev-knowledge repo:
+
+```powershell
+$env:DEV_KNOWLEDGE_PATH = "C:/Users/1028120/Documents/Dev/.dev-knowledge"
+```
+
+**Where lessons go:**
+
+- ai-council-local lessons (provider quirks, SDK gotchas, CLI patterns specific to this repo) → `tasks/lessons.md` (stays here)
+- Cross-ecosystem lessons (universalizable methodology, governance patterns) → `$DEV_KNOWLEDGE_PATH/LESSONS.md`
+
+**Criterion:** lesson applies only to ai-council code → stays local. Lesson applies across repos → flows to .dev-knowledge.
+
+**ADR naming:** future ADRs use underscore convention (`ADR-NN_topic.md`) per ADR-34. The 7 existing kebab-case ADRs (`ADR-01-synthesizer-selection.md` etc.) are grandfathered per ADR-29 — do not rename.
+
 ## Global Skills
 Before modifying code, consult ~/.claude/skills/gotchas/ for known ecosystem traps.
 After pytest passes, check ~/.claude/skills/verify/ for verification scripts.
