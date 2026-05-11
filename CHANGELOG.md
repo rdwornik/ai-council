@@ -1,5 +1,17 @@
 # Changelog — ai-council
 
+## 2026-05-11
+
+### Added
+- Cross-project transcript routing via `target-project` frontmatter field (inbox mode)
+- `--target-project` Click flag for direct CLI invocation (multi-target via repeated flag)
+- `config/settings.yaml`: `target_projects` map for target name → path resolution
+- `src/ai_council/routing.py`: `TargetResolver` + `RoutingError` — fail-loud on unknown names
+- `RunRequest.target_paths`: list of resolved mirror dirs forwarded through orchestrator to `save_to_file`
+- `output.py` / `research/output.py`: `target_paths` parameter — auto-mkdir, best-effort writes
+- `config/config_loader.py`: `AppConfig.target_projects: dict[str, str]`
+- 7 new tests across test_config, test_routing, test_inbox, test_output, test_cli, test_runner (349 total)
+
 ## 2026-05-09
 
 ### Changed

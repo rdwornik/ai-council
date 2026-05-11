@@ -1,5 +1,26 @@
 # Journal — ai-council
 
+## 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
+
+**Did:**
+- Implemented opt-in, config-driven per-invocation transcript routing for all 4 modes
+- Added `target_projects` map to `config/settings.yaml` + `AppConfig` loader with validation
+- Created `src/ai_council/routing.py`: `TargetResolver` + `RoutingError` (fail-loud on unknown names)
+- Extended `inbox.py` `parse_file` to accept optional resolver, resolve `target-project` frontmatter at parse time
+- Added `target_paths: list[Path]` parameter to `save_to_file` and `save_research_to_file` — auto-mkdir, best-effort mirror
+- Added `--target-project` Click flag (multiple=True) to CLI, wired through RunRequest → orchestrator → output
+- 6 commits on branch `feat/transcript-routing`; 349 tests pass; ruff at pre-existing 17 errors baseline
+
+**Architecture decisions:**
+- Names dynamic (frontmatter / flag), paths static (settings.yaml) — two-layer model per spec
+- Single `TargetResolver` called from both CLI flag path and inbox frontmatter path — no forked logic
+- Canonical write always first (hard); mirror writes best-effort with logging
+- Existing `secondary_dir` behavior unchanged — coexists with new `target_paths`
+
+**Next:**
+- `.dev-knowledge/protocols/ESSENTIALS.md` "Council output convention" section update — separate `.dev-knowledge` session
+- Await operator confirmation to merge `feat/transcript-routing` → main
+
 ## 2026-05-09 — Audit-sync governance closure (F-01, F-02)
 
 **Did:**

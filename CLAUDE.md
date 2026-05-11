@@ -31,6 +31,7 @@ src/ai_council/
   metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
   healthcheck.py       — run_health_checks(); pings all providers before debate starts
   inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive, Downloads detection
+  routing.py           — TargetResolver; resolves target-project names to transcript dirs; RoutingError on unknown
   mode_detector.py     — detect_mode(); _pick_cheapest(); auto-classifies question via cheap LLM call
   providers/
     base.py            — AIProvider ABC + ProviderError
@@ -59,7 +60,7 @@ config/                — top-level package, sibling of src/ (NOT under src/ai_
 scripts/
   check.ps1            — pytest + mypy + ruff pre-merge check
   council-ask.ps1      — helper script for quick CLI invocations
-tests/                 — 310 unit tests + integration tests
+tests/                 — 349 unit tests + integration tests
 ```
 
 ## Dev standards
@@ -128,6 +129,51 @@ council "question" --rounds 1 --verbose
 - **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
 - **Mode system**: `pick`/`ideas`/`judge`/`research` via `--mode`/`-M`; aliases `p`/`i`/`j`/`r`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
 - **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()`+`as_completed` progressive display; merges results; summarizes via LLM; writes `{ts}_{slug}_research.md`; file cache under `~/.ai-council/research_cache/` with 7-day TTL
+
+## Transcript Routing
+
+Opt-in, per-invocation mirroring of debate transcripts to named target project directories.
+
+**Two-layer model:**
+- **Names** (e.g., `.dev-knowledge`) come from frontmatter or `--target-project` flag — dynamic per invocation
+- **Paths** (e.g., `C:/Users/.../Dev/.dev-knowledge`) live in `config/settings.yaml` under `target_projects` — never hardcoded
+
+**Frontmatter (inbox mode):**
+```yaml
+---
+mode: judge
+target-project: .dev-knowledge          # single string
+# OR
+target-project: [.dev-knowledge, foo]   # multi-target (rare)
+---
+```
+
+**CLI flag (direct mode):**
+```bash
+council --target-project .dev-knowledge "question"
+# Multi-target — repeat the flag:
+council --target-project .dev-knowledge --target-project foo "question"
+```
+
+**Config (`config/settings.yaml`):**
+```yaml
+target_projects:
+  ".dev-knowledge": "C:/Users/1028120/Documents/Dev/.dev-knowledge"
+  # "corp-monorepo": "C:/Users/1028120/Documents/Dev/corp-monorepo"
+```
+
+**Behavior:**
+- Transcript written to `<target_root>/docs/decisions/transcripts/<filename>` (auto-mkdir)
+- Canonical `output/` is always written first (hard requirement; failure is hard error)
+- Mirror writes are best-effort: failure logs a warning, canonical is never affected
+- Unknown target name → `RoutingError` at parse time (before debate runs), listing known names
+- No `target-project` specified → canonical only, unchanged behavior
+- All 4 modes (pick / ideas / judge / research) route through the same plumbing
+
+**Key files:**
+- `src/ai_council/routing.py` — `TargetResolver` + `RoutingError`
+- `config/settings.yaml` — `target_projects` map (single source of truth for paths)
+- `config/config_loader.py` — `AppConfig.target_projects: dict[str, str]`
 
 ## Debate modes
 
