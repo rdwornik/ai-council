@@ -221,6 +221,55 @@ pytest tests/test_integration.py -v
 
 ---
 
+## Transcript Routing
+
+By default, transcripts are written to `output/`. Route to additional
+target projects via opt-in `target-project` mechanism — config-driven
+name resolution, fail-loud on unknown.
+
+### Two invocation paths
+
+**Inbox mode (YAML frontmatter):**
+
+```markdown
+---
+mode: judge
+target-project: .dev-knowledge   # single target
+# or: target-project: [.dev-knowledge, corp-monorepo]
+---
+Question body...
+```
+
+**Direct CLI mode (`--target-project` flag, repeatable):**
+
+```bash
+council --target-project .dev-knowledge "Should we use REST or GraphQL?"
+council --target-project .dev-knowledge --target-project corp-monorepo "..."
+```
+
+### Configuration
+
+Add target name → project root mapping in `config/settings.yaml`:
+
+```yaml
+target_projects:
+  ".dev-knowledge": "C:/Users/.../Dev/.dev-knowledge"
+  "corp-monorepo": "C:/Users/.../Dev/corp-monorepo"
+```
+
+CLI appends `docs/decisions/transcripts/` to each root automatically.
+
+### Behavior
+
+- Canonical `output/` write is always first and required
+- Target mirrors are best-effort: failure logs warning, canonical preserved
+- Unknown target name → exit with `RoutingError` listing known names; no debate runs
+- No `target-project` specified → canonical-only (zero behavior change for existing usage)
+
+See `CLAUDE.md` for full architecture details and the routing module.
+
+---
+
 ## Related repos
 
 - corp-by-os — orchestrator

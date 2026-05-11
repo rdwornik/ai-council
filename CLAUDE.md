@@ -60,7 +60,7 @@ config/                — top-level package, sibling of src/ (NOT under src/ai_
 scripts/
   check.ps1            — pytest + mypy + ruff pre-merge check
   council-ask.ps1      — helper script for quick CLI invocations
-tests/                 — 349 unit tests + integration tests
+tests/                 — 354 unit tests + integration tests
 ```
 
 ## Dev standards
