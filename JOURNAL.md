@@ -1,5 +1,18 @@
 # Journal — ai-council
 
+## 2026-05-11 — Post-routing cleanup
+
+**Did:**
+- Disabled `secondary_output_enabled` default — resolves architectural overlap with new `target_paths` per-invocation routing
+- Added README Transcript Routing section (closes acceptance-criteria miss from previous session)
+- Fixed CLAUDE.md test count drift (349 → 354)
+
+**Result:** Clean post-routing state. No double-write to `.dev-knowledge` when `--target-project .dev-knowledge` used; README documents the feature for users.
+
+**Next:** `.dev-knowledge` ESSENTIALS update (separate session). `git push` when ready (currently 21+ commits ahead of origin).
+
+---
+
 ## 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
 
 **Did:**

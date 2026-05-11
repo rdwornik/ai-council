@@ -2,6 +2,11 @@
 
 ## 2026-05-11
 
+### Changed
+- `config/settings.yaml`: `secondary_output_enabled` default flipped to `false` — `target_paths` per-invocation routing supersedes always-on global mirror
+- `README.md`: added Transcript Routing section
+- `CLAUDE.md`: corrected test count (349 → 354)
+
 ### Added
 - Cross-project transcript routing via `target-project` frontmatter field (inbox mode)
 - `--target-project` Click flag for direct CLI invocation (multi-target via repeated flag)
