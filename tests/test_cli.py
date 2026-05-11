@@ -1,7 +1,13 @@
 """Tests for CLI panel/synthesizer selection logic in src/cli.py."""
 
-import pytest
+from pathlib import Path
+from unittest.mock import patch
 
+import pytest
+from click.testing import CliRunner
+
+from ai_council.cli import main
+from ai_council.models import DebateResult, Question, Round
 from ai_council.runner import (
     determine_panel as _determine_panel,
 )
@@ -11,7 +17,40 @@ from ai_council.runner import (
 from ai_council.runner import (
     pick_synthesizer as _pick_non_participant_synthesizer,
 )
+from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig
 from tests.conftest import MockProvider
+
+# ---------------------------------------------------------------------------
+# Helpers for CLI routing tests
+# ---------------------------------------------------------------------------
+
+
+def _make_test_config(tmp_path: Path, target_projects: dict | None = None) -> AppConfig:
+    """Minimal AppConfig with controllable target_projects for routing tests."""
+    model = ModelConfig(
+        name="claude", sdk="anthropic", model="claude-test",
+        api_key_env="TEST_KEY", timeout_sec=60, max_tokens=1024,
+    )
+    defaults = DefaultsConfig(
+        rounds=1, max_rounds=2,
+        output_dir=tmp_path / "output",
+        synthesizer="claude",
+        default_panel=["claude"],
+        full_panel=["claude"],
+    )
+    prompts = PromptsConfig(
+        initial="{persona}\n{question}",
+        critique="{persona}\nRound {round}. {question}\n{previous_responses_anonymized}",
+        synthesis="Q: {question}\n{full_transcript}",
+        personas={"claude": "Be an architect."},
+    )
+    return AppConfig(
+        defaults=defaults,
+        models={"claude": model},
+        prompts=prompts,
+        available_providers={"claude"},
+        target_projects=target_projects or {},
+    )
 
 
 @pytest.fixture
@@ -162,3 +201,157 @@ def test_exclude_synthesizer_keeps_when_only_two_left():
     panel = ["claude", "openai"]
     result = _exclude_synthesizer_from_panel(panel, "openai", all_providers)
     assert result == panel  # can't remove, would leave only 1 debater
+
+
+# ---------------------------------------------------------------------------
+# --target-project CLI flag routing
+# ---------------------------------------------------------------------------
+
+
+def test_cli_unknown_target_project_exits_nonzero(tmp_path: Path) -> None:
+    """Unknown --target-project name exits non-zero before health check runs."""
+    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": "C:/Dev/.dev-knowledge"})
+
+    with patch("ai_council.cli.load_config", return_value=config):
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["--skip-health-check", "--target-project", "no-such-project", "test question"],
+        )
+
+    assert result.exit_code != 0
+    assert "Unknown target-project" in result.output
+    assert "no-such-project" in result.output
+
+
+def test_cli_unknown_target_project_lists_known_names(tmp_path: Path) -> None:
+    """Error message for unknown target-project lists known target names."""
+    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": "C:/Dev/.dev-knowledge"})
+
+    with patch("ai_council.cli.load_config", return_value=config):
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["--skip-health-check", "--target-project", "ghost", "test question"],
+        )
+
+    assert ".dev-knowledge" in result.output
+
+
+def test_cli_known_target_project_populates_request(tmp_path: Path) -> None:
+    """--target-project with known name populates target_paths on RunRequest."""
+    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": str(tmp_path / "dk")})
+    fake_provider = MockProvider("claude")
+    fake_round = Round(number=1, responses=[])
+    fake_result = DebateResult(
+        question=Question(text="test", source="cli"),
+        rounds=[fake_round],
+        synthesis="Result",
+        synthesizer="claude",
+        total_duration_sec=1.0,
+        panel_mode="custom",
+    )
+
+    captured_request: list = []
+
+    async def _fake_run(request, output_dir=None, output_format="text"):
+        captured_request.append(request)
+        return fake_result
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _fake_run
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            ["--skip-health-check", "--target-project", ".dev-knowledge", "--mode", "pick", "test question"],
+        )
+
+    assert len(captured_request) == 1
+    req = captured_request[0]
+    assert len(req.target_paths) == 1
+    assert "dk" in str(req.target_paths[0])
+
+
+def test_cli_no_target_project_empty_target_paths(tmp_path: Path) -> None:
+    """Without --target-project, target_paths is empty on RunRequest."""
+    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": str(tmp_path / "dk")})
+    fake_provider = MockProvider("claude")
+    fake_round = Round(number=1, responses=[])
+    fake_result = DebateResult(
+        question=Question(text="test", source="cli"),
+        rounds=[fake_round],
+        synthesis="Result",
+        synthesizer="claude",
+        total_duration_sec=1.0,
+        panel_mode="custom",
+    )
+
+    captured_request: list = []
+
+    async def _fake_run(request, output_dir=None, output_format="text"):
+        captured_request.append(request)
+        return fake_result
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _fake_run
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            ["--skip-health-check", "--mode", "pick", "test question"],
+        )
+
+    assert len(captured_request) == 1
+    assert captured_request[0].target_paths == []
+
+
+def test_cli_multiple_target_projects(tmp_path: Path) -> None:
+    """Repeated --target-project resolves multiple targets."""
+    projects = {
+        ".dev-knowledge": str(tmp_path / "dk"),
+        "foo": str(tmp_path / "foo"),
+    }
+    config = _make_test_config(tmp_path, target_projects=projects)
+    fake_provider = MockProvider("claude")
+    fake_round = Round(number=1, responses=[])
+    fake_result = DebateResult(
+        question=Question(text="test", source="cli"),
+        rounds=[fake_round],
+        synthesis="Result",
+        synthesizer="claude",
+        total_duration_sec=1.0,
+        panel_mode="custom",
+    )
+
+    captured_request: list = []
+
+    async def _fake_run(request, output_dir=None, output_format="text"):
+        captured_request.append(request)
+        return fake_result
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _fake_run
+        runner = CliRunner()
+        runner.invoke(
+            main,
+            [
+                "--skip-health-check", "--mode", "pick",
+                "--target-project", ".dev-knowledge",
+                "--target-project", "foo",
+                "test question",
+            ],
+        )
+
+    assert len(captured_request) == 1
+    assert len(captured_request[0].target_paths) == 2

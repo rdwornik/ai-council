@@ -150,7 +150,11 @@ class CouncilRunner:
             print_cost_summary(result.metrics)
 
         saved_paths = save_to_file(
-            result, output_dir, slug_override=request.slug_override, secondary_dir=secondary_dir
+            result,
+            output_dir,
+            slug_override=request.slug_override,
+            secondary_dir=secondary_dir,
+            target_paths=request.target_paths,
         )
         console.print(f"\n[dim]Saved: {saved_paths[0]}[/dim]")
         if len(saved_paths) > 1:

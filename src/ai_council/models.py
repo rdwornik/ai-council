@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -81,6 +82,7 @@ class RunRequest:
     synthesizer_specified: bool = False  # True if user explicitly chose synthesizer
     slug_override: str | None = None  # inbox file stem → deterministic output filename
     mode: str = "pick"  # "pick", "ideas", "judge"
+    target_paths: list[Path] = field(default_factory=list)  # resolved transcript mirror dirs
 
 
 @dataclass

@@ -271,3 +271,63 @@ async def test_runner_run_uses_output_dir_from_config_when_none(all_providers, m
 
     _, call_kwargs = mock_save.call_args
     assert mock_save.call_args[0][1] == multi_model_config.defaults.output_dir
+
+
+async def test_runner_passes_target_paths_to_save_to_file(
+    all_providers, multi_model_config, tmp_path, fake_round, fake_result
+):
+    """RunRequest.target_paths is forwarded to save_to_file."""
+
+    target = tmp_path / "mirror" / "docs" / "decisions" / "transcripts"
+    request = RunRequest(
+        question=Question(text="Q", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=1,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+        target_paths=[target],
+    )
+
+    with (
+        patch("ai_council.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
+        patch("ai_council.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
+        patch("ai_council.orchestrator.save_to_file", return_value=[tmp_path / "out.md"]) as mock_save,
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        await runner.run(request, output_dir=tmp_path)
+
+    call_kwargs = mock_save.call_args.kwargs
+    assert call_kwargs["target_paths"] == [target]
+
+
+async def test_runner_empty_target_paths_by_default(
+    all_providers, multi_model_config, tmp_path, fake_round, fake_result
+):
+    """When no target_paths on RunRequest, save_to_file receives empty list."""
+    request = RunRequest(
+        question=Question(text="Q", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=1,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+        # target_paths defaults to []
+    )
+
+    with (
+        patch("ai_council.orchestrator.run_debate", new=AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))),
+        patch("ai_council.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
+        patch("ai_council.orchestrator.save_to_file", return_value=[tmp_path / "out.md"]) as mock_save,
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        await runner.run(request, output_dir=tmp_path)
+
+    call_kwargs = mock_save.call_args.kwargs
+    assert call_kwargs.get("target_paths", []) == []

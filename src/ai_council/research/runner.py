@@ -138,6 +138,7 @@ async def run_research(
     console: Console | None = None,
     output_format: str = "text",
     models_filter: list[str] | None = None,
+    target_paths: list[Path] | None = None,
 ) -> MergedResearchReport:
     """Run full research pipeline for a query. Returns merged report."""
     if console is None:
@@ -158,7 +159,10 @@ async def run_research(
         cached = cache_get(research_cfg.cache_dir, cache_key, research_cfg.cache_ttl_days)
         if cached is not None:
             console.print(f"\n[dim]Research cache hit (key: {cache_key})[/dim]")
-            saved_paths = save_research_to_file(cached, output_dir, from_cache=True, secondary_dir=secondary_dir)
+            saved_paths = save_research_to_file(
+                cached, output_dir, from_cache=True, secondary_dir=secondary_dir,
+                target_paths=target_paths,
+            )
             print_research_summary(cached, saved_paths[0], from_cache=True, console=console)
             _print_research_paths(console, saved_paths, secondary_dir)
             if output_format == "json":
@@ -191,7 +195,10 @@ async def run_research(
         cache_put(research_cfg.cache_dir, cache_key, report)
 
     # Output
-    saved_paths = save_research_to_file(report, output_dir, from_cache=False, secondary_dir=secondary_dir)
+    saved_paths = save_research_to_file(
+        report, output_dir, from_cache=False, secondary_dir=secondary_dir,
+        target_paths=target_paths,
+    )
     print_research_summary(report, saved_paths[0], from_cache=False, console=console)
     _print_research_paths(console, saved_paths, secondary_dir)
 

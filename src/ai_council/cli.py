@@ -22,6 +22,7 @@ from ai_council.providers.deepseek import DeepSeekProvider
 from ai_council.providers.gemini import GeminiProvider
 from ai_council.providers.openai_provider import OpenAIProvider
 from ai_council.providers.xai import XAIProvider
+from ai_council.routing import RoutingError, TargetResolver
 from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
 from config.config_loader import default_mode, load_config, resolve_mode
 
@@ -236,6 +237,15 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     type=click.Choice(["text", "json"], case_sensitive=False),
     help="Output format: text (default) or json (prints structured result to stdout).",
 )
+@click.option(
+    "--target-project",
+    "target_projects_arg",
+    multiple=True,
+    help=(
+        "Target project name(s) for transcript mirroring. Repeat flag for multiple targets. "
+        "Must match a name in config/settings.yaml target_projects map."
+    ),
+)
 def main(
     question: str | None,
     question_file: str | None,
@@ -253,6 +263,7 @@ def main(
     deep: bool,
     no_cache: bool,
     output_format: str,
+    target_projects_arg: tuple[str, ...],
 ) -> None:
     """AI Council -- multi-model debate and research tool. Use --modes for mode details."""
     if sys.platform == "win32":
@@ -275,6 +286,14 @@ def main(
 
     effective_output = Path(output_path) if output_path else config.defaults.output_dir
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
+
+    # Build resolver and validate --target-project args early (before health checks)
+    resolver = TargetResolver(config.target_projects)
+    try:
+        cli_target_paths = resolver.resolve(target_projects_arg)
+    except RoutingError as exc:
+        console.print(f"[bold red]Error:[/bold red] {exc}")
+        sys.exit(1)
 
     # Validate --mode arg early so we fail fast before health checks
     if mode_arg is not None and config.modes:
@@ -315,7 +334,14 @@ def main(
             return
 
         for file_path in all_files:
-            question_text, meta = parse_file(file_path)
+            try:
+                question_text, meta = parse_file(file_path, resolver=resolver)
+            except RoutingError as exc:
+                logger.error("Routing error in %s: %s -- skipping", file_path.name, exc)
+                archive_file(file_path, archive_dir, failed=True)
+                continue
+            # CLI --target-project wins over frontmatter target-project
+            fm_target_paths = cli_target_paths if cli_target_paths else meta.get("target_paths", [])
             fm_rounds = int(meta["rounds"]) if "rounds" in meta else config.defaults.rounds
             fm_models = str(meta["models"]) if "models" in meta and not use_full_panel else None
             fm_full = (use_full_panel or not lite) or bool(meta.get("full", False))
@@ -353,6 +379,7 @@ def main(
                             console=console,
                             output_format=output_format,
                             models_filter=[m.strip() for m in fm_models.split(",")] if fm_models else None,
+                            target_paths=fm_target_paths or None,
                         )
                     )
                     archived = archive_file(file_path, archive_dir)
@@ -385,6 +412,7 @@ def main(
                 synthesizer_specified=synthesizer is not None or "synthesizer" in meta,
                 slug_override=clean_slug(file_path.stem),
                 mode=fm_mode,
+                target_paths=fm_target_paths,
             )
             try:
                 asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
@@ -440,6 +468,7 @@ def main(
                     console=console,
                     output_format=output_format,
                     models_filter=[m.strip() for m in models.split(",")] if models else None,
+                    target_paths=cli_target_paths or None,
                 )
             )
         except RuntimeError as exc:
@@ -462,6 +491,7 @@ def main(
         panel_mode=panel_mode,
         synthesizer_specified=synthesizer is not None,
         mode=effective_mode,
+        target_paths=cli_target_paths,
     )
     asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
 
