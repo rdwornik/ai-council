@@ -7,9 +7,9 @@
 **Options considered:**
 - A: Single provider (Perplexity only) — insufficient depth
 - B: All providers default — too slow/expensive for routine use
-- C: 3 fast providers default + o3-deep behind `--deep` flag
+- C: 4 fast providers default + o3-deep behind `--deep` flag
 
-**Default providers:** Perplexity sonar-pro, o4-mini-deep-research, Gemini + Google Search grounding.
+**Default providers:** Perplexity sonar-pro, Grok 3 (x_search + web_search, unique X/Twitter signal), o4-mini-deep-research, Gemini + Google Search grounding.
 **Deep provider:** o3-deep-research (~45 min, $10+, `--deep` flag only).
 
 **Implementation:** `src/research/runner.py`; bypasses debate pipeline entirely; file cache under
