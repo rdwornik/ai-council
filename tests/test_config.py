@@ -142,3 +142,80 @@ def test_load_config_personas_empty_when_missing(tmp_path: Path):
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
     assert config.prompts.personas == {}
+
+
+# ---------------------------------------------------------------------------
+# target_projects
+# ---------------------------------------------------------------------------
+
+
+def _minimal_base(tmp_path: Path) -> dict:
+    return {
+        "defaults": {
+            "rounds": 1,
+            "max_rounds": 2,
+            "output_dir": "./output",
+            "synthesizer": "claude",
+            "default_panel": ["claude"],
+            "full_panel": ["claude"],
+        },
+        "models": {
+            "claude": {
+                "sdk": "anthropic",
+                "model": "claude-opus-4-6",
+                "api_key_env": "TEST_KEY",
+                "timeout_sec": 60,
+                "max_tokens": 4096,
+            }
+        },
+        "prompts": {
+            "initial": "Q: {question}",
+            "critique": "Q: {question}",
+            "synthesis": "Q: {question}\n{full_transcript}",
+        },
+    }
+
+
+def test_target_projects_valid_single_entry(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    config = load_config(path)
+    assert config.target_projects == {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+
+
+def test_target_projects_valid_empty_map(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    config = load_config(path)
+    assert config.target_projects == {}
+
+
+def test_target_projects_absent_defaults_to_empty(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    # No target_projects key at all
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    config = load_config(path)
+    assert config.target_projects == {}
+
+
+def test_target_projects_list_raises(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = [".dev-knowledge"]
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="target_projects must be a mapping"):
+        load_config(path)
+
+
+def test_target_projects_non_string_value_raises(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {".dev-knowledge": 42}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="string->string"):
+        load_config(path)

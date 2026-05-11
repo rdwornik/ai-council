@@ -8,6 +8,14 @@ defaults:
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
+# Per-invocation transcript routing: opt-in mirroring to named target projects.
+# Keys are project names used in frontmatter (target-project:) or --target-project flag.
+# Paths are resolved at load time but validated for existence only at write time.
+# Add entries here to enable routing; unknown names fail loud with this list shown.
+target_projects:
+  ".dev-knowledge": "C:/Users/1028120/Documents/Dev/.dev-knowledge"
+  # "corp-monorepo": "C:/Users/1028120/Documents/Dev/corp-monorepo"
+
 inbox:
   dir: "./council_inbox"
   archive_dir: "./council_inbox/archive"

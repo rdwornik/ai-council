@@ -110,6 +110,7 @@ class AppConfig:
     modes: dict[str, ModeConfig] = field(default_factory=dict)
     persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)
     research: ResearchConfig | None = None
+    target_projects: dict[str, str] = field(default_factory=dict)
 
 
 def resolve_mode(mode_arg: str, modes: dict[str, ModeConfig]) -> str:
@@ -285,6 +286,19 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     if "research" in raw:
         research = _load_research_config(raw["research"])
 
+    # Parse target_projects (optional) — empty map is valid; paths validated at use time
+    raw_tp = raw.get("target_projects", {})
+    if not isinstance(raw_tp, dict):
+        raise ValueError(
+            f"target_projects must be a mapping of name->path strings, got {type(raw_tp).__name__}"
+        )
+    for k, v in raw_tp.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            raise ValueError(
+                f"target_projects entries must be string->string, got {k!r}: {v!r}"
+            )
+    target_projects: dict[str, str] = {k: v for k, v in raw_tp.items()}
+
     return AppConfig(
         defaults=defaults,
         models=models,
@@ -294,6 +308,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         modes=modes,
         persona_mode_directives=persona_mode_directives,
         research=research,
+        target_projects=target_projects,
     )
 
 
