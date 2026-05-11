@@ -1,7 +1,8 @@
 """Target project resolver for per-invocation transcript routing.
 
 Names come from frontmatter (target-project:) or the --target-project CLI flag.
-Paths come from config/settings.yaml target_projects map.
+dev_root and target_projects come from config/settings.yaml (ADR-43 amendment cycle 1).
+Paths computed as: <dev_root>/<name>/docs/decisions/transcripts/
 Unknown names fail loud with the full list of known targets shown.
 """
 
@@ -20,8 +21,10 @@ class RoutingError(Exception):
 class TargetResolver:
     """Resolves target project names to transcript directory paths."""
 
-    def __init__(self, target_projects: dict[str, str]) -> None:
-        self._target_projects = target_projects
+    def __init__(self, dev_root: Path, target_projects: list[str]) -> None:
+        self._dev_root = dev_root
+        self._target_projects = list(target_projects)
+        self._known: set[str] = set(target_projects)
 
     def resolve(
         self,
@@ -54,14 +57,14 @@ class TargetResolver:
         if not names:
             return []
 
-        unknown = [n for n in names if n not in self._target_projects]
+        unknown = [n for n in names if n not in self._known]
         if unknown:
-            known_sorted = sorted(self._target_projects.keys())
+            known_sorted = sorted(self._known)
             raise RoutingError(
                 f"Unknown target-project {unknown[0]!r}. Known targets: {known_sorted}"
             )
 
         return [
-            Path(self._target_projects[name]) / _TRANSCRIPTS_SUBPATH
+            self._dev_root / name / _TRANSCRIPTS_SUBPATH
             for name in names
         ]

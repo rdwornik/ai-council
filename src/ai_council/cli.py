@@ -288,7 +288,7 @@ def main(
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
     # Build resolver and validate --target-project args early (before health checks)
-    resolver = TargetResolver(config.target_projects)
+    resolver = TargetResolver(config.dev_root or Path("."), config.target_projects)
     try:
         cli_target_paths = resolver.resolve(target_projects_arg)
     except RoutingError as exc:
