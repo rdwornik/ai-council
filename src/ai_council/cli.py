@@ -243,7 +243,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     multiple=True,
     help=(
         "Target project name(s) for transcript mirroring. Repeat flag for multiple targets. "
-        "Must match a name in config/settings.yaml target_projects map."
+        "Must be a name in the config/settings.yaml target_projects list; path resolved under dev_root."
     ),
 )
 def main(

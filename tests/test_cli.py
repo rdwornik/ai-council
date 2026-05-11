@@ -318,12 +318,8 @@ def test_cli_no_target_project_empty_target_paths(tmp_path: Path) -> None:
 
 
 def test_cli_multiple_target_projects(tmp_path: Path) -> None:
-    """Repeated --target-project resolves multiple targets."""
-    projects = {
-        ".dev-knowledge": str(tmp_path / "dk"),
-        "foo": str(tmp_path / "foo"),
-    }
-    config = _make_test_config(tmp_path, target_projects=projects)
+    """Repeated --target-project resolves multiple targets with correct paths."""
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge", "foo"])
     fake_provider = MockProvider("claude")
     fake_round = Round(number=1, responses=[])
     fake_result = DebateResult(
@@ -358,5 +354,9 @@ def test_cli_multiple_target_projects(tmp_path: Path) -> None:
             ],
         )
 
+    _transcripts = Path("docs") / "decisions" / "transcripts"
     assert len(captured_request) == 1
-    assert len(captured_request[0].target_paths) == 2
+    paths = captured_request[0].target_paths
+    assert len(paths) == 2
+    assert paths[0] == tmp_path / ".dev-knowledge" / _transcripts
+    assert paths[1] == tmp_path / "foo" / _transcripts

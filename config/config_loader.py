@@ -325,7 +325,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             raise ValueError(
                 f"dev_root must be a string, got {type(raw_dev_root).__name__!r}"
             )
-        dev_root_path = Path(raw_dev_root).expanduser()
+        dev_root_path = Path(raw_dev_root).expanduser().resolve()
         if not dev_root_path.is_dir():
             raise ValueError(
                 f"dev_root must point to existing directory: {dev_root_path}"
