@@ -249,15 +249,20 @@ council --target-project .dev-knowledge --target-project corp-monorepo "..."
 
 ### Configuration
 
-Add target name → project root mapping in `config/settings.yaml`:
+Declare your ecosystem root once via `dev_root`; list opt-in project names in
+`target_projects` (`config/settings.yaml`):
 
 ```yaml
+# Schema refactored 2026-05-11 per ADR-43 amendment cycle 1.
+dev_root: "C:/Users/.../Dev/"
+
 target_projects:
-  ".dev-knowledge": "C:/Users/.../Dev/.dev-knowledge"
-  "corp-monorepo": "C:/Users/.../Dev/corp-monorepo"
+  - ".dev-knowledge"
+  - "corp-monorepo"
 ```
 
-CLI appends `docs/decisions/transcripts/` to each root automatically.
+CLI resolves each name to `<dev_root>/<name>/docs/decisions/transcripts/`.
+Adding a new project = one-line list entry; no full path repetition.
 
 ### Behavior
 

@@ -134,9 +134,9 @@ council "question" --rounds 1 --verbose
 
 Opt-in, per-invocation mirroring of debate transcripts to named target project directories.
 
-**Two-layer model:**
+**Two-layer model (refactored 2026-05-11 per ADR-43 amendment cycle 1):**
 - **Names** (e.g., `.dev-knowledge`) come from frontmatter or `--target-project` flag — dynamic per invocation
-- **Paths** (e.g., `C:/Users/.../Dev/.dev-knowledge`) live in `config/settings.yaml` under `target_projects` — never hardcoded
+- **Ecosystem root** (`dev_root`) declared once in `config/settings.yaml`; project names listed; paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`
 
 **Frontmatter (inbox mode):**
 ```yaml
@@ -157,13 +157,18 @@ council --target-project .dev-knowledge --target-project foo "question"
 
 **Config (`config/settings.yaml`):**
 ```yaml
+# Declare ecosystem root once; list opt-in project names below.
+dev_root: "C:/Users/1028120/Documents/Dev/"
+
 target_projects:
-  ".dev-knowledge": "C:/Users/1028120/Documents/Dev/.dev-knowledge"
-  # "corp-monorepo": "C:/Users/1028120/Documents/Dev/corp-monorepo"
+  - ".dev-knowledge"
+  # - "corp-monorepo"
 ```
 
+Old `dict[name, full_path]` shape fails loud at load with a migration hint (ADR-43 amendment cycle 1).
+
 **Behavior:**
-- Transcript written to `<target_root>/docs/decisions/transcripts/<filename>` (auto-mkdir)
+- Transcript written to `<dev_root>/<name>/docs/decisions/transcripts/<filename>` (auto-mkdir)
 - Canonical `output/` is always written first (hard requirement; failure is hard error)
 - Mirror writes are best-effort: failure logs a warning, canonical is never affected
 - Unknown target name → `RoutingError` at parse time (before debate runs), listing known names
@@ -172,8 +177,9 @@ target_projects:
 
 **Key files:**
 - `src/ai_council/routing.py` — `TargetResolver` + `RoutingError`
-- `config/settings.yaml` — `target_projects` map (single source of truth for paths)
-- `config/config_loader.py` — `AppConfig.target_projects: dict[str, str]`
+- `config/settings.yaml` — `dev_root` + `target_projects` list (single source of truth)
+- `config/config_loader.py` — `AppConfig.dev_root: Path | None`, `AppConfig.target_projects: list[str]`
+- `docs/decisions/ADR-43_*.md` in `.dev-knowledge` — authoritative architecture decision
 
 ## Debate modes
 
