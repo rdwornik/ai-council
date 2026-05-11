@@ -17,6 +17,9 @@
 - `config/config_loader.py`: `AppConfig.target_projects: dict[str, str]`
 - 7 new tests across test_config, test_routing, test_inbox, test_output, test_cli, test_runner (349 total)
 
+### Added (audit trail)
+- `docs/handoffs/_archive/`: outgoing delivery report (to `.dev-knowledge`) and inbound press-back (from `.dev-knowledge`) for cross-repo transcript-routing feature audit trail
+
 ## 2026-05-09
 
 ### Changed
