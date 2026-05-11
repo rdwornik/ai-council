@@ -2,6 +2,17 @@
 
 ## 2026-05-11
 
+### Changed (governance sweep)
+- `docs/decisions/ADR-07-dual-output-paths.md`: Status updated to "Superseded by ADR-43" (file now matches index)
+- `docs/decisions/ADR-01-synthesizer-selection.md`: Status date updated to 2026-04-30 (Gemini revision; header had lagged body)
+- `docs/decisions/ADR-02-default-panel.md`: Status updated to "Revised (2026-05-11)"; decision updated to reflect 5-model default (`--lite`=3-model, `--full`=no-op)
+- `docs/decisions/ADR-05-research-integration.md`: Provider count corrected to 4 (Grok added post-ADR)
+- `docs/decisions/ADR-06-cost-optimization.md`: Notes Gemini synthesizer change (per ADR-01 04-30 revision); Qwen trial marked deferred (not pending)
+- `docs/decisions/README.md`: Index re-synced with ADR-01, ADR-02, ADR-06 file statuses
+
+### Removed (governance sweep)
+- `docs/HANDOFF.md`: handoff process owned by `.dev-knowledge` strażnik per ADR-42; pointer file removed
+
 ### Changed (docs hygiene)
 - `docs/HANDOFF.md`: aligned with .dev-knowledge-owned handoff process (pointer to ADR-42 + Playbook)
 - `docs/COUNCIL_QUESTION_GUIDE.md`: added `target-project` frontmatter and `--target-project` CLI flag section

@@ -1,5 +1,26 @@
 # Journal — ai-council
 
+## 2026-05-11 — ADR governance sweep + HANDOFF cleanup
+
+**Did:**
+- Audit ADR-01..07 status headers against current ecosystem state
+- ADR-07: file status flipped to "Superseded by ADR-43" — was index-only before today; file is source of truth
+- ADR-01: status date updated to 2026-04-30 (Gemini synthesizer revision); header had captured only the 03-29 Sonnet revision
+- ADR-02: revised to reflect 5-model default panel; original "3-model default" was factually wrong per current CLAUDE.md and code
+- ADR-05: provider count corrected 3→4 (Grok/XAI added post-ADR, undocumented in ADR body)
+- ADR-06: Qwen trial marked deferred (not pending); Gemini synthesizer change cross-referenced to ADR-01
+- ADR-03, ADR-04: verified current, no changes
+- decisions/README.md: index re-synced with ADR-01, ADR-02, ADR-06 updated statuses
+- HANDOFF.md: deleted — handoff process owned by `.dev-knowledge` per ADR-42; pointer file adds noise not value
+
+**Result:** ADR status headers are now authoritative in files; index mirrors them. Governance docs internally consistent.
+
+**Candidates for future work (from audit):**
+- ADR-01 Synthesizer selection: Gemini default still operative; model landscape has evolved (Claude 4.7, Gemini 3.x era). Candidate for meta-debate: should default panel + synthesizer refresh for 2026 model landscape?
+- ADR-06 Cost optimization: Qwen trial deferred indefinitely; OpenRouter hedge not implemented. If DeepSeek reliability degrades again, Qwen/OpenRouter question will resurface.
+
+---
+
 ## 2026-05-11 — Docs hygiene sweep
 
 **Did:**
