@@ -214,7 +214,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 @click.option(
     "--synthesizer", default=None,
     help="Model that writes the final verdict: claude, openai, gemini, grok, deepseek. "
-         "Defaults to claude. Automatically excluded from the debate panel.",
+         "Defaults to gemini. Automatically excluded from the debate panel.",
 )
 @click.option(
     "--mode", "-M", "mode_arg", default=None,

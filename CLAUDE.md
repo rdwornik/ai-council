@@ -278,7 +278,7 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - `tests/` — all tests
 - `config/` — settings.yaml and config_loader.py
 - `scripts/` — check.ps1 and utility scripts
-- `docs/` — HANDOFF.md, decisions/ (ADRs), handoffs/ (session handoffs), archive/ (frozen snapshots)
+- `docs/` — decisions/ (ADRs), handoffs/ (session handoffs), archive/ (frozen snapshots)
 - `output/` — gitignored; debate transcripts and research reports
 - `council_inbox/` — gitignored; drop .md files for batch processing
 - `eval/` — evaluation data (eval_history.jsonl)

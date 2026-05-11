@@ -5,7 +5,9 @@
 
 Originally established always-on dual-write to a hardcoded secondary path. ADR-43 (in `.dev-knowledge`) replaced this with per-invocation opt-in routing via `target-project` frontmatter or `--target-project` CLI flag; `secondary_output_dir` code path retained but defaulted off. See ADR-43 for current architecture.
 
-## Decision
+## Original Decision (historical — superseded by ADR-43)
+
+> The sections below describe the original always-on dual-write design. This was replaced by ADR-43's per-invocation opt-in routing. `secondary_output_enabled` now defaults to `false`; the hardcoded secondary path is replaced by `target-project` frontmatter / `--target-project` CLI flag. See ADR-43 in `.dev-knowledge` for current architecture.
 
 All debate transcripts and research reports save to two locations:
 
