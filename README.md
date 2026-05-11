@@ -217,7 +217,7 @@ pytest tests/ -m "not integration" -v
 pytest tests/test_integration.py -v
 ```
 
-255 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
+354 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
 
 ---
 
@@ -263,7 +263,7 @@ CLI appends `docs/decisions/transcripts/` to each root automatically.
 
 - Canonical `output/` write is always first and required
 - Target mirrors are best-effort: failure logs warning, canonical preserved
-- Unknown target name → exit with `RoutingError` listing known names; no debate runs
+- Unknown target name → **CLI mode:** exits before debate runs, listing known names; **inbox mode:** offending file is archived as `FAILED_` and batch continues
 - No `target-project` specified → canonical-only (zero behavior change for existing usage)
 
 See `CLAUDE.md` for full architecture details and the routing module.
