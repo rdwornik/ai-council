@@ -110,7 +110,8 @@ class AppConfig:
     modes: dict[str, ModeConfig] = field(default_factory=dict)
     persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)
     research: ResearchConfig | None = None
-    target_projects: dict[str, str] = field(default_factory=dict)
+    dev_root: Path | None = None
+    target_projects: list[str] = field(default_factory=list)
 
 
 def resolve_mode(mode_arg: str, modes: dict[str, ModeConfig]) -> str:
@@ -286,20 +287,50 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     if "research" in raw:
         research = _load_research_config(raw["research"])
 
-    # Parse target_projects (optional) — empty map is valid; paths validated at use time
-    raw_tp = raw.get("target_projects", {})
-    if not isinstance(raw_tp, dict):
+    # Parse target_projects (new schema per ADR-43 amendment cycle 1, 2026-05-11):
+    # dev_root + list of project names; paths computed at resolve time.
+    raw_tp = raw.get("target_projects", [])
+
+    if isinstance(raw_tp, dict):
         raise ValueError(
-            f"target_projects must be a mapping of name->path strings, got {type(raw_tp).__name__}"
+            "target_projects schema changed 2026-05-11 (ADR-43 amendment cycle 1). "
+            "Expected: list of project names. Found: dict. "
+            "See README.md Transcript Routing section."
         )
-    for k, v in raw_tp.items():
-        if not isinstance(k, str) or not isinstance(v, str):
+    if not isinstance(raw_tp, list):
+        raise ValueError(
+            f"target_projects must be a list of project name strings, got {type(raw_tp).__name__}"
+        )
+    for i, item in enumerate(raw_tp):
+        if not isinstance(item, str):
             raise ValueError(
-                f"target_projects entries must be string->string, got {k!r}: {v!r}"
+                f"target_projects items must be strings; got {type(item).__name__!r} at index {i}: {item!r}"
             )
-    target_projects: dict[str, str] = {
-        k: str(Path(v).expanduser()) for k, v in raw_tp.items()
-    }
+    seen: set[str] = set()
+    for name in raw_tp:
+        if name in seen:
+            raise ValueError(f"Duplicate project name in target_projects: {name!r}")
+        seen.add(name)
+    target_projects: list[str] = list(raw_tp)
+
+    # Parse dev_root — required when target_projects is non-empty
+    dev_root: Path | None = None
+    if target_projects:
+        raw_dev_root = raw.get("dev_root")
+        if raw_dev_root is None:
+            raise ValueError(
+                "dev_root is required in settings.yaml when target_projects is non-empty"
+            )
+        if not isinstance(raw_dev_root, str):
+            raise ValueError(
+                f"dev_root must be a string, got {type(raw_dev_root).__name__!r}"
+            )
+        dev_root_path = Path(raw_dev_root).expanduser()
+        if not dev_root_path.is_dir():
+            raise ValueError(
+                f"dev_root must point to existing directory: {dev_root_path}"
+            )
+        dev_root = dev_root_path
 
     return AppConfig(
         defaults=defaults,
@@ -310,6 +341,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         modes=modes,
         persona_mode_directives=persona_mode_directives,
         research=research,
+        dev_root=dev_root,
         target_projects=target_projects,
     )
 

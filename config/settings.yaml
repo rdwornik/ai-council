@@ -10,13 +10,19 @@ defaults:
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
+# Ecosystem root — all routable projects live under this directory.
+# Per ADR-43 amendment cycle 1 (2026-05-11): single root declared here;
+# target_projects below is opt-in list of project names.
+# Path resolved as: <dev_root>/<name>/docs/decisions/transcripts/
+dev_root: "C:/Users/1028120/Documents/Dev/"
+
 # Per-invocation transcript routing: opt-in mirroring to named target projects.
-# Keys are project names used in frontmatter (target-project:) or --target-project flag.
-# Paths are resolved at load time but validated for existence only at write time.
-# Add entries here to enable routing; unknown names fail loud with this list shown.
+# Names used in frontmatter (target-project:) or --target-project flag.
+# Add project names here to enable routing; unknown names fail loud with this list shown.
 target_projects:
-  ".dev-knowledge": "C:/Users/1028120/Documents/Dev/.dev-knowledge"
-  # "corp-monorepo": "C:/Users/1028120/Documents/Dev/corp-monorepo"
+  - ".dev-knowledge"
+  # - "corp-monorepo"
+  # - "corp-ops"
 
 inbox:
   dir: "./council_inbox"
