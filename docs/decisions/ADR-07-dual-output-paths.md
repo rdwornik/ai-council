@@ -1,7 +1,9 @@
 # ADR-07: Dual Output Paths
 
 **Date:** 2026-04-28
-**Status:** Accepted
+**Status:** Superseded by ADR-43 (opt-in `target-project` routing replaces always-on secondary write)
+
+Originally established always-on dual-write to a hardcoded secondary path. ADR-43 (in `.dev-knowledge`) replaced this with per-invocation opt-in routing via `target-project` frontmatter or `--target-project` CLI flag; `secondary_output_dir` code path retained but defaulted off. See ADR-43 for current architecture.
 
 ## Decision
 
