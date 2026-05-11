@@ -1,13 +1,15 @@
 # ADR-02: Default Panel Composition
 
 **Date:** 2026-03-20
-**Status:** Accepted
-**Decision:** Default 3-model panel: Claude + Gemini + OpenAI.
+**Status:** Revised (2026-05-11)
+**Decision:** Default 5-model panel: Claude + Gemini + OpenAI + Grok + DeepSeek.
 
 **Context:**
 Original panel was Claude + Gemini + DeepSeek. Switched to OpenAI as third member for stronger reasoning diversity.
 DeepSeek retained as available model but not default — API reliability concerns and key availability.
 
+Revised 2026-05-11: default changed to full 5-model panel. `--lite` flag selects 3-model panel (Claude + Gemini + OpenAI); `--full` is now a no-op kept for backward compatibility.
+
 **Implementation:** `determine_panel()` in `src/runner.py`; `default_panel` in `config/settings.yaml`.
 
-**Overrides:** `--models` flag > `--full` flag (5-model) > default 3-model panel.
+**Overrides:** `--models` flag > `--lite`/`--full` flags > default 5-model panel.
