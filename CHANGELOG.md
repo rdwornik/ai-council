@@ -2,6 +2,13 @@
 
 ## 2026-05-11
 
+### Changed (docs hygiene)
+- `docs/HANDOFF.md`: aligned with .dev-knowledge-owned handoff process (pointer to ADR-42 + Playbook)
+- `docs/COUNCIL_QUESTION_GUIDE.md`: added `target-project` frontmatter and `--target-project` CLI flag section
+- `docs/decisions/README.md`: complete ADR index with status (ADR-01 through ADR-07); cross-repo ADR-43 reference
+- `docs/archive/` consolidated into `docs/audits/` (git history preserved via `git mv`)
+- `docs/audits/README.md`: new file documenting audit archive convention
+
 ### Changed (breaking, per ADR-43 amendment cycle 1)
 - `config/settings.yaml`: `target_projects` schema refactored from `dict[name, full_path]` to `dev_root: str` + `target_projects: list[name]`. Paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`. Old config fails loud at load with migration hint.
 

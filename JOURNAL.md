@@ -1,5 +1,19 @@
 # Journal — ai-council
 
+## 2026-05-11 — Docs hygiene sweep
+
+**Did:**
+- Five-file docs internal-alignment pass post today's feature work
+- HANDOFF.md: replaced pre-ADR-42 feature status doc with pointer to .dev-knowledge-owned handoff process
+- COUNCIL_QUESTION_GUIDE.md: added `target-project` frontmatter + `--target-project` CLI flag section
+- decisions/README.md: complete index (ADR-01 through ADR-07 with status) + cross-repo ADR-43 reference
+- docs/archive/ consolidated into docs/audits/ with git history preserved via `git mv`
+- docs/audits/README.md: new convention doc
+
+**Result:** Internal docs reflect current state across all feature work shipped today. No code, test, or config changes.
+
+---
+
 ## 2026-05-11 — ADR-43 amendment cycle 1 implementation
 
 **Did:**
