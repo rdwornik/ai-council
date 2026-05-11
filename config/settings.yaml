@@ -2,8 +2,10 @@ defaults:
   rounds: 2
   max_rounds: 3
   output_dir: "./output"
+  # Legacy global mirror — prefer per-invocation `target_projects` routing via
+  # `target-project` frontmatter or `--target-project` CLI flag (see Transcript Routing in CLAUDE.md).
   secondary_output_dir: "~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts"
-  secondary_output_enabled: true
+  secondary_output_enabled: false
   synthesizer: "gemini"
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
