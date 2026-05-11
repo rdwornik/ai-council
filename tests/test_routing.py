@@ -123,3 +123,23 @@ def test_resolve_nonempty_with_empty_config_raises(empty_resolver: TargetResolve
 def test_empty_resolver_empty_input_returns_empty(empty_resolver: TargetResolver) -> None:
     assert empty_resolver.resolve(None) == []
     assert empty_resolver.resolve([]) == []
+
+
+# ---------------------------------------------------------------------------
+# Malformed types → RoutingError (not TypeError)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_integer_raises_routing_error(resolver: TargetResolver) -> None:
+    with pytest.raises(RoutingError, match="must be a string or list"):
+        resolver.resolve(123)  # type: ignore[arg-type]
+
+
+def test_resolve_list_with_integer_item_raises_routing_error(resolver: TargetResolver) -> None:
+    with pytest.raises(RoutingError, match="must be strings"):
+        resolver.resolve([".dev-knowledge", 42])  # type: ignore[list-item]
+
+
+def test_resolve_list_with_none_item_raises_routing_error(resolver: TargetResolver) -> None:
+    with pytest.raises(RoutingError, match="must be strings"):
+        resolver.resolve([None])  # type: ignore[list-item]

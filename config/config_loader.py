@@ -41,7 +41,7 @@ class InboxConfig:
     downloads_dir: Path = field(default_factory=lambda: Path.home() / "Downloads")
     scan_downloads: bool = True
     council_frontmatter_keys: list[str] = field(
-        default_factory=lambda: ["mode", "rounds", "models", "synthesizer", "full"]
+        default_factory=lambda: ["mode", "rounds", "models", "synthesizer", "full", "target-project"]
     )
 
 
@@ -297,7 +297,9 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             raise ValueError(
                 f"target_projects entries must be string->string, got {k!r}: {v!r}"
             )
-    target_projects: dict[str, str] = {k: v for k, v in raw_tp.items()}
+    target_projects: dict[str, str] = {
+        k: str(Path(v).expanduser()) for k, v in raw_tp.items()
+    }
 
     return AppConfig(
         defaults=defaults,

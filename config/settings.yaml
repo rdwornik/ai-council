@@ -21,7 +21,7 @@ inbox:
   archive_dir: "./council_inbox/archive"
   downloads_dir: "~/Downloads"
   scan_downloads: true
-  council_frontmatter_keys: ["mode", "rounds", "models", "synthesizer", "full"]
+  council_frontmatter_keys: ["mode", "rounds", "models", "synthesizer", "full", "target-project"]
 
 models:
   gemini:

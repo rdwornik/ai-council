@@ -38,8 +38,18 @@ class TargetResolver:
 
         if isinstance(target_project, str):
             names: list[str] = [target_project]
-        else:
+        elif isinstance(target_project, (list, tuple)):
             names = list(target_project)
+            bad = [(i, v) for i, v in enumerate(names) if not isinstance(v, str)]
+            if bad:
+                idx, val = bad[0]
+                raise RoutingError(
+                    f"target-project items must be strings; got {type(val).__name__!r} at index {idx}: {val!r}"
+                )
+        else:
+            raise RoutingError(
+                f"target-project must be a string or list of strings; got {type(target_project).__name__!r}"
+            )
 
         if not names:
             return []

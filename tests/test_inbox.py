@@ -262,6 +262,14 @@ def test_scan_downloads_frontmatter_wins_without_council_name(tmp_path: Path) ->
     assert len(result) == 1
 
 
+def test_scan_downloads_detects_target_project_key(tmp_path: Path) -> None:
+    """File with only 'target-project' frontmatter key is detected as council file."""
+    keys_with_routing = _COUNCIL_KEYS + ["target-project"]
+    _write_md(tmp_path, "q.md", "target-project: .dev-knowledge")
+    result = scan_downloads_folder(tmp_path, keys_with_routing)
+    assert len(result) == 1
+
+
 # ---------------------------------------------------------------------------
 # parse_file target-project routing
 # ---------------------------------------------------------------------------

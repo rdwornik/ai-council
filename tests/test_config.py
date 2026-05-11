@@ -182,7 +182,9 @@ def test_target_projects_valid_single_entry(tmp_path: Path):
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
-    assert config.target_projects == {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+    assert ".dev-knowledge" in config.target_projects
+    # Compare as Path objects to handle forward/backslash normalization on Windows
+    assert Path(config.target_projects[".dev-knowledge"]) == Path("C:/Dev/.dev-knowledge")
 
 
 def test_target_projects_valid_empty_map(tmp_path: Path):
@@ -219,3 +221,16 @@ def test_target_projects_non_string_value_raises(tmp_path: Path):
     path.write_text(yaml.dump(settings), encoding="utf-8")
     with pytest.raises(ValueError, match="string->string"):
         load_config(path)
+
+
+def test_target_projects_paths_are_expanded(tmp_path: Path):
+    """Paths with ~ are expanded at load time, not stored literally."""
+    from pathlib import Path as P
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {".dev-knowledge": "~/Dev/.dev-knowledge"}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    config = load_config(path)
+    stored = config.target_projects[".dev-knowledge"]
+    assert "~" not in stored
+    assert str(P.home()) in stored
