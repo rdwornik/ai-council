@@ -48,6 +48,36 @@ That's it. Nothing else.
 | synthesizer | `gemini` | Default = gemini ($0.04). Use `openai` if gemini is on the panel |
 | rounds | `2` | Default = 2. Use `1` for simple pick decisions. Never more than 2. |
 | mode | `pick` / `ideas` / `judge` / `research` | Usually omit — auto-detected. Force `ideas` for brainstorming, `judge` for evaluating a proposal |
+| target-project | project name string or list | Omit for local-only output. Set to mirror transcript to a project's `docs/decisions/transcripts/` dir. |
+
+---
+
+## Cross-project routing (`target-project`)
+
+By default, transcripts are written only to `output/`. To also mirror to a named project directory:
+
+**Inbox mode** — add `target-project:` to YAML frontmatter:
+
+```markdown
+---
+mode: judge
+target-project: .dev-knowledge        # single target
+# or:
+# target-project: [.dev-knowledge, corp-monorepo]
+---
+Question body...
+```
+
+**Direct CLI mode** — pass `--target-project NAME` flag (repeatable):
+
+```bash
+council --target-project .dev-knowledge --mode pick "..."
+council --target-project .dev-knowledge --target-project corp-monorepo "..."
+```
+
+Target names must be declared in `config/settings.yaml` under `target_projects` with a single `dev_root` path. Unknown name → fail-loud at parse time, listing known names.
+
+See `README.md` Transcript Routing section for full schema and config examples.
 
 ---
 
