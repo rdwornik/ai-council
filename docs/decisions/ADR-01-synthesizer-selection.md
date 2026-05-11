@@ -1,8 +1,8 @@
 # ADR-01: Synthesizer Selection
 
 **Date:** 2026-02-25
-**Status:** Revised (2026-03-29)
-**Decision:** Claude Sonnet 4.6 as default non-participating synthesizer.
+**Status:** Revised (2026-04-30)
+**Decision:** Gemini as default non-participating synthesizer.
 
 **Context:**
 Initial Council vote selected Claude Opus 4.6 — judicial temperament, low sycophancy, best for impartial synthesis.
