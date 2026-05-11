@@ -31,6 +31,7 @@ def save_research_to_file(
     output_dir: Path,
     from_cache: bool = False,
     secondary_dir: Path | None = None,
+    target_paths: list[Path] | None = None,
 ) -> list[Path]:
     """Save merged research report as markdown. Returns list of paths written."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -88,6 +89,17 @@ def save_research_to_file(
                 "Secondary output dir not found: %s — research report saved to primary only.",
                 secondary_dir,
             )
+
+    _logger = logging.getLogger(__name__)
+    for target_dir in target_paths or []:
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / filename
+            target_path.write_text(content, encoding="utf-8")
+            _logger.info("Research report mirrored to: %s", target_path)
+            saved.append(target_path)
+        except Exception as exc:
+            _logger.warning("Mirror write failed for %s: %s", target_dir, exc)
 
     return saved
 

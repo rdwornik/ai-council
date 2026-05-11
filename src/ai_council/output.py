@@ -123,10 +123,12 @@ def save_to_file(
     output_dir: Path,
     slug_override: str | None = None,
     secondary_dir: Path | None = None,
+    target_paths: list[Path] | None = None,
 ) -> list[Path]:
     """Save the full debate transcript as a markdown file.
 
-    Writes to output_dir (always) and secondary_dir (if it exists on disk).
+    Writes to output_dir (always), secondary_dir (if it exists on disk),
+    and each path in target_paths (auto-mkdir, best-effort).
 
     Returns:
         List of paths written. First entry is always the primary path.
@@ -260,6 +262,16 @@ def save_to_file(
                 "Secondary output dir not found: %s — transcript saved to primary only.",
                 secondary_dir,
             )
+
+    for target_dir in target_paths or []:
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / filename
+            target_path.write_text("\n".join(lines), encoding="utf-8")
+            logger.info("Transcript mirrored to: %s", target_path)
+            saved.append(target_path)
+        except Exception as exc:
+            logger.warning("Mirror write failed for %s: %s", target_dir, exc)
 
     return saved
 

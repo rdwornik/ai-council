@@ -162,3 +162,76 @@ def test_provider_notes_absent_when_all_ok(tmp_path, sample_debate_result):
     saved = save_to_file(sample_debate_result, tmp_path)
     content = saved[0].read_text(encoding="utf-8")
     assert "**Provider Notes:**" not in content
+
+
+# ---------------------------------------------------------------------------
+# target_paths mirroring
+# ---------------------------------------------------------------------------
+
+
+def test_target_paths_canonical_only(tmp_path: Path, sample_debate_result) -> None:
+    saved = save_to_file(sample_debate_result, tmp_path / "primary")
+    assert len(saved) == 1
+
+
+def test_target_paths_single_target(tmp_path: Path, sample_debate_result) -> None:
+    target = tmp_path / "target_root" / "docs" / "decisions" / "transcripts"
+    target.mkdir(parents=True)
+    saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
+    assert len(saved) == 2
+    assert saved[1].parent == target
+    assert saved[1].exists()
+
+
+def test_target_paths_two_targets(tmp_path: Path, sample_debate_result) -> None:
+    t1 = tmp_path / "target1" / "docs" / "decisions" / "transcripts"
+    t2 = tmp_path / "target2" / "docs" / "decisions" / "transcripts"
+    t1.mkdir(parents=True)
+    t2.mkdir(parents=True)
+    saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[t1, t2])
+    assert len(saved) == 3
+
+
+def test_target_paths_auto_mkdir(tmp_path: Path, sample_debate_result) -> None:
+    target = tmp_path / "new_project" / "docs" / "decisions" / "transcripts"
+    assert not target.exists()
+    saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
+    assert target.exists()
+    assert len(saved) == 2
+
+
+def test_target_paths_content_identical(tmp_path: Path, sample_debate_result) -> None:
+    target = tmp_path / "target" / "docs" / "decisions" / "transcripts"
+    saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
+    assert saved[0].read_text(encoding="utf-8") == saved[1].read_text(encoding="utf-8")
+
+
+def test_target_paths_mirror_failure_logs_warning(tmp_path: Path, sample_debate_result, caplog, monkeypatch) -> None:
+    import logging
+    target = tmp_path / "target"
+    original_mkdir = Path.mkdir
+
+    def _selective_fail(self: Path, *args, **kwargs):
+        if self == target:
+            raise PermissionError("blocked")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _selective_fail)
+    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
+        saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
+    assert len(saved) == 1  # canonical written, mirror skipped
+    assert any("Mirror write failed" in r.message for r in caplog.records)
+
+
+def test_target_paths_mirror_failure_canonical_still_written(tmp_path: Path, sample_debate_result, monkeypatch) -> None:
+    target = tmp_path / "target"
+    original_mkdir = Path.mkdir
+
+    def _selective_fail(self: Path, *args, **kwargs):
+        if self == target:
+            raise PermissionError("blocked")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _selective_fail)
+    saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
+    assert saved[0].exists()  # canonical always written
