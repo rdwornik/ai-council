@@ -3,7 +3,10 @@
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from ai_council.inbox import archive_file, clean_slug, parse_file, scan_downloads_folder, scan_inbox
+from ai_council.routing import RoutingError, TargetResolver
 
 
 def test_parse_file_no_frontmatter(tmp_path: Path) -> None:
@@ -257,3 +260,65 @@ def test_scan_downloads_frontmatter_wins_without_council_name(tmp_path: Path) ->
     _write_md(tmp_path, "random.md", "rounds: 2")
     result = scan_downloads_folder(tmp_path, _COUNCIL_KEYS)
     assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# parse_file target-project routing
+# ---------------------------------------------------------------------------
+
+_RESOLVER_PROJECTS = {
+    ".dev-knowledge": "C:/Dev/.dev-knowledge",
+    "foo": "C:/Dev/foo",
+}
+_TRANSCRIPTS = Path("docs") / "decisions" / "transcripts"
+
+
+@pytest.fixture
+def resolver() -> TargetResolver:
+    return TargetResolver(_RESOLVER_PROJECTS)
+
+
+def _write_fm(tmp_path: Path, name: str, frontmatter_body: str, content: str = "Question?") -> Path:
+    f = tmp_path / name
+    f.write_text(f"---\n{frontmatter_body}\n---\n{content}", encoding="utf-8")
+    return f
+
+
+def test_parse_file_no_target_project_no_resolver(tmp_path: Path) -> None:
+    f = _write_fm(tmp_path, "q.md", "rounds: 1")
+    _, meta = parse_file(f)
+    assert meta.get("target_paths", []) == []
+
+
+def test_parse_file_no_target_project_with_resolver(tmp_path: Path, resolver: TargetResolver) -> None:
+    f = _write_fm(tmp_path, "q.md", "rounds: 1")
+    _, meta = parse_file(f, resolver=resolver)
+    assert meta["target_paths"] == []
+
+
+def test_parse_file_target_project_single_string(tmp_path: Path, resolver: TargetResolver) -> None:
+    f = _write_fm(tmp_path, "q.md", "target-project: .dev-knowledge")
+    _, meta = parse_file(f, resolver=resolver)
+    assert meta["target_paths"] == [Path("C:/Dev/.dev-knowledge") / _TRANSCRIPTS]
+
+
+def test_parse_file_target_project_list(tmp_path: Path, resolver: TargetResolver) -> None:
+    f = _write_fm(tmp_path, "q.md", "target-project:\n  - .dev-knowledge\n  - foo")
+    _, meta = parse_file(f, resolver=resolver)
+    assert len(meta["target_paths"]) == 2
+    assert meta["target_paths"][0] == Path("C:/Dev/.dev-knowledge") / _TRANSCRIPTS
+    assert meta["target_paths"][1] == Path("C:/Dev/foo") / _TRANSCRIPTS
+
+
+def test_parse_file_unknown_target_raises_routing_error(tmp_path: Path, resolver: TargetResolver) -> None:
+    f = _write_fm(tmp_path, "q.md", "target-project: unknown-project")
+    with pytest.raises(RoutingError, match="Unknown target-project"):
+        parse_file(f, resolver=resolver)
+
+
+def test_parse_file_target_project_ignored_without_resolver(tmp_path: Path) -> None:
+    f = _write_fm(tmp_path, "q.md", "target-project: .dev-knowledge")
+    _, meta = parse_file(f)
+    # Without resolver, target-project is in raw metadata but NOT resolved
+    assert meta.get("target-project") == ".dev-knowledge"
+    assert "target_paths" not in meta

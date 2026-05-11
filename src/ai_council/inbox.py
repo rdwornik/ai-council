@@ -1,12 +1,18 @@
 """Inbox folder scanning, frontmatter parsing, and archive logic."""
 
+from __future__ import annotations
+
 import logging
 import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import frontmatter
+
+if TYPE_CHECKING:
+    from ai_council.routing import TargetResolver
 
 logger = logging.getLogger(__name__)
 
@@ -90,17 +96,33 @@ def scan_downloads_folder(downloads_dir: Path, council_keys: list[str]) -> list[
     return sorted(detected, key=lambda p: p.stat().st_mtime)
 
 
-def parse_file(file_path: Path) -> tuple[str, dict]:
+def parse_file(
+    file_path: Path,
+    resolver: TargetResolver | None = None,
+) -> tuple[str, dict]:
     """Parse a markdown file with optional YAML frontmatter.
+
+    If resolver is provided, the 'target-project' frontmatter field (single string
+    or list of strings) is resolved to a list[Path] stored as 'target_paths' in
+    the returned metadata dict.  RoutingError is raised on unknown target names
+    so the caller fails before debate logic runs.
 
     Returns:
         (content, metadata) where content is the body text and metadata
-        is a dict with keys: models (str), rounds (int), full (bool).
+        is a dict with keys: models (str), rounds (int), full (bool), and
+        optionally target_paths (list[Path]) when resolver is provided.
         If no frontmatter, metadata is {}.
     """
     post = frontmatter.load(str(file_path))
     content = post.content.strip()
     metadata = dict(post.metadata)
+
+    if resolver is not None:
+        raw_target = metadata.get("target-project")
+        if isinstance(raw_target, str):
+            raw_target = [raw_target]
+        metadata["target_paths"] = resolver.resolve(raw_target)
+
     return content, metadata
 
 
