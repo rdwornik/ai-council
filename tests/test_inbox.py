@@ -274,16 +274,14 @@ def test_scan_downloads_detects_target_project_key(tmp_path: Path) -> None:
 # parse_file target-project routing
 # ---------------------------------------------------------------------------
 
-_RESOLVER_PROJECTS = {
-    ".dev-knowledge": "C:/Dev/.dev-knowledge",
-    "foo": "C:/Dev/foo",
-}
+_RESOLVER_DEV_ROOT = Path("C:/Dev/")
+_RESOLVER_PROJECTS = [".dev-knowledge", "foo"]
 _TRANSCRIPTS = Path("docs") / "decisions" / "transcripts"
 
 
 @pytest.fixture
 def resolver() -> TargetResolver:
-    return TargetResolver(_RESOLVER_PROJECTS)
+    return TargetResolver(_RESOLVER_DEV_ROOT, _RESOLVER_PROJECTS)
 
 
 def _write_fm(tmp_path: Path, name: str, frontmatter_body: str, content: str = "Question?") -> Path:

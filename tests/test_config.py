@@ -178,22 +178,22 @@ def _minimal_base(tmp_path: Path) -> dict:
 
 def test_target_projects_valid_single_entry(tmp_path: Path):
     settings = _minimal_base(tmp_path)
-    settings["target_projects"] = {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+    settings["dev_root"] = str(tmp_path)
+    settings["target_projects"] = [".dev-knowledge"]
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
     assert ".dev-knowledge" in config.target_projects
-    # Compare as Path objects to handle forward/backslash normalization on Windows
-    assert Path(config.target_projects[".dev-knowledge"]) == Path("C:/Dev/.dev-knowledge")
+    assert config.dev_root == tmp_path
 
 
-def test_target_projects_valid_empty_map(tmp_path: Path):
+def test_target_projects_valid_empty_list(tmp_path: Path):
     settings = _minimal_base(tmp_path)
-    settings["target_projects"] = {}
+    settings["target_projects"] = []
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
-    assert config.target_projects == {}
+    assert config.target_projects == []
 
 
 def test_target_projects_absent_defaults_to_empty(tmp_path: Path):
@@ -202,35 +202,80 @@ def test_target_projects_absent_defaults_to_empty(tmp_path: Path):
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
-    assert config.target_projects == {}
+    assert config.target_projects == []
 
 
-def test_target_projects_list_raises(tmp_path: Path):
+def test_target_projects_dict_raises_migration_error(tmp_path: Path):
+    """Old dict schema must fail loud with migration hint."""
     settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="ADR-43 amendment cycle 1"):
+        load_config(path)
+
+
+def test_target_projects_dict_error_mentions_old_and_new_shape(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = {".dev-knowledge": "C:/Dev/.dev-knowledge"}
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError) as exc_info:
+        load_config(path)
+    msg = str(exc_info.value)
+    assert "list" in msg
+    assert "dict" in msg
+
+
+def test_target_projects_non_string_item_raises(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["dev_root"] = str(tmp_path)
+    settings["target_projects"] = [42]
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="items must be strings"):
+        load_config(path)
+
+
+def test_target_projects_duplicate_names_raises(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["dev_root"] = str(tmp_path)
+    settings["target_projects"] = [".dev-knowledge", ".dev-knowledge"]
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="Duplicate project name"):
+        load_config(path)
+
+
+def test_dev_root_required_when_target_projects_nonempty(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["target_projects"] = [".dev-knowledge"]
+    # No dev_root key
+    path = tmp_path / "settings.yaml"
+    path.write_text(yaml.dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="dev_root is required"):
+        load_config(path)
+
+
+def test_dev_root_must_be_existing_directory(tmp_path: Path):
+    settings = _minimal_base(tmp_path)
+    settings["dev_root"] = str(tmp_path / "nonexistent_dir")
     settings["target_projects"] = [".dev-knowledge"]
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
-    with pytest.raises(ValueError, match="target_projects must be a mapping"):
+    with pytest.raises(ValueError, match="dev_root must point to existing directory"):
         load_config(path)
 
 
-def test_target_projects_non_string_value_raises(tmp_path: Path):
-    settings = _minimal_base(tmp_path)
-    settings["target_projects"] = {".dev-knowledge": 42}
-    path = tmp_path / "settings.yaml"
-    path.write_text(yaml.dump(settings), encoding="utf-8")
-    with pytest.raises(ValueError, match="string->string"):
-        load_config(path)
-
-
-def test_target_projects_paths_are_expanded(tmp_path: Path):
-    """Paths with ~ are expanded at load time, not stored literally."""
+def test_dev_root_expanduser_normalized(tmp_path: Path):
+    """dev_root with ~ is expanded at load time."""
     from pathlib import Path as P
     settings = _minimal_base(tmp_path)
-    settings["target_projects"] = {".dev-knowledge": "~/Dev/.dev-knowledge"}
+    # Use a path that definitely exists after expanduser — home dir itself
+    settings["dev_root"] = "~"
+    settings["target_projects"] = [".dev-knowledge"]
     path = tmp_path / "settings.yaml"
     path.write_text(yaml.dump(settings), encoding="utf-8")
     config = load_config(path)
-    stored = config.target_projects[".dev-knowledge"]
-    assert "~" not in stored
-    assert str(P.home()) in stored
+    assert config.dev_root == P.home()
+    assert "~" not in str(config.dev_root)

@@ -25,8 +25,12 @@ from tests.conftest import MockProvider
 # ---------------------------------------------------------------------------
 
 
-def _make_test_config(tmp_path: Path, target_projects: dict | None = None) -> AppConfig:
-    """Minimal AppConfig with controllable target_projects for routing tests."""
+def _make_test_config(
+    tmp_path: Path,
+    dev_root: Path | None = None,
+    target_projects: list[str] | None = None,
+) -> AppConfig:
+    """Minimal AppConfig with controllable routing fields for routing tests."""
     model = ModelConfig(
         name="claude", sdk="anthropic", model="claude-test",
         api_key_env="TEST_KEY", timeout_sec=60, max_tokens=1024,
@@ -49,7 +53,8 @@ def _make_test_config(tmp_path: Path, target_projects: dict | None = None) -> Ap
         models={"claude": model},
         prompts=prompts,
         available_providers={"claude"},
-        target_projects=target_projects or {},
+        dev_root=dev_root,
+        target_projects=target_projects or [],
     )
 
 
@@ -210,7 +215,7 @@ def test_exclude_synthesizer_keeps_when_only_two_left():
 
 def test_cli_unknown_target_project_exits_nonzero(tmp_path: Path) -> None:
     """Unknown --target-project name exits non-zero before health check runs."""
-    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": "C:/Dev/.dev-knowledge"})
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge"])
 
     with patch("ai_council.cli.load_config", return_value=config):
         runner = CliRunner()
@@ -226,7 +231,7 @@ def test_cli_unknown_target_project_exits_nonzero(tmp_path: Path) -> None:
 
 def test_cli_unknown_target_project_lists_known_names(tmp_path: Path) -> None:
     """Error message for unknown target-project lists known target names."""
-    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": "C:/Dev/.dev-knowledge"})
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge"])
 
     with patch("ai_council.cli.load_config", return_value=config):
         runner = CliRunner()
@@ -240,7 +245,7 @@ def test_cli_unknown_target_project_lists_known_names(tmp_path: Path) -> None:
 
 def test_cli_known_target_project_populates_request(tmp_path: Path) -> None:
     """--target-project with known name populates target_paths on RunRequest."""
-    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": str(tmp_path / "dk")})
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge"])
     fake_provider = MockProvider("claude")
     fake_round = Round(number=1, responses=[])
     fake_result = DebateResult(
@@ -273,12 +278,12 @@ def test_cli_known_target_project_populates_request(tmp_path: Path) -> None:
     assert len(captured_request) == 1
     req = captured_request[0]
     assert len(req.target_paths) == 1
-    assert "dk" in str(req.target_paths[0])
+    assert ".dev-knowledge" in str(req.target_paths[0])
 
 
 def test_cli_no_target_project_empty_target_paths(tmp_path: Path) -> None:
     """Without --target-project, target_paths is empty on RunRequest."""
-    config = _make_test_config(tmp_path, target_projects={".dev-knowledge": str(tmp_path / "dk")})
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge"])
     fake_provider = MockProvider("claude")
     fake_round = Round(number=1, responses=[])
     fake_result = DebateResult(
