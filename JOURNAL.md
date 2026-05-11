@@ -1,5 +1,21 @@
 # Journal — ai-council
 
+## 2026-05-11 — ADR-43 amendment cycle 1 implementation
+
+**Did:**
+- Refactored `target_projects` schema per `.dev-knowledge`-approved ADR-43 amendment: `dev_root` + opt-in name list, paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`
+- Updated `TargetResolver` constructor signature and path computation; updated cli.py caller
+- Adjusted ~10 existing test cases; added 5 new validation tests (dev_root required, dir validation, dict migration error, duplicate names, path computation) — 359 total
+- Updated README.md + CLAUDE.md with new schema examples and ADR-43 reference
+- Archived `.dev-knowledge` cycle closure note for symmetric audit trail
+- Codex `/review` pending
+
+**Result:** Schema is DRY; ecosystem root declared once; new repos join routing via single-line list addition.
+
+**Next:** Codex `/review`; then generate delivery report for `.dev-knowledge` (Turn 4 implicit closure of cycle 1 handshake). Operator decides `git push` timing.
+
+---
+
 ## 2026-05-11 — Post-routing cleanup
 
 **Did:**

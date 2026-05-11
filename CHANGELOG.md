@@ -2,6 +2,12 @@
 
 ## 2026-05-11
 
+### Changed (breaking, per ADR-43 amendment cycle 1)
+- `config/settings.yaml`: `target_projects` schema refactored from `dict[name, full_path]` to `dev_root: str` + `target_projects: list[name]`. Paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`. Old config fails loud at load with migration hint.
+
+### Added
+- `docs/handoffs/_archive/2026-05-11_dev-knowledge-cycle-closure.md`: `.dev-knowledge` cycle 1 closure note (cross-repo handshake audit trail)
+
 ### Changed
 - `config/settings.yaml`: `secondary_output_enabled` default flipped to `false` — `target_paths` per-invocation routing supersedes always-on global mirror
 - `README.md`: added Transcript Routing section
