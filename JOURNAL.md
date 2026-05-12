@@ -183,3 +183,19 @@
 - Inbox batch mode with frontmatter overrides
 - Health checks at startup; cost tracking per debate
 - 72 tests; CHANGELOG v1.0.0
+
+---
+
+## 2026-05-12 — Scrum-master addendum implementation (I7 + I8)
+
+**Did:**
+- I7: moved `tasks/lessons.md` → `LESSONS.md` at repo root; retired `tasks/` folder entirely
+- I8: renamed `docs/handoffs/_archive/` → `docs/handoffs/archive/`
+- CLAUDE.md updated (Lessons Discovery bullet + Folder Governance `tasks/` entry replaced with `LESSONS.md`)
+- VISION.md lessons path reference updated
+- BACKLOG.md: no separate LESSONS.md-absent item existed; AGENTS.md M2 remains open (deferred)
+- LESSONS.md: architect-side lesson captured on local-config-defense failure mode
+
+**Process:** Both findings caught by operator post main-review implementation. Single-branch, 4 commits. Historical entries in CHANGELOG/JOURNAL left immutable.
+
+**Result:** ai-council fully aligned with ecosystem convention on lessons location + archive folder naming. Original 10 findings + 2 addendum findings = all addressed except AGENTS.md (M2 from main review, still deferred per strażnik "low urgency").

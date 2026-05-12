@@ -2,6 +2,18 @@
 
 ## 2026-05-12
 
+### Changed (scrum-master review addendum — I7 + I8)
+- `tasks/lessons.md` → `LESSONS.md` at repo root (I7; universal ecosystem convention; supersedes original M2 LESSONS-absent finding)
+- `docs/handoffs/_archive/` → `docs/handoffs/archive/` (I8; align to A2 operator decision applied to `docs/audits/archive/legacy/` in main review)
+- `CLAUDE.md` Lessons Discovery + Folder Governance sections updated to new paths
+- `VISION.md` lessons path reference updated
+
+### Removed (scrum-master review addendum — I7)
+- `tasks/` folder retired entirely (todo.md retired in main review; lessons.md moved to repo root in I7)
+
+### Added (scrum-master review addendum — I7)
+- `LESSONS.md` entry: architect failure mode — defending local config as "by-design" against ecosystem audit
+
 ### Added (scrum-master review implementation)
 - `BACKLOG.md` per ADR-41 Scale M mandate (Streams: Phase 2/3 synthesizer refresh, Governance, Test coverage, Provider reliability, Quality automation, Methodology, Cross-repo methodology, Backlog migration)
 - `docs/audits/README.md` archive convention note for pre-ADR-34 legacy reports
