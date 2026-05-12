@@ -60,7 +60,7 @@ config/                — top-level package, sibling of src/ (NOT under src/ai_
 scripts/
   check.ps1            — pytest + mypy + ruff pre-merge check
   council-ask.ps1      — helper script for quick CLI invocations
-tests/                 — 354 unit tests + integration tests
+tests/                 — 362 unit tests + integration tests
 ```
 
 ## Dev standards
@@ -213,7 +213,7 @@ Missing API keys are silently skipped — remaining providers still run.
 ## Test suite
 
 ```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 266 unit tests (6 deselected), no API keys needed
+pytest tests/ -m "not integration and not envcheck" -v   # 362 unit tests (6 deselected), no API keys needed
 pytest tests/ -m envcheck -v             # verify API keys are in environment
 pytest tests/test_integration.py -v      # requires 2+ API keys in .env
 ```
