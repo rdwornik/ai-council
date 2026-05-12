@@ -1,5 +1,18 @@
 # Changelog — ai-council
 
+## 2026-05-12
+
+### Added
+- `docs/SYNTHESIS-QUALITY-RUBRIC.md`: 5-point operator-applicable synthesis quality checklist (per Council debate 2026-05-11)
+- Per-synthesis run observability metrics: latency, transcript size, timeout flag, output tokens, error class — stored in `DebateResult.synthesis_metrics` and emitted to `*_metrics.json`
+
+### Changed (breaking, per .dev-knowledge ADR-34 universal hyphen mandate)
+- Council CLI output filename format: `council_out_*` → `council-out-*`. Going forward only; historical transcripts unchanged.
+- Gemini synthesizer: already on `gemini-3.1-pro-preview` (3.x) — no upgrade action needed.
+
+### Resolved
+- ADR-06 Qwen trial: deferred/abandoned with reopen trigger documented (DeepSeek round-blocking >2%)
+
 ## 2026-05-11
 
 ### Changed (governance sweep)

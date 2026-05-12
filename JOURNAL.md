@@ -1,5 +1,23 @@
 # Journal — ai-council
 
+## 2026-05-12 — Phase 1 + ADR-34 hyphen combined
+
+**Did (Phase 1):**
+- Per-synthesis observability emitted: latency, transcript size, timeout flag, output tokens, error class — `DebateResult.synthesis_metrics` + `_metrics.json` synthesis block
+- Created `docs/SYNTHESIS-QUALITY-RUBRIC.md` (5-point operator checklist)
+- ADR-06 Qwen trial closed-out: deferred/abandoned with reopen trigger (DeepSeek round-blocking >2%)
+- Gemini synthesizer version check: Case A — already on `gemini-3.1-pro-preview` (3.x), no upgrade action
+
+**Did (ADR-34):**
+- Council CLI emitter format flipped to hyphen per `.dev-knowledge` cycle 2 ratified mandate: `council_out_*` → `council-out-*`
+- Downstream patterns updated (tests + docs aligned); no historical transcript rename (pre-decision artifacts)
+
+**Result:** Observability foundation in place for smoke test (Phase 2). Cross-repo cycle 2 Change 1 implementation complete.
+
+**Next:** Turn 4 delivery report to `.dev-knowledge` for cycle 2 closure; then Phase 2 smoke test operator-driven execution once baseline reads accumulated.
+
+---
+
 ## 2026-05-11 — ADR governance sweep + HANDOFF cleanup
 
 **Did:**
