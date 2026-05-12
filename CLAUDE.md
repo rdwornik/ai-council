@@ -282,7 +282,7 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - `output/` — gitignored; debate transcripts and research reports
 - `council_inbox/` — gitignored; drop .md files for batch processing
 - `eval/` — evaluation data (eval_history.jsonl)
-- `tasks/` — lessons.md (local task tracking); active backlog lives in `BACKLOG.md` at repo root (ADR-41)
+- `LESSONS.md` — ai-council-local lessons (at repo root; moved from tasks/ per I7)
 - Do not create files outside these directories without updating this section
 
 ## Lessons Discovery
@@ -295,7 +295,7 @@ $env:DEV_KNOWLEDGE_PATH = "C:/Users/1028120/Documents/Dev/.dev-knowledge"
 
 **Where lessons go:**
 
-- ai-council-local lessons (provider quirks, SDK gotchas, CLI patterns specific to this repo) → `tasks/lessons.md` (stays here)
+- ai-council-local lessons (provider quirks, SDK gotchas, CLI patterns specific to this repo) → `LESSONS.md` (repo root)
 - Cross-ecosystem lessons (universalizable methodology, governance patterns) → `$DEV_KNOWLEDGE_PATH/LESSONS.md`
 
 **Criterion:** lesson applies only to ai-council code → stays local. Lesson applies across repos → flows to .dev-knowledge.

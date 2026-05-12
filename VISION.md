@@ -32,7 +32,7 @@ Multi-model AI debate and research tool for architectural decision-making across
 ## Lifecycle
 
 - Active development with continuous improvement focus
-- Roadmap reviewed at session boundaries; improvements emerge from real usage and lessons captured in `tasks/lessons.md`
+- Roadmap reviewed at session boundaries; improvements emerge from real usage and lessons captured in `LESSONS.md`
 - Recent additions: Grok as 5th research provider, downloads auto-scan, `--models` flag
 - Review triggers: provider API changes, new model availability, governance requirement changes, real-usage friction surfacing improvement opportunities
 - Static-maintenance posture is exception requiring explicit declaration
