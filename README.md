@@ -174,28 +174,36 @@ The default synthesizer is **Gemini** — a non-participating model that reads t
 
 ## Architecture
 
+Per ADR-38, all source modules live under `src/ai_council/` (namespace package).
+
 ```
-src/
-  cli.py            — Click CLI entry point, panel/synthesizer selection
-  debate.py         — Debate pipeline: parallel rounds, persona injection, blind voting
-  synthesis.py      — Transcript assembly and synthesizer invocation
-  output.py         — Rich console output + markdown file save
-  models.py         — Data models (Question, ModelResponse, Round, DebateResult)
-  healthcheck.py    — Provider health checks at startup
-  inbox.py          — Inbox scanning, frontmatter parsing, auto-archive
-  providers/        — One file per AI provider (Anthropic, OpenAI, Gemini, xAI, DeepSeek)
-  research/         — Research mode pipeline
-    models.py       — Source, ResearchResult, MergedResearchReport dataclasses
-    provider.py     — ResearchProvider ABC + ResearchProviderError
-    display.py      — Progressive Rich Live display with per-provider status table
-    merger.py       — Result merging, source deduplication, LLM summarization
-    cache.py        — File-based TTL cache (~/.ai-council/research_cache/)
-    runner.py       — Orchestration: providers → display → merge → cache → output
-    output.py       — Markdown file save + Rich console summary
-    providers/      — perplexity, openai_mini_research, openai_deep_research, gemini_research
+src/ai_council/
+  cli.py               — Click entry point; PROVIDER_CLASSES dict; builds RunRequest, delegates to CouncilRunner
+  orchestrator.py      — CouncilRunner.run(); debate lifecycle coordination (extracted from runner.py)
+  runner.py            — build_all_providers(); determine_panel(); pick_synthesizer(); re-exports CouncilRunner
+  debate.py            — run_debate() → DebateOutcome; persona injection; blind voting via _anonymize_responses()
+  synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer → DebateResult
+  output.py            — save_to_file(); print_round_summary(); print_synthesis(); print_cost_summary()
+  models.py            — Dataclasses: Question, ModelResponse, Round, DebateOutcome, DebateResult, RunRequest, DebateMetrics
+  policy.py            — RunPolicy: min_panel_size, retry_on patterns, should_retry()
+  metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
+  healthcheck.py       — run_health_checks(); pings all providers before debate starts
+  inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive, Downloads detection
+  routing.py           — TargetResolver; resolves target-project names to transcript dirs; RoutingError on unknown
+  mode_detector.py     — detect_mode(); _pick_cheapest(); auto-classifies question via cheap LLM call
+  providers/           — One file per AI provider (Anthropic, OpenAI, Gemini, xAI, DeepSeek)
+  research/            — Research mode pipeline
+    models.py          — Source, ResearchResult, MergedResearchReport dataclasses
+    provider.py        — ResearchProvider ABC + ResearchProviderError
+    display.py         — Progressive Rich Live display with per-provider status table
+    merger.py          — Result merging, source deduplication, LLM summarization
+    cache.py           — File-based TTL cache (~/.ai-council/research_cache/)
+    runner.py          — Orchestration: providers → display → merge → cache → output
+    output.py          — Markdown file save + Rich console summary
+    providers/         — perplexity, openai_mini_research, openai_deep_research, gemini_research
 config/
-  settings.yaml     — All model configs, prompts, personas (single source of truth)
-  config_loader.py  — YAML to typed dataclasses
+  settings.yaml        — All model configs, prompts, personas (single source of truth)
+  config_loader.py     — YAML to typed dataclasses
 ```
 
 ---
@@ -217,7 +225,7 @@ pytest tests/ -m "not integration" -v
 pytest tests/test_integration.py -v
 ```
 
-354 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
+362 unit tests covering all modules (including research pipeline). Integration test runs a real debate with live API calls.
 
 ---
 
