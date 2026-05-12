@@ -13,7 +13,7 @@ Cross-repo ADRs affecting routing semantics live in `.dev-knowledge/docs/decisio
 | [ADR-03](ADR-03-blind-voting.md) | Blind Voting in Round 2 | Accepted |
 | [ADR-04](ADR-04-mode-system.md) | Mode System (pick/ideas/judge/research) | Accepted |
 | [ADR-05](ADR-05-research-integration.md) | Research Mode Integration | Accepted |
-| [ADR-06](ADR-06-cost-optimization.md) | Cost Optimization Strategy | Accepted (partial — Qwen trial deferred) |
+| [ADR-06](ADR-06-cost-optimization.md) | Cost Optimization Strategy | Revised 2026-05-11 (Qwen trial deferred/abandoned) |
 | [ADR-07](ADR-07-dual-output-paths.md) | Dual Output Paths | Superseded by ADR-43 (opt-in `target-project` routing replaces always-on secondary write) |
 
 ## Cross-repo references
