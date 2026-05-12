@@ -21,6 +21,6 @@ Original filenames preserved for historical accuracy. Current-format audits (hyp
 
 ## What doesn't go here
 
-- Cross-repo handoff artifacts → `docs/handoffs/_archive/`
+- Cross-repo handoff artifacts → `docs/handoffs/archive/`
 - ADR debate transcripts → owned by `.dev-knowledge` strażnik per ADR convention
 - Test reports → not archived (live in CI / test runner output)
