@@ -282,7 +282,7 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - `output/` — gitignored; debate transcripts and research reports
 - `council_inbox/` — gitignored; drop .md files for batch processing
 - `eval/` — evaluation data (eval_history.jsonl)
-- `tasks/` — todo.md, lessons.md (local task tracking)
+- `tasks/` — lessons.md (local task tracking); active backlog lives in `BACKLOG.md` at repo root (ADR-41)
 - Do not create files outside these directories without updating this section
 
 ## Lessons Discovery
