@@ -21,7 +21,7 @@ For each synthesis output, score yes/no:
 ## Origin
 
 Established 2026-05-12 per AI Council debate on synthesizer/panel refresh
-(transcript: `.dev-knowledge/docs/decisions/transcripts/council-out-2026-05-11-...`).
+(transcript: `.dev-knowledge/docs/decisions/transcripts/` — dated 2026-05-11, synthesizer/panel topic).
 
 ## Operating principle
 

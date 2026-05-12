@@ -87,14 +87,13 @@ class RunRequest:
 
 @dataclass
 class SynthesisMetrics:
-    """Per-synthesis run observability data."""
+    """Per-synthesis run observability data (success path only; failure path logs via WARNING)."""
 
     synthesizer_model: str
     transcript_size_tokens: int | None  # input tokens sent to synthesizer
     output_tokens: int | None           # tokens in synthesis response
-    synth_latency_seconds: float
-    synth_timeout_flag: bool
-    error_class: str  # "none" | "timeout" | "rate_limit" | <classify_error category>
+    synth_latency_seconds: float        # wall-clock; excludes client overhead on failure path
+    error_class: str                    # "none" on success; classified string in WARNING log on failure
 
 
 @dataclass

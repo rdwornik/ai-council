@@ -113,8 +113,7 @@ async def synthesize(
         synthesizer_model=synthesis_response.model,
         transcript_size_tokens=synthesis_response.input_tokens,
         output_tokens=synthesis_response.output_tokens,
-        synth_latency_seconds=synthesis_response.latency_sec,
-        synth_timeout_flag=False,
+        synth_latency_seconds=synth_latency,  # wall-clock; provider latency omits client overhead
         error_class="none",
     )
 
