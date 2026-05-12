@@ -14,6 +14,11 @@ Archive of audit artifacts produced for ai-council — Codex reviews, code revie
 - Standalone code review reports
 - Targeted audits (e.g., security review, performance audit)
 
+## Archive convention
+
+Pre-ADR-34 audit reports with underscore+UPPERCASE filenames are archived in `archive/legacy/`.
+Original filenames preserved for historical accuracy. Current-format audits (hyphen+lowercase) live at this level.
+
 ## What doesn't go here
 
 - Cross-repo handoff artifacts → `docs/handoffs/_archive/`
