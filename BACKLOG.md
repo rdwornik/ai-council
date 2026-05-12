@@ -1,0 +1,88 @@
+# BACKLOG — ai-council
+
+<!-- schema: ADR-41 | grooming: per-handoff (~2 min) + quarterly deep (first 2026-07-01) -->
+
+Canonical cross-session pending items. Single source of truth for all actionable work.
+Handoff Future State references items here by stream + title (pointers, not duplication).
+
+---
+
+## Stream: Phase 2 — Synthesizer Refresh
+
+### [P1] [open] Step 5 smoke test execution (Gemini synth scoring on ~15 transcripts)
+- **What:** Run current Gemini synthesizer against ~15 historical transcripts; score quality with the synthesis rubric
+- **Why:** Generates the empirical data needed to decide whether Phase 3 ADR-01 amendment triggers (Branch A: swap synthesizer; Branch B: keep Gemini)
+- **Added:** 2026-05-12 by operator
+
+---
+
+## Stream: Phase 3 — Synthesizer Refresh
+
+### [P1] [blocked] Step 6 Phase 3 conditional implementation (ADR-01 amendment + Branch A/B)
+- **What:** Amend ADR-01 with cost-optimization principle; implement Branch A (new synthesizer) or Branch B (keep Gemini) based on Step 5 data
+- **Why:** Cost-optimization principle needs codification regardless of branch outcome; blocked on Step 5 smoke test data
+- **Added:** 2026-05-12 by operator
+
+### [P1] [open] Codify cost-optimization principle in ADR-01 amendment
+- **What:** Add cost-optimization framing to ADR-01 amendment text (synthesizer should balance quality vs. cost)
+- **Why:** Folded into Step 6 ADR-01 amendment scope; listed separately for tracking visibility
+- **Added:** 2026-05-12 by operator
+
+---
+
+## Stream: Test Coverage
+
+### [P2] [open] openai_deep_research integration test gap
+- **What:** `openai_deep_research.py` (o3-deep-research, ~45 min timeout) is wired but untested end-to-end; add integration test
+- **Why:** Migrated from tasks/todo.md; cannot run in CI due to cost (~$10+/run) but needs at least a manual integration path documented
+- **Added:** 2026-05-12 by backlog-migration (was tasks/todo.md)
+
+---
+
+## Stream: Quality Automation
+
+### [P2] [open] CI enforcement of hyphen-only separator rule (ADR-34)
+- **What:** Add a CI check (pre-commit hook or ruff plugin) that rejects new files in `docs/` and `src/` with UPPERCASE letters or underscores in the slug
+- **Why:** I5 fresh violation (SYNTHESIS-QUALITY-RUBRIC.md added same day ADR-34 was enforced on other files) — empirical evidence that pattern needs automated enforcement, not just documentation
+- **Added:** 2026-05-12 by audit (strażnik finding I5)
+
+---
+
+## Stream: Provider Reliability
+
+### [P3] [open] DeepSeek replacement decision
+- **What:** Evaluate whether DeepSeek should be replaced or demoted from the default full panel
+- **Why:** Reactive trigger: round-blocking failure rate >2% per JOURNAL data; low priority until threshold crossed
+- **Added:** 2026-05-12 by operator
+
+---
+
+## Stream: Methodology
+
+### [P3] [open] Synthesis quality rubric refinement — faithfulness sub-clarification
+- **What:** Refine the faithfulness criterion in `docs/synthesis-quality-rubric.md` to clarify additive meta-analysis cases
+- **Why:** Emerged from N=1 scoring exercise (synthesizer additive meta-analysis question); rubric wording is ambiguous when synthesizer adds cross-model synthesis beyond raw transcript content
+- **Added:** 2026-05-12 by operator
+
+---
+
+## Stream: Governance
+
+### [P3] [open] AGENTS.md addition per ADR-28
+- **What:** Create `AGENTS.md` per ADR-28 mandate for M-tier repos
+- **Why:** Strażnik M2 finding — deferred per "low urgency" framing; no functional impact, purely governance artifact
+- **Added:** 2026-05-12 by strażnik audit (M2 — deferred)
+
+### [P3] [open] ADR-02 amendment (panelist/synthesizer overlap policy)
+- **What:** Amend ADR-02 to codify the cost-reframed policy on panelist/synthesizer overlap
+- **Why:** Conditional on Phase 3 Branch A (Opus chosen as synthesizer) — likely won't trigger after cost reframe if Gemini retained
+- **Added:** 2026-05-12 by operator
+
+---
+
+## Cross-stream / Ecosystem
+
+### [P3] [open] Cross-stream P2 — handshake = 1 round trip codification
+- **What:** Codify the "bilateral handshake = 1 round trip" methodology in `.dev-knowledge` LESSONS.md; ai-council provides data points (cycle 1 + cycle 2 retrospective)
+- **Why:** `.dev-knowledge` owns the codification; ai-council's contribution is empirical evidence from two completed strażnik review cycles
+- **Added:** 2026-05-12 by operator
