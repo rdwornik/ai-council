@@ -200,7 +200,7 @@ src/ai_council/
     cache.py           — File-based TTL cache (~/.ai-council/research_cache/)
     runner.py          — Orchestration: providers → display → merge → cache → output
     output.py          — Markdown file save + Rich console summary
-    providers/         — perplexity, openai_mini_research, openai_deep_research, gemini_research
+    providers/         — perplexity, openai_mini_research, openai_deep_research, gemini_research, grok_research
 config/
   settings.yaml        — All model configs, prompts, personas (single source of truth)
   config_loader.py     — YAML to typed dataclasses

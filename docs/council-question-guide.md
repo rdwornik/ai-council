@@ -44,8 +44,8 @@ That's it. Nothing else.
 
 | Field | Options | When to change from default |
 |-------|---------|---------------------------|
-| models | `claude,gemini,deepseek,grok` | Default = all 4. Use 3 for simple questions: `claude,gemini,openai` |
-| synthesizer | `gemini` | Default = gemini ($0.04). Use `openai` if gemini is on the panel |
+| models | `claude,gemini,openai,deepseek,grok` | Default = all 5. Use `--lite` for 3-model (claude, gemini, openai) on simple questions |
+| synthesizer | `gemini` | Default = gemini ($0.04). Use `openai` if gemini is already on the panel |
 | rounds | `2` | Default = 2. Use `1` for simple pick decisions. Never more than 2. |
 | mode | `pick` / `ideas` / `judge` / `research` | Usually omit — auto-detected. Force `ideas` for brainstorming, `judge` for evaluating a proposal |
 | target-project | project name string or list | Omit for local-only output. Set to mirror transcript to a project's `docs/decisions/transcripts/` dir. |
@@ -192,12 +192,12 @@ Usually let auto-detection handle it. Force mode only when auto-detection would 
 
 | Situation | Panel |
 |-----------|-------|
-| Important architectural decision | `--full` (all 5 models) |
-| Standard decision | Default 3: claude, gemini, openai |
-| Quick opinion | 2 models: `--models claude,gemini` + `--rounds 1` |
-| Cost-sensitive | Default 3 + `--rounds 1` |
+| Important / standard decision | Default: all 5 models |
+| Quick opinion | 3 models via `--lite` (claude, gemini, openai) |
+| Cost-sensitive | `--lite` + `--rounds 1` |
+| Custom selection | `--models claude,openai,grok` |
 
-**Synthesizer rule:** The synthesizer must NOT be on the panel. Default: gemini (cheapest at $0.04/debate). If gemini is already on the panel (default), it still works but set `synthesizer: openai` for true non-participation.
+**Synthesizer rule:** The synthesizer must NOT be on the panel. Default: gemini (cheapest at $0.04/debate). Gemini is always on the full default panel, so the default synthesizer already satisfies this — it picks a non-participant automatically.
 
 ---
 
