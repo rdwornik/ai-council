@@ -2,6 +2,24 @@
 
 ## 2026-05-12
 
+### Added (scrum-master review implementation)
+- `BACKLOG.md` per ADR-41 Scale M mandate (Streams: Phase 2/3 synthesizer refresh, Governance, Test coverage, Provider reliability, Quality automation, Methodology, Cross-repo methodology, Backlog migration)
+- `docs/audits/README.md` archive convention note for pre-ADR-34 legacy reports
+
+### Changed (governance + filename compliance per .dev-knowledge scrum-master review 2026-05-12)
+- `docs/COUNCIL_QUESTION_GUIDE.md` → `docs/council-question-guide.md` (ADR-34 hyphen+lowercase)
+- `docs/SYNTHESIS-QUALITY-RUBRIC.md` → `docs/synthesis-quality-rubric.md` (ADR-34 hyphen+lowercase; fresh violation from 2026-05-11)
+- `README.md`: Architecture section rewritten to `src/ai_council/` namespace layout per ADR-38; test count updated to 362
+- `VISION.md`: `last_reviewed` bumped 2026-05-09 → 2026-05-12
+- `CLAUDE.md` Folder Governance: `tasks/todo.md` reference removed (superseded by BACKLOG.md)
+- `tasks/lessons.md`: 4 lessons appended from 2026-05-11 cycles
+
+### Removed
+- `tasks/todo.md`: severely stale (255 vs 362 tests, March 2026 checklist); surviving items migrated to BACKLOG.md
+
+### Archived
+- `docs/audits/2026-03-15_CODE_REVIEW_REPORT.md`, `docs/audits/2026-03-26_CODE_REVIEW_REPORT.md` → `docs/audits/archive/legacy/`
+
 ### Added
 - `docs/SYNTHESIS-QUALITY-RUBRIC.md`: 5-point operator-applicable synthesis quality checklist (per Council debate 2026-05-11)
 - Per-synthesis run observability metrics: latency, transcript size, timeout flag, output tokens, error class — stored in `DebateResult.synthesis_metrics` and emitted to `*_metrics.json`

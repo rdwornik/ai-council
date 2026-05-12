@@ -1,5 +1,24 @@
 # Journal — ai-council
 
+## 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
+
+**Did:**
+- Implemented 9 of 10 findings from `.dev-knowledge` scrum-master review (2026-05-12)
+- C1: retired `tasks/todo.md` (255 vs 362 test stale + March 2026 checklist); surviving items migrated to BACKLOG.md
+- I1: created `BACKLOG.md` per ADR-41 schema (8 streams, 11 items seeded)
+- I2+I3: `README.md` architecture section updated to `src/ai_council/` namespace layout + test count to 362
+- I4+I5: `docs/COUNCIL_QUESTION_GUIDE.md` → `docs/council-question-guide.md` and `docs/SYNTHESIS-QUALITY-RUBRIC.md` → `docs/synthesis-quality-rubric.md` (ADR-34 hyphen+lowercase)
+- I6: `2026-03-15_CODE_REVIEW_REPORT.md` + `2026-03-26_CODE_REVIEW_REPORT.md` archived to `docs/audits/archive/legacy/`
+- M1: `VISION.md` `last_reviewed` bumped 2026-05-09 → 2026-05-12
+- M3: 4 lessons appended to `tasks/lessons.md` (target resolver fail-loud, inbox parity 3rd instance, ADR-43 schema DRYness, observability field design)
+- M2 (AGENTS.md addition) deferred per strażnik own "low urgency" framing; tracked in BACKLOG.md P3 Governance
+
+**Result:** ai-council fully aligned with strażnik audit findings except deferred M2. Audit pattern validated — I5 fresh violation caught and fixed same-day. CHANGELOG + commits = audit trail per single-round-trip principle.
+
+**Next:** Step 5 smoke test (operator-driven, BACKLOG P1 Phase 2).
+
+---
+
 ## 2026-05-12 — Phase 1 + ADR-34 hyphen combined
 
 **Did (Phase 1):**
