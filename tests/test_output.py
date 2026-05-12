@@ -109,8 +109,8 @@ def test_save_to_file_filename_convention(
 ):
     saved = save_to_file(sample_debate_result, tmp_path)
     name = saved[0].name
-    assert name.startswith("council_out_")
-    assert "_pick_" in name  # mode in filename
+    assert name.startswith("council-out-")
+    assert "-pick-" in name  # mode in filename
     assert "yaml" in name or "should" in name  # slug from question
     assert name.endswith(".md")
 

@@ -137,7 +137,7 @@ def save_to_file(
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = slug_override if slug_override is not None else _slug(result.question.text)
-    filename = f"council_out_{timestamp}_{result.mode}_{slug}.md"
+    filename = f"council-out-{timestamp}-{result.mode}-{slug}.md"
     filepath = output_dir / filename
 
     # Derive panel info from first round responses

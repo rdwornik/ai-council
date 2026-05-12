@@ -38,7 +38,7 @@ def save_research_to_file(
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = _slug(report.query)
-    filename = f"council_out_{ts}_research_{slug}.md"
+    filename = f"council-out-{ts}-research-{slug}.md"
     file_path = output_dir / filename
 
     lines: list[str] = [
