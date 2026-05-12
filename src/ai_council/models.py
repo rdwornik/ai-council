@@ -86,6 +86,18 @@ class RunRequest:
 
 
 @dataclass
+class SynthesisMetrics:
+    """Per-synthesis run observability data."""
+
+    synthesizer_model: str
+    transcript_size_tokens: int | None  # input tokens sent to synthesizer
+    output_tokens: int | None           # tokens in synthesis response
+    synth_latency_seconds: float
+    synth_timeout_flag: bool
+    error_class: str  # "none" | "timeout" | "rate_limit" | <classify_error category>
+
+
+@dataclass
 class DebateResult:
     question: Question
     rounds: list[Round]
@@ -99,3 +111,4 @@ class DebateResult:
     degradation_summary: str | None = None
     provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
     metrics: DebateMetrics | None = None  # populated after all calls complete
+    synthesis_metrics: SynthesisMetrics | None = None  # per-synthesis observability

@@ -4,8 +4,8 @@ import logging
 import time
 
 from ai_council.metrics import build_call_metrics, build_debate_metrics
-from ai_council.models import DebateResult, ModelResponse, Question, Round
-from ai_council.providers.base import AIProvider
+from ai_council.models import DebateResult, ModelResponse, Question, Round, SynthesisMetrics
+from ai_council.providers.base import AIProvider, ProviderError, classify_error
 from config.config_loader import ModeConfig, ModelConfig, PromptsConfig
 
 logger = logging.getLogger(__name__)
@@ -90,25 +90,45 @@ async def synthesize(
 
     logger.info("Running synthesis via %s", synthesizer.name())
 
-    synthesis_response: ModelResponse = await synthesizer.generate(
-        synthesis_prompt,
-        round_number=len(rounds) + 1,
-    )
+    synth_start = time.monotonic()
+    try:
+        synthesis_response: ModelResponse = await synthesizer.generate(
+            synthesis_prompt,
+            round_number=len(rounds) + 1,
+        )
+    except ProviderError as exc:
+        synth_latency = time.monotonic() - synth_start
+        error_class = classify_error(exc)
+        logger.warning(
+            "Synthesis observability: synthesizer=%s latency=%.2fs error_class=%s",
+            synthesizer.name(), synth_latency, error_class,
+        )
+        raise
 
     if not synthesis_response.content:
         raise RuntimeError(f"Synthesizer {synthesizer.name()} returned empty content")
+
+    synth_latency = time.monotonic() - synth_start
+    synthesis_obs = SynthesisMetrics(
+        synthesizer_model=synthesis_response.model,
+        transcript_size_tokens=synthesis_response.input_tokens,
+        output_tokens=synthesis_response.output_tokens,
+        synth_latency_seconds=synthesis_response.latency_sec,
+        synth_timeout_flag=False,
+        error_class="none",
+    )
 
     total_duration = time.monotonic() - debate_start_time
 
     metrics = None
     if model_configs is not None:
-        synthesis_metrics = build_call_metrics(
+        synthesis_call_metrics = build_call_metrics(
             synthesis_response,
             model_configs,
             round_number=0,  # 0 = synthesis call
         )
         metrics = build_debate_metrics(
-            rounds, synthesis_metrics, model_configs, total_duration
+            rounds, synthesis_call_metrics, model_configs, total_duration
         )
 
     return DebateResult(
@@ -124,4 +144,5 @@ async def synthesize(
         degradation_summary=degradation_summary,
         provider_statuses=provider_statuses or {},
         metrics=metrics,
+        synthesis_metrics=synthesis_obs,
     )

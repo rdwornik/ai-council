@@ -300,6 +300,16 @@ def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
             for c in m.calls
         ],
     }
+    if result.synthesis_metrics is not None:
+        s = result.synthesis_metrics
+        payload["synthesis"] = {
+            "synthesizer_model": s.synthesizer_model,
+            "transcript_size_tokens": s.transcript_size_tokens,
+            "output_tokens": s.output_tokens,
+            "synth_latency_seconds": round(s.synth_latency_seconds, 3),
+            "synth_timeout_flag": s.synth_timeout_flag,
+            "error_class": s.error_class,
+        }
     metrics_path = transcript_path.with_suffix("").with_name(
         transcript_path.stem + "_metrics.json"
     )

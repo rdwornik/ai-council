@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from ai_council.models import DebateResult, ModelResponse, Round
+from ai_council.providers.base import ProviderError
 from ai_council.synthesis import _format_full_transcript, synthesize
 from tests.conftest import MockProvider
 
@@ -146,3 +147,82 @@ async def test_synthesize_raises_on_empty_content(
             prompts=sample_prompts_config,
             debate_start_time=time.monotonic(),
         )
+
+
+async def test_synthesize_populates_synthesis_metrics(
+    sample_prompts_config, sample_question, sample_round
+):
+    synthesizer = MockProvider("openai", "## Verdict\nYAML wins.")
+    synthesizer.generate = AsyncMock(
+        return_value=ModelResponse(
+            provider="openai",
+            model="gpt-5.2",
+            round_number=2,
+            content="## Verdict\nYAML wins.",
+            latency_sec=1.2,
+            token_count=30,
+            input_tokens=200,
+            output_tokens=30,
+        )
+    )
+
+    result = await synthesize(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer=synthesizer,
+        prompts=sample_prompts_config,
+        debate_start_time=time.monotonic() - 2.0,
+    )
+
+    assert result.synthesis_metrics is not None
+    sm = result.synthesis_metrics
+    assert sm.synthesizer_model == "gpt-5.2"
+    assert sm.transcript_size_tokens == 200
+    assert sm.output_tokens == 30
+    assert sm.synth_latency_seconds == pytest.approx(1.2)
+    assert sm.synth_timeout_flag is False
+    assert sm.error_class == "none"
+
+
+async def test_synthesize_timeout_sets_error_class(
+    sample_prompts_config, sample_question, sample_round, caplog
+):
+    synthesizer = MockProvider("gemini", "")
+    synthesizer.generate = AsyncMock(
+        side_effect=ProviderError("gemini", "Request timed out after 30s")
+    )
+
+    import logging
+    with caplog.at_level(logging.WARNING, logger="ai_council.synthesis"):
+        with pytest.raises(ProviderError):
+            await synthesize(
+                question=sample_question,
+                rounds=[sample_round],
+                synthesizer=synthesizer,
+                prompts=sample_prompts_config,
+                debate_start_time=time.monotonic(),
+            )
+
+    assert any("error_class=timeout" in r.message for r in caplog.records)
+
+
+async def test_synthesize_provider_error_logs_error_class(
+    sample_prompts_config, sample_question, sample_round, caplog
+):
+    synthesizer = MockProvider("deepseek", "")
+    synthesizer.generate = AsyncMock(
+        side_effect=ProviderError("deepseek", "429 rate limit exceeded")
+    )
+
+    import logging
+    with caplog.at_level(logging.WARNING, logger="ai_council.synthesis"):
+        with pytest.raises(ProviderError):
+            await synthesize(
+                question=sample_question,
+                rounds=[sample_round],
+                synthesizer=synthesizer,
+                prompts=sample_prompts_config,
+                debate_start_time=time.monotonic(),
+            )
+
+    assert any("error_class=rate_limit" in r.message for r in caplog.records)
