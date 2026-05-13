@@ -46,6 +46,16 @@ Handoff Future State references items here by stream + title (pointers, not dupl
 - **Why:** I5 fresh violation (SYNTHESIS-QUALITY-RUBRIC.md added same day ADR-34 was enforced on other files) — empirical evidence that pattern needs automated enforcement, not just documentation
 - **Added:** 2026-05-12 by audit (strażnik finding I5)
 
+### [P3] [open] ADR-34 timestamp-underscore case in council-out emitter output
+
+- **What:** AI Council CLI emitter produces filenames with underscore in the `YYYYMMDD_HHMMSS` timestamp portion (e.g. `council-out-20260513_102702-research-question-...md`). The emitter uses Python's `%Y%m%d_%H%M%S` strftime pattern; the `_` between date and time is preserved in output filenames.
+- **Why:** Strict reading of ADR-34 (hyphen-only separator) would catch this as a violation. Practical reading might exempt ISO-style timestamps as programmatically-generated date-time data, not naming-slug separators. The case is real but unresolved.
+- **Methodology decision needed before action:** does ADR-34 apply to ISO timestamps inside filenames, or are they exempt?
+  - If applies: fix emitter to use `%Y%m%d-%H%M%S` (or equivalent hyphen format); decide whether to rename existing transcripts or grandfather them.
+  - If exempt: amend ADR-34 with an explicit clause noting ISO-timestamp exemption so future audits don't re-raise the question.
+- **Cross-link:** related to existing P2 "CI enforcement of hyphen-only separator rule (ADR-34)" above. The P2 CI check will surface this case once implemented, but the methodology decision needs to be made before that to know whether the check should flag or allow.
+- **Added:** 2026-05-13 (architect noted during ADR-45 review when referencing council transcript filenames).
+
 ---
 
 ## Stream: Provider Reliability
