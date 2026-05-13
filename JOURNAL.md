@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+## 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
+
+**Did:** Added P3 BACKLOG entry naming the specific case (council-out filename `YYYYMMDD_HHMMSS` timestamp underscore) and the methodology question (ISO timestamp exempt from ADR-34?); cross-linked to existing P2 CI enforcement entry.
+
+**Failed:** —
+
+**Next:** Methodology decision on ADR-34 ISO-timestamp exemption — can be addressed when ADR-45 implementation surfaces it OR sooner if convenient.
+
+---
+
 ## 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
 
 **Did:**
