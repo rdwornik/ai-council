@@ -1,5 +1,13 @@
 # Changelog — ai-council
 
+## 2026-05-15
+
+### Changed
+- LESSONS.md: session-numbered envelope migrated to ISO date format per ADR-46
+- JOURNAL.md: reverse-chronological ordering restored per ADR-46
+- BACKLOG.md: [blocked] migrated to [open] + Blocked annotation; Status field added to all 11 entries per ADR-47
+- BACKLOG_ARCHIVE.md: created per ADR-47 (empty initial scaffold)
+
 ## 2026-05-12
 
 ### Changed (scrum-master review addendum — I7 + I8)
