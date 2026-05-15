@@ -1,6 +1,8 @@
 # AI Council — Lessons Learned
 
-## Session: Phase 1 Foundation (2026-02-21)
+## 2026-02-21
+
+**Session:** Phase 1 Foundation
 
 ### Rules to Follow
 
