@@ -1,5 +1,19 @@
 # Journal — ai-council
 
+## 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
+
+**Did:**
+- LESSONS.md: migrated `## Session: Phase 1 Foundation (2026-02-21)` → `## 2026-02-21` + Session label in body
+- JOURNAL.md: moved 2026-05-12 addendum entry to correct reverse-chrono position
+- BACKLOG.md: [blocked] → [open] + Blocked annotation on Step 6; Status field added to all 11 entries; BACKLOG_ARCHIVE.md created
+- Driven by .dev-knowledge cross-repo audit (2026-05-15-ecosystem-audit.md) + handoff bundle
+
+**Result:** ai-council compliant with ADR-46 + ADR-47. Re-audit from .dev-knowledge expected to clear all 5 FAIL checks.
+
+**Next:** Operator runs `python scripts/audit.py run` in .dev-knowledge to confirm. Stream B P1 items flip to [done] on clean audit.
+
+---
+
 ## 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
 
 **Did:** Added P3 BACKLOG entry naming the specific case (council-out filename `YYYYMMDD_HHMMSS` timestamp underscore) and the methodology question (ISO timestamp exempt from ADR-34?); cross-linked to existing P2 CI enforcement entry.
