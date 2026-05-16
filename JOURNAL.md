@@ -7,6 +7,7 @@
 - JOURNAL.md: moved 2026-05-12 addendum entry to correct reverse-chrono position
 - BACKLOG.md: [blocked] → [open] + Blocked annotation on Step 6; Status field added to all 11 entries; BACKLOG_ARCHIVE.md created
 - Driven by .dev-knowledge cross-repo audit (2026-05-15-ecosystem-audit.md) + handoff bundle
+- LESSONS.md H3 entries re-ordered to reverse-chrono (follow-on: 2026-05-12/2026-05-11 entries appeared after April entries)
 
 **Result:** ai-council compliant with ADR-46 + ADR-47. Re-audit from .dev-knowledge expected to clear all 5 FAIL checks.
 
