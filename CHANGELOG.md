@@ -7,6 +7,7 @@
 - JOURNAL.md: reverse-chronological ordering restored per ADR-46
 - BACKLOG.md: [blocked] migrated to [open] + Blocked annotation; Status field added to all 11 entries per ADR-47
 - BACKLOG_ARCHIVE.md: created per ADR-47 (empty initial scaffold)
+- LESSONS.md entries re-ordered to reverse-chrono per ADR-46 (follow-on to ADR-46/47 cleanup)
 
 ## 2026-05-12
 

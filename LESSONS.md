@@ -28,15 +28,10 @@
 
 ---
 
-### 2026-04-30 | mock.patch string literals are invisible to import refactoring
-- CONTEXT: ADR-38 migration renamed all src.X imports to ai_council.X
-- MISTAKE: 56 mock.patch("src.debate.X") string literals in tests/ were NOT caught by import-only find-replace. Caused 30 test failures.
-- RULE: After any package rename, do a SECOND pass specifically for mock.patch() string literals. Pattern: `grep -r 'mock.patch.*"old_name\.' tests/`
-
-### 2026-04-27 | Inbox path must mirror interactive path
-- CONTEXT: Research mode worked in interactive CLI but not via --inbox
-- MISTAKE: Third time this pattern appeared (--full, --mode, now research routing). Inbox loop is a separate code path that doesn't automatically inherit interactive features.
-- RULE: After adding ANY new feature to the interactive CLI path, immediately check: does the inbox loop handle this too? If not, add it. This is a recurring blind spot.
+### 2026-05-12 | Architect failure mode — defending local config as "by-design"
+- CONTEXT: Scrum-master addendum (2026-05-12) — strażnik caught that `tasks/lessons.md` location was non-canonical after main review implementation
+- MISTAKE: Accepted `tasks/lessons.md` as intentional per CLAUDE.md Lessons Discovery section ("by-design") when the ecosystem convention is `LESSONS.md` at root. Local config can be wrong relative to ecosystem baseline; defending it as intentional blocks the cross-repo audit from working.
+- RULE: When a cross-repo audit flags a convention divergence, default response is "evaluate against ecosystem baseline" — NOT "intentional per local config." Local config documents what exists; ecosystem convention determines what should exist. If they conflict, the convention wins unless explicitly overridden by an ADR. This failure mode applies symmetrically to the audit consumer, not only the audit producer.
 
 ### 2026-05-11 | Target resolver fail-loud pattern (cross-project routing)
 - CONTEXT: ADR-43 transcript routing — `target-project` frontmatter + `--target-project` CLI flag
@@ -58,7 +53,12 @@
 - MISTAKE: Boolean flag carried the same signal already in `error_class`. Dead field added noise and false coverage impression.
 - RULE: When designing observability schema, avoid carrying the same signal in two fields. One canonical field (e.g., `error_class`) is sufficient; boolean flag mirrors create dead-field risk. If a flag is truly needed, ensure it captures something the primary field cannot.
 
-### 2026-05-12 | Architect failure mode — defending local config as "by-design"
-- CONTEXT: Scrum-master addendum (2026-05-12) — strażnik caught that `tasks/lessons.md` location was non-canonical after main review implementation
-- MISTAKE: Accepted `tasks/lessons.md` as intentional per CLAUDE.md Lessons Discovery section ("by-design") when the ecosystem convention is `LESSONS.md` at root. Local config can be wrong relative to ecosystem baseline; defending it as intentional blocks the cross-repo audit from working.
-- RULE: When a cross-repo audit flags a convention divergence, default response is "evaluate against ecosystem baseline" — NOT "intentional per local config." Local config documents what exists; ecosystem convention determines what should exist. If they conflict, the convention wins unless explicitly overridden by an ADR. This failure mode applies symmetrically to the audit consumer, not only the audit producer.
+### 2026-04-30 | mock.patch string literals are invisible to import refactoring
+- CONTEXT: ADR-38 migration renamed all src.X imports to ai_council.X
+- MISTAKE: 56 mock.patch("src.debate.X") string literals in tests/ were NOT caught by import-only find-replace. Caused 30 test failures.
+- RULE: After any package rename, do a SECOND pass specifically for mock.patch() string literals. Pattern: `grep -r 'mock.patch.*"old_name\.' tests/`
+
+### 2026-04-27 | Inbox path must mirror interactive path
+- CONTEXT: Research mode worked in interactive CLI but not via --inbox
+- MISTAKE: Third time this pattern appeared (--full, --mode, now research routing). Inbox loop is a separate code path that doesn't automatically inherit interactive features.
+- RULE: After adding ANY new feature to the interactive CLI path, immediately check: does the inbox loop handle this too? If not, add it. This is a recurring blind spot.
