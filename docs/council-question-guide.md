@@ -258,3 +258,9 @@ Then run:
 ```bash
 python -m ai_council.cli --inbox
 ```
+
+---
+
+## After every debate — distil the transcript to an ADR
+
+A council debate produces a decision, and a decision must be recorded. After a run completes, distil the synthesizer's verdict into a lightweight ADR (Status / Context / Decision / Consequences) in the target project's `docs/decisions/`. The transcript in `docs/decisions/transcripts/` is the evidence; the ADR is the canonical record. This step is part of the council workflow, not optional — a debate is not done until its ADR exists.
