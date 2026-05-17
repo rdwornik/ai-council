@@ -188,6 +188,59 @@ Usually let auto-detection handle it. Force mode only when auto-detection would 
 
 ---
 
+## Research-mode questions
+
+Research mode is the most commonly mis-formulated mode. Authors who want a
+research debate often write the question as a decision question, and the
+Council answers in kind — producing opinion for a specific situation instead
+of a survey of external evidence. This section gives a recognition test and
+formulation rules to prevent that.
+
+### Recognition test
+
+A `research`-mode question is identified by the *output wanted*, not the topic:
+
+- **Research mode** — the output is a survey of what the field, industry, or
+  literature knows about something. The asker applies that survey to their own
+  situation themselves.
+- **Decision mode** (`pick` / `judge` / `ideas`) — the output is a decision or
+  recommendation for the asker's specific situation.
+
+Quick test: if the question asks *"what should I do?"*, it is **not** research
+mode. If it asks *"what does the field know about X?"*, it **may be** research
+mode.
+
+### Formulation rules
+
+When a question is genuinely research mode, formulate it so the Council can
+survey evidence rather than reason from first principles:
+
+- **The headline asks what the field knows**, not what the asker should do.
+  "How do production RAG systems handle stale embeddings?" — not "Should we
+  re-embed nightly?"
+- **Options are evidence-testable candidate approaches.** Name real systems,
+  real tools, or real studies wherever possible rather than abstract positions —
+  the Council can then check each against published evidence.
+- **Source-corpus constraints are valid and encouraged.** Specify recency
+  windows (e.g. "last 3 years"), exclude marketing material, and distinguish
+  peer-reviewed from practitioner sources where the distinction matters.
+- **The question must be answerable by surveying external evidence.** If it can
+  only be answered by reasoning from first principles, it is a decision
+  question, not a research question.
+
+### The breadth-over-depth trap
+
+A research question with more than three distinct sub-questions dilutes evidence
+depth. The Council will attempt to cover every sub-question and produce thin
+coverage of each. If a research question has more than three sub-questions,
+either:
+
+- **split it** into separate debates, or
+- **explicitly instruct** the Council to prioritize the best-evidenced
+  sub-questions and go deep rather than wide.
+
+---
+
 ## Choosing the Panel
 
 | Situation | Panel |
