@@ -1,6 +1,26 @@
 # Journal — ai-council
 
-## 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
+### 2026-05-17 — Documentation simplification rollout (ADR-48/49/50)
+
+**Did:**
+- Created branch `feat/docs-simplification-rollout`
+- Removed `CHANGELOG.md` and `BACKLOG_ARCHIVE.md` per ADR-49
+- Copied `scripts/normalize_headers.py` from `.dev-knowledge`; ran it over LESSONS.md (no-op — already H3 pipe schema) and JOURNAL.md (H2 → H3 dated entries)
+- Added `.pre-commit-config.yaml` wiring normalize_headers as a local pre-commit hook
+- Added "Documentation conventions" section to `CLAUDE.md` (no CHANGELOG, no BACKLOG_ARCHIVE, Conventional Commits standard, JOURNAL/LESSONS structure)
+- Added transcript-to-ADR workflow step to `docs/council-question-guide.md`
+
+**Result:** 362 tests green. Branch `feat/docs-simplification-rollout` ready for review. Not merged, not pushed.
+
+**Changes:** CHANGELOG.md deleted; BACKLOG_ARCHIVE.md deleted; JOURNAL.md header levels H2→H3; CLAUDE.md +11 lines; council-question-guide.md +7 lines; scripts/normalize_headers.py added; .pre-commit-config.yaml added.
+
+**Abandoned:** Step 4 (LESSONS ordering) — already reverse-chronological, no action needed.
+
+**Next:** Operator reviews branch and merges if satisfied. Then apply same rollout to `corp-ops` and `corp-sca-time-automation`.
+
+---
+
+### 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
 
 **Did:**
 - LESSONS.md: migrated `## Session: Phase 1 Foundation (2026-02-21)` → `## 2026-02-21` + Session label in body
@@ -15,7 +35,7 @@
 
 ---
 
-## 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
+### 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
 
 **Did:** Added P3 BACKLOG entry naming the specific case (council-out filename `YYYYMMDD_HHMMSS` timestamp underscore) and the methodology question (ISO timestamp exempt from ADR-34?); cross-linked to existing P2 CI enforcement entry.
 
@@ -25,7 +45,7 @@
 
 ---
 
-## 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
+### 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
 
 **Did:**
 - Implemented 9 of 10 findings from `.dev-knowledge` scrum-master review (2026-05-12)
@@ -44,7 +64,7 @@
 
 ---
 
-## 2026-05-12 — Phase 1 + ADR-34 hyphen combined
+### 2026-05-12 — Phase 1 + ADR-34 hyphen combined
 
 **Did (Phase 1):**
 - Per-synthesis observability emitted: latency, transcript size, timeout flag, output tokens, error class — `DebateResult.synthesis_metrics` + `_metrics.json` synthesis block
@@ -62,7 +82,7 @@
 
 ---
 
-## 2026-05-12 — Scrum-master addendum implementation (I7 + I8)
+### 2026-05-12 — Scrum-master addendum implementation (I7 + I8)
 
 **Did:**
 - I7: moved `tasks/lessons.md` → `LESSONS.md` at repo root; retired `tasks/` folder entirely
@@ -78,7 +98,7 @@
 
 ---
 
-## 2026-05-11 — ADR governance sweep + HANDOFF cleanup
+### 2026-05-11 — ADR governance sweep + HANDOFF cleanup
 
 **Did:**
 - Audit ADR-01..07 status headers against current ecosystem state
@@ -99,7 +119,7 @@
 
 ---
 
-## 2026-05-11 — Docs hygiene sweep
+### 2026-05-11 — Docs hygiene sweep
 
 **Did:**
 - Five-file docs internal-alignment pass post today's feature work
@@ -113,7 +133,7 @@
 
 ---
 
-## 2026-05-11 — ADR-43 amendment cycle 1 implementation
+### 2026-05-11 — ADR-43 amendment cycle 1 implementation
 
 **Did:**
 - Refactored `target_projects` schema per `.dev-knowledge`-approved ADR-43 amendment: `dev_root` + opt-in name list, paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`
@@ -129,7 +149,7 @@
 
 ---
 
-## 2026-05-11 — Post-routing cleanup
+### 2026-05-11 — Post-routing cleanup
 
 **Did:**
 - Disabled `secondary_output_enabled` default — resolves architectural overlap with new `target_paths` per-invocation routing
@@ -142,7 +162,7 @@
 
 ---
 
-## 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
+### 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
 
 **Did:**
 - Implemented opt-in, config-driven per-invocation transcript routing for all 4 modes
@@ -163,7 +183,7 @@
 - `.dev-knowledge/protocols/ESSENTIALS.md` "Council output convention" section update — separate `.dev-knowledge` session
 - Await operator confirmation to merge `feat/transcript-routing` → main
 
-## 2026-05-09 — Audit-sync governance closure (F-01, F-02)
+### 2026-05-09 — Audit-sync governance closure (F-01, F-02)
 
 **Did:**
 - Verified prior commit `62c1f7d` (config/settings.yaml grok model `grok-4.20 → grok-4.3`) matches Stage 3 expected pattern; commit was made by a prior session, not this one
