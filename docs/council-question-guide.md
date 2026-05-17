@@ -188,6 +188,92 @@ Usually let auto-detection handle it. Force mode only when auto-detection would 
 
 ---
 
+## Neutralizing bias in question framing
+
+A biased question is the one failure mode the Council cannot recover from.
+Blind voting (ADR-03), the multi-model panel (ADR-02), and adversarial personas
+are all *downstream* defenses — they reduce how much models bias each other and
+how the synthesizer distorts the result. None of them can repair a biased
+question: every model on the panel reads the same prompt, so a question that
+leans one way leans the whole debate that way, and the votes then agree on a
+contaminated basis. Question framing is the only bias-control point with no
+safety net. It is the highest-leverage step in running a debate.
+
+The Council's success metric is the elimination of cognitive bias. This section
+is the checklist that serves that metric directly.
+
+### Framing biases and how to neutralize them
+
+**Leading / framing.** The headline presupposes an answer. "Should we adopt
+ChromaDB for the vault?" has already chosen ChromaDB as the frame and reduced
+the debate to yes/no. *Fix:* state the **problem**, not a candidate solution —
+"What storage layer best fits the vault's access patterns?" Candidate solutions
+belong in the options, never in the headline.
+
+**Anchoring.** The first option, or the one described at greatest length,
+becomes the reference point the others are judged against. *Fix:* describe every
+option at equal length and equal depth. Order options neutrally (alphabetical,
+or state explicitly that the order is arbitrary). Do not editorialize inside an
+option description.
+
+**Confirmation / asker-leakage.** The question reveals which way the asker leans
+— directly ("I think we should keep the monorepo") or subtly ("the obvious
+choice is X, but…"). Models drift toward agreement with the perceived asker
+preference. Blind voting does not catch this: it hides models from *each other*,
+not from the asker's leak. *Fix:* never state your current leaning, a prior
+decision, or what you hope the answer is. Strip "I think", "probably",
+"ideally", "obviously". Present the decision as genuinely undecided — for the
+debate to be worth running, it is.
+
+**False dichotomy.** The question forces a binary where a hybrid or third path
+exists. "Tach or code review?" excludes "both", "neither", and "a lighter
+linter". *Fix:* ask which mechanisms fit the situation, not which of two to
+pick; or explicitly admit hybrid and "none" as legitimate options.
+
+**Loaded terminology.** Value-laden words prejudge the outcome. "Should we clean
+up the bloated ingest module?" has already ruled that the module is bad and that
+reduction is the answer. *Fix:* replace adjectives with observable facts — line
+count, number of responsibilities, measured coupling — and let the panel judge.
+
+**Choice-set bias.** The option you did not think of cannot win, because it is
+not on the ballot. A three-option `pick` debate silently decides that those
+three are the universe. *Fix:* always include an explicit escape option — "a
+different approach (name it)" — and instruct the panel to use it if warranted.
+For consequential decisions, run an `ideas` round first to generate the option
+set before the `pick` debate that chooses among it. The choice set is itself a
+decision; make it deliberately.
+
+**Availability.** Framing the question around the most recent or most salient
+incident lets that one event dominate. "After the ChromaDB migration pain,
+should we avoid vector DBs?" *Fix:* ask the general case. If a specific incident
+motivates the question, name it as one data point, not as the frame.
+
+### Pre-flight self-check
+
+Before submitting any Council question, in any mode, answer these:
+
+1. Does the headline name a **problem**, or a pre-chosen answer?
+2. Does any wording reveal which option I prefer?
+3. Is every option described at equal length and equal charity?
+4. Could a reasonable option be missing from the set?
+5. Are there value-laden adjectives I can replace with observable facts?
+6. If the panel agreed with me instantly — would that be because I am right, or
+   because I told them what I wanted?
+
+Question 6 is the sharpest test. If a fast unanimous agreement would not
+surprise you, the question is probably leading.
+
+### Research mode: the bias is sharper
+
+In `research` mode a biased question does not just skew opinion — it pre-selects
+which **evidence** gets surveyed. "What evidence supports event-driven
+architecture?" returns a curated pro-list and never looks for disconfirming
+evidence. *Fix:* make the question symmetric — "What does the evidence say about
+event-driven versus alternative architectures for X?" — so disconfirming results
+and null findings have a path into the answer.
+
+---
+
 ## Research-mode questions
 
 Research mode is the most commonly mis-formulated mode. Authors who want a
