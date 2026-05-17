@@ -1,5 +1,25 @@
 # Journal — ai-council
 
+### 2026-05-17 — Documentation simplification rollout (ADR-48/49/50)
+
+**Did:**
+- Created branch `feat/docs-simplification-rollout`
+- Removed `CHANGELOG.md` and `BACKLOG_ARCHIVE.md` per ADR-49
+- Copied `scripts/normalize_headers.py` from `.dev-knowledge`; ran it over LESSONS.md (no-op — already H3 pipe schema) and JOURNAL.md (H2 → H3 dated entries)
+- Added `.pre-commit-config.yaml` wiring normalize_headers as a local pre-commit hook
+- Added "Documentation conventions" section to `CLAUDE.md` (no CHANGELOG, no BACKLOG_ARCHIVE, Conventional Commits standard, JOURNAL/LESSONS structure)
+- Added transcript-to-ADR workflow step to `docs/council-question-guide.md`
+
+**Result:** 362 tests green. Branch `feat/docs-simplification-rollout` ready for review. Not merged, not pushed.
+
+**Changes:** CHANGELOG.md deleted; BACKLOG_ARCHIVE.md deleted; JOURNAL.md header levels H2→H3; CLAUDE.md +11 lines; council-question-guide.md +7 lines; scripts/normalize_headers.py added; .pre-commit-config.yaml added.
+
+**Abandoned:** Step 4 (LESSONS ordering) — already reverse-chronological, no action needed.
+
+**Next:** Operator reviews branch and merges if satisfied. Then apply same rollout to `corp-ops` and `corp-sca-time-automation`.
+
+---
+
 ### 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
 
 **Did:**
