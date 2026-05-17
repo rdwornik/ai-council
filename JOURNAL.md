@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-17 — F-0 fix: preserve full question in pick/judge transcripts
+
+Pick/judge debate transcripts now embed the full submitted question text in a `## Question` section, at parity with research-mode output. Previously only a 70-80 char truncated H1 title was preserved, with the `Source:` field pointing at an external file that might no longer exist — making question framing unrecoverable. Forward-only; no backfill of past transcripts.
+
+**Changes:** `src/ai_council/output.py`, `tests/test_output.py`.
+
+---
+
 ### 2026-05-17 — Question-framing bias audit
 
 Audited 21 past curated Council debate questions against the question-framing bias rubric in `docs/council-question-guide.md`; 9 research-mode questions scored in full, 12 pick/judge headlines scored at title-only (full prompt not preserved in transcript). Asker-leakage, loaded terminology, and anchoring dominate; report is evidence for an operator decision, not a recommendation.
