@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-17 — Context-section danger-zone callout in bias guide
+
+Added a Context-section danger-zone callout to the question-framing bias guide, driven by evidence from the 2026-05-17 bias audit that framing failures cluster almost entirely in the Context section rather than the headline.
+
+**Changes:** `docs/council-question-guide.md` (new Context-section subsection).
+
+---
+
 ### 2026-05-17 — F-0 fix: preserve full question in pick/judge transcripts
 
 Pick/judge debate transcripts now embed the full submitted question text in a `## Question` section, at parity with research-mode output. Previously only a 70-80 char truncated H1 title was preserved, with the `Source:` field pointing at an external file that might no longer exist — making question framing unrecoverable. Forward-only; no backfill of past transcripts.
