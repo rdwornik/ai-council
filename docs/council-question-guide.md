@@ -4,6 +4,9 @@
 
 ## The Format
 
+> This format is for **decision modes** — `pick`, `judge`, `ideas`. Research-mode
+> questions use their own format; see *Research-mode questions* below.
+
 Every debate question is a markdown file with three parts:
 
 ```markdown
@@ -449,6 +452,9 @@ rounds: 2
 
 ## Size Guide
 
+> This sizing is for **decision-mode** debates. Research-mode files are
+> structured differently — see *Research-mode questions*.
+
 | Section | Target length |
 |---------|--------------|
 | YAML frontmatter | 3-5 lines |
@@ -463,6 +469,9 @@ If your debate file is over 100 lines, you're including narrative that should be
 ---
 
 ## Quick Template
+
+> This template is for **decision modes**. For a research-mode debate, use the
+> *Research-mode quick template* under *Research-mode questions*.
 
 Copy this, fill in, save as `.md` in `council_inbox/`:
 
