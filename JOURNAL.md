@@ -1,6 +1,6 @@
 # Journal — ai-council
 
-## 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
+### 2026-05-15 — ADR-46+47 compliance cleanup (cross-repo handoff)
 
 **Did:**
 - LESSONS.md: migrated `## Session: Phase 1 Foundation (2026-02-21)` → `## 2026-02-21` + Session label in body
@@ -15,7 +15,7 @@
 
 ---
 
-## 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
+### 2026-05-13 — P3 BACKLOG entry captured for ADR-34 timestamp-underscore case
 
 **Did:** Added P3 BACKLOG entry naming the specific case (council-out filename `YYYYMMDD_HHMMSS` timestamp underscore) and the methodology question (ISO timestamp exempt from ADR-34?); cross-linked to existing P2 CI enforcement entry.
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
+### 2026-05-12 — Scrum-master review implementation (.dev-knowledge strażnik)
 
 **Did:**
 - Implemented 9 of 10 findings from `.dev-knowledge` scrum-master review (2026-05-12)
@@ -44,7 +44,7 @@
 
 ---
 
-## 2026-05-12 — Phase 1 + ADR-34 hyphen combined
+### 2026-05-12 — Phase 1 + ADR-34 hyphen combined
 
 **Did (Phase 1):**
 - Per-synthesis observability emitted: latency, transcript size, timeout flag, output tokens, error class — `DebateResult.synthesis_metrics` + `_metrics.json` synthesis block
@@ -62,7 +62,7 @@
 
 ---
 
-## 2026-05-12 — Scrum-master addendum implementation (I7 + I8)
+### 2026-05-12 — Scrum-master addendum implementation (I7 + I8)
 
 **Did:**
 - I7: moved `tasks/lessons.md` → `LESSONS.md` at repo root; retired `tasks/` folder entirely
@@ -78,7 +78,7 @@
 
 ---
 
-## 2026-05-11 — ADR governance sweep + HANDOFF cleanup
+### 2026-05-11 — ADR governance sweep + HANDOFF cleanup
 
 **Did:**
 - Audit ADR-01..07 status headers against current ecosystem state
@@ -99,7 +99,7 @@
 
 ---
 
-## 2026-05-11 — Docs hygiene sweep
+### 2026-05-11 — Docs hygiene sweep
 
 **Did:**
 - Five-file docs internal-alignment pass post today's feature work
@@ -113,7 +113,7 @@
 
 ---
 
-## 2026-05-11 — ADR-43 amendment cycle 1 implementation
+### 2026-05-11 — ADR-43 amendment cycle 1 implementation
 
 **Did:**
 - Refactored `target_projects` schema per `.dev-knowledge`-approved ADR-43 amendment: `dev_root` + opt-in name list, paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`
@@ -129,7 +129,7 @@
 
 ---
 
-## 2026-05-11 — Post-routing cleanup
+### 2026-05-11 — Post-routing cleanup
 
 **Did:**
 - Disabled `secondary_output_enabled` default — resolves architectural overlap with new `target_paths` per-invocation routing
@@ -142,7 +142,7 @@
 
 ---
 
-## 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
+### 2026-05-11 — Cross-project transcript routing (feat/transcript-routing)
 
 **Did:**
 - Implemented opt-in, config-driven per-invocation transcript routing for all 4 modes
@@ -163,7 +163,7 @@
 - `.dev-knowledge/protocols/ESSENTIALS.md` "Council output convention" section update — separate `.dev-knowledge` session
 - Await operator confirmation to merge `feat/transcript-routing` → main
 
-## 2026-05-09 — Audit-sync governance closure (F-01, F-02)
+### 2026-05-09 — Audit-sync governance closure (F-01, F-02)
 
 **Did:**
 - Verified prior commit `62c1f7d` (config/settings.yaml grok model `grok-4.20 → grok-4.3`) matches Stage 3 expected pattern; commit was made by a prior session, not this one

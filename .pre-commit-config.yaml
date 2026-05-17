@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: normalize-headers
+        name: Normalize dated-log entry headers
+        language: python
+        entry: python scripts/normalize_headers.py
+        files: ^(LESSONS|JOURNAL)\.md$
+        pass_filenames: true
