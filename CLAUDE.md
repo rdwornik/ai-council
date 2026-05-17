@@ -302,6 +302,17 @@ $env:DEV_KNOWLEDGE_PATH = "C:/Users/1028120/Documents/Dev/.dev-knowledge"
 
 **ADR naming:** future ADRs use underscore convention (`ADR-NN_topic.md`) per ADR-34. The 7 existing kebab-case ADRs (`ADR-01-synthesizer-selection.md` etc.) are grandfathered per ADR-29 — do not rename.
 
+## Documentation conventions
+
+Per ADR-48/49 (2026-05-17):
+
+- **No CHANGELOG** — git history (Conventional Commits) plus the "Changes" line in each JOURNAL entry is the change record.
+- **No BACKLOG_ARCHIVE** — done backlog items leave BACKLOG silently; a *significant* abandoned item becomes a lightweight decision-note in `docs/decisions/`.
+- **Commit-message standard:** Conventional Commits — `type(scope): summary`; imperative summary; body for non-trivial changes.
+- **JOURNAL entry structure:** Did / Result / Changes / Abandoned / Next. One H3 dated entry per session (`### YYYY-MM-DD — Topic`).
+- **LESSONS entry structure:** `### YYYY-MM-DD | Topic` (pipe schema); reverse-chronological.
+- **Header normalizer:** `scripts/normalize_headers.py` — wired as pre-commit hook; converts `## YYYY-MM-DD` dated entries to `###`; idempotent.
+
 ## Global Skills
 Before modifying code, consult ~/.claude/skills/gotchas/ for known ecosystem traps.
 After pytest passes, check ~/.claude/skills/verify/ for verification scripts.
