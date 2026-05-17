@@ -216,6 +216,10 @@ def save_to_file(
         "",
         "---",
         "",
+        "## Question",
+        "",
+        result.question.text,
+        "",
     ]
 
     for rnd in result.rounds:

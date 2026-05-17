@@ -104,6 +104,51 @@ def test_save_to_file_participant_label(tmp_path: Path, sample_question, sample_
     assert "**Panel Mode:** custom" in content
 
 
+_LONG_QUESTION = (
+    "Should we migrate the entire ingestion pipeline from Kafka to Pulsar this "
+    "quarter, given the operational cost concerns raised by the platform team "
+    "and the open question about exactly-once semantics under partition rebalance?"
+)
+
+
+def _result_with_question(question_text: str, mode: str, sample_round) -> DebateResult:
+    from ai_council.models import Question
+    return DebateResult(
+        question=Question(text=question_text, source="cli"),
+        rounds=[sample_round],
+        synthesis="## Decision\nProceed.",
+        synthesizer="openai",
+        total_duration_sec=5.0,
+        panel_mode="default",
+        synthesizer_is_participant=False,
+        mode=mode,
+    )
+
+
+@pytest.mark.parametrize("mode", ["pick", "judge", "ideas"])
+def test_transcript_preserves_full_question(tmp_path: Path, sample_round, mode: str):
+    """Debate transcripts must contain the full submitted question, not just the truncated title."""
+    assert len(_LONG_QUESTION) > 80, "test question must exceed the 80-char title cap"
+    result = _result_with_question(_LONG_QUESTION, mode, sample_round)
+    saved = save_to_file(result, tmp_path)
+    content = saved[0].read_text(encoding="utf-8")
+    assert _LONG_QUESTION in content
+
+
+@pytest.mark.parametrize("mode", ["pick", "judge", "ideas"])
+def test_transcript_question_section_position(tmp_path: Path, sample_round, mode: str):
+    """The `## Question` block must sit after the metadata `Source:` line and before `## Round 1`."""
+    result = _result_with_question(_LONG_QUESTION, mode, sample_round)
+    saved = save_to_file(result, tmp_path)
+    content = saved[0].read_text(encoding="utf-8")
+    src_idx = content.index("**Source:**")
+    q_idx = content.index("## Question")
+    r1_idx = content.index("## Round 1")
+    assert src_idx < q_idx < r1_idx
+    assert content.index(_LONG_QUESTION) > q_idx
+    assert content.index(_LONG_QUESTION) < r1_idx
+
+
 def test_save_to_file_filename_convention(
     tmp_path: Path, sample_debate_result: DebateResult
 ):
