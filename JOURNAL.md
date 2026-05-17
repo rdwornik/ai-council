@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+### 2026-05-17 — Research-mode question guide + AGENTS.md
+
+**Did:** Added a "Research-mode questions" section (recognition test + formulation rules + breadth-over-depth trap) to `docs/council-question-guide.md`; created `AGENTS.md` at repo root from the canonical ecosystem template (`.dev-knowledge/templates/AGENTS-md-template.md`) per Council #28.
+
+**Result:** 362 tests green. Branch `docs/research-mode-guide-and-agents-md` ready for review.
+
+**Changes:** `docs/council-question-guide.md` (new research-mode section); `AGENTS.md` (new file).
+
+---
+
 ### 2026-05-17 — Documentation simplification rollout (ADR-48/49/50)
 
 **Did:**
