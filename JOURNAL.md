@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-17 — Research-mode format in question guide
+
+`council-question-guide.md` now gives `research` mode its own retrieval-brief format (`### Background` / `### What to find out` / `### Source rules` / `### Output wanted`); decision-mode sections scoped with blockquotes pointing to the new format.
+
+**Changes:** `docs/council-question-guide.md` (research-mode format + decision-mode scoping notes).
+
+---
+
 ### 2026-05-17 — Context-section danger-zone callout in bias guide
 
 Added a Context-section danger-zone callout to the question-framing bias guide, driven by evidence from the 2026-05-17 bias audit that framing failures cluster almost entirely in the Context section rather than the headline.

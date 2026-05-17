@@ -4,6 +4,9 @@
 
 ## The Format
 
+> This format is for **decision modes** — `pick`, `judge`, `ideas`. Research-mode
+> questions use their own format; see *Research-mode questions* below.
+
 Every debate question is a markdown file with three parts:
 
 ```markdown
@@ -306,54 +309,131 @@ and null findings have a path into the answer.
 
 ## Research-mode questions
 
-Research mode is the most commonly mis-formulated mode. Authors who want a
-research debate often write the question as a decision question, and the
-Council answers in kind — producing opinion for a specific situation instead
-of a survey of external evidence. This section gives a recognition test and
-formulation rules to prevent that.
+Research mode is the most commonly mis-formulated mode. It produces a **survey of
+external evidence** — what the field, industry, or literature knows — not a
+decision for your situation. It also uses its **own file format**, distinct from
+the decision-mode format described under *The Format*. A research question is
+not a ballot of options; it is a retrieval brief.
 
 ### Recognition test
 
 A `research`-mode question is identified by the *output wanted*, not the topic:
 
 - **Research mode** — the output is a survey of what the field, industry, or
-  literature knows about something. The asker applies that survey to their own
-  situation themselves.
+  literature knows. You apply that survey to your own situation yourself.
 - **Decision mode** (`pick` / `judge` / `ideas`) — the output is a decision or
-  recommendation for the asker's specific situation.
+  recommendation for your specific situation.
 
 Quick test: if the question asks *"what should I do?"*, it is **not** research
 mode. If it asks *"what does the field know about X?"*, it **may be** research
 mode.
 
+### Why research mode needs a different format
+
+The decision-mode format — `Questions` with A/B/C/D options, plus `Constraints`
+that eliminate options — exists to help the panel *choose among candidates*. A
+research question has no candidates to choose and no constraints that eliminate
+them. It is a **retrieval brief**: it tells the research providers (Perplexity,
+Grok, the deep-research models) what to go and find.
+
+Retrieval is not reasoning. A research question must be answerable by *finding
+and surveying sources* — not by reasoning from first principles. If your
+question can only be answered by argument, it is a decision question; use a
+decision mode.
+
+### The research-mode format
+
+A research-mode debate file keeps the `## Question:` heading and the YAML
+frontmatter, but its body sections are different:
+
+````markdown
+---
+models: claude,gemini,deepseek,grok
+synthesizer: openai
+mode: research
+rounds: 2
+---
+
+## Question: [a "what does the field know about X" question], [scope / timeframe]
+
+### Background
+[Why you are asking and what decision this will inform — 2-4 lines.
+Facts and situation only. Not your diagnosis, not your hypothesis.]
+
+### What to find out
+1. [first facet of the topic]
+2. [second facet]
+3. [third facet — stop at three]
+
+### Source rules
+- Recency: [e.g. last 3 years]
+- Source types: [e.g. peer-reviewed + practitioner reports; exclude vendor marketing]
+- Real systems to check: [name actual tools, systems, or studies, if known]
+
+### Output wanted
+[The shape of the survey — survey / comparison / map / verification — plus an
+explicit instruction to surface unresolved questions and disconfirming evidence.]
+````
+
 ### Formulation rules
 
-When a question is genuinely research mode, formulate it so the Council can
-survey evidence rather than reason from first principles:
+- **Phrase the headline as a research question** and signal the deliverable.
+  "How do production RAG systems handle stale embeddings? (survey of practice,
+  2024–2026)" — the question form, the scope, and the deliverable (*survey*) are
+  all visible.
+- **Be specific and scoped.** A timeframe and a domain are mandatory, not
+  optional. "Vector databases" is not a brief; "self-hosted vector databases for
+  sub-100ms retrieval, 2024–2026" is.
+- **Facets are facets of one topic — not competing options.** "(1) invalidation
+  strategies, (2) measured cost, (3) reported failure modes" are angles on one
+  question. Keep them to **three at most**: more than three dilutes evidence
+  depth — the providers spread thin and cover each shallowly. If the topic
+  genuinely has more, split it into separate research debates.
+- **Put the source rules in the question.** Recency window, which source types
+  count, what to exclude. The providers cannot guess your evidence bar.
+- **Name real systems, tools, or studies** where you want them checked — but as
+  things to *survey*, not as a ballot to *pick from*.
+- **Write a brief, not a script.** The research providers are agentic; they
+  iterate their own searches. Give them scope and a goal, not rigid steps.
+- **Ask for balance.** Require the survey to surface disconfirming evidence and
+  unresolved questions — otherwise a one-sided question returns a one-sided
+  list. (See *Neutralizing bias in question framing* — in research mode a
+  leading question pre-selects the evidence itself.)
 
-- **The headline asks what the field knows**, not what the asker should do.
-  "How do production RAG systems handle stale embeddings?" — not "Should we
-  re-embed nightly?"
-- **Options are evidence-testable candidate approaches.** Name real systems,
-  real tools, or real studies wherever possible rather than abstract positions —
-  the Council can then check each against published evidence.
-- **Source-corpus constraints are valid and encouraged.** Specify recency
-  windows (e.g. "last 3 years"), exclude marketing material, and distinguish
-  peer-reviewed from practitioner sources where the distinction matters.
-- **The question must be answerable by surveying external evidence.** If it can
-  only be answered by reasoning from first principles, it is a decision
-  question, not a research question.
+### Research-mode quick template
 
-### The breadth-over-depth trap
+Copy this, fill in, save as `.md` in `council_inbox/`:
 
-A research question with more than three distinct sub-questions dilutes evidence
-depth. The Council will attempt to cover every sub-question and produce thin
-coverage of each. If a research question has more than three sub-questions,
-either:
+````markdown
+---
+models: claude,gemini,deepseek,grok
+synthesizer: openai
+mode: research
+rounds: 2
+---
 
-- **split it** into separate debates, or
-- **explicitly instruct** the Council to prioritize the best-evidenced
-  sub-questions and go deep rather than wide.
+## Question: [research question], [timeframe]
+
+### Background
+
+[Why you are asking; what decision this informs. Facts only — 2-4 lines.]
+
+### What to find out
+
+1. [facet]
+2. [facet]
+3. [facet]
+
+### Source rules
+
+- Recency: [window]
+- Source types: [types to include; what to exclude]
+- Real systems to check: [named tools/systems/studies, if any]
+
+### Output wanted
+
+[Shape of the survey + "surface unresolved questions and disconfirming evidence."]
+````
 
 ---
 
@@ -372,6 +452,9 @@ either:
 
 ## Size Guide
 
+> This sizing is for **decision-mode** debates. Research-mode files are
+> structured differently — see *Research-mode questions*.
+
 | Section | Target length |
 |---------|--------------|
 | YAML frontmatter | 3-5 lines |
@@ -386,6 +469,9 @@ If your debate file is over 100 lines, you're including narrative that should be
 ---
 
 ## Quick Template
+
+> This template is for **decision modes**. For a research-mode debate, use the
+> *Research-mode quick template* under *Research-mode questions*.
 
 Copy this, fill in, save as `.md` in `council_inbox/`:
 
