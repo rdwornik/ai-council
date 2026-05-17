@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-17 — Question-framing bias-elimination section
+
+**Did:** Added a cross-mode question-framing bias-elimination section to `docs/council-question-guide.md`, covering seven framing biases, a pre-flight self-check, and a research-mode sharpener.
+
+**Changes:** `docs/council-question-guide.md` (new bias-elimination section).
+
+---
+
 ### 2026-05-17 — Research-mode question guide + AGENTS.md
 
 **Did:** Added a "Research-mode questions" section (recognition test + formulation rules + breadth-over-depth trap) to `docs/council-question-guide.md`; created `AGENTS.md` at repo root from the canonical ecosystem template (`.dev-knowledge/templates/AGENTS-md-template.md`) per Council #28.
