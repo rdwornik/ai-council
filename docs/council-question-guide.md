@@ -248,6 +248,36 @@ incident lets that one event dominate. "After the ChromaDB migration pain,
 should we avoid vector DBs?" *Fix:* ask the general case. If a specific incident
 motivates the question, name it as one data point, not as the frame.
 
+### The Context section is where bias concentrates
+
+An audit of past Council debates found that headlines were mostly well-formed —
+the framing failures clustered almost entirely in the **Context section** of the
+question. This is the highest-risk part of any question; treat it with
+proportional care.
+
+The Context section exists to give the panel the **facts and observations** it
+needs to reason. It must not give the panel the asker's **interpretation** of
+those facts:
+
+- *Context (good):* "The ingest module has 14 public functions and is imported
+  by 3 callers." — an observation the panel can reason from.
+- *Not context (bad):* "The ingest module is doing too much and should be
+  split." — the asker's conclusion, which pre-decides the debate.
+
+Three specific Context-section failures, all found in past debates:
+
+- **Stating a diagnosis as background.** "Insight from the architect: tier
+  transitions need explicit triggers" pre-commits the panel to the conclusion
+  the debate was supposed to reach.
+- **Pre-listing the gaps or failures** the question is meant to discover. Hand
+  the panel an answer list and it surveys your list instead of the problem.
+- **Naming pain points as the frame.** "This is confusing and over-structured"
+  tells the panel what to conclude before it has seen any evidence.
+
+*Test for any Context line:* could a reasonable person draw a different
+conclusion from this same fact? If the line already states the conclusion, it
+belongs in your head, not in the question.
+
 ### Pre-flight self-check
 
 Before submitting any Council question, in any mode, answer these:
