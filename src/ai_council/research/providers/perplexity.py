@@ -47,7 +47,16 @@ class PerplexityProvider(ResearchProvider):
         start = time.monotonic()
         timestamp = datetime.utcnow().isoformat()
 
-        client = AsyncOpenAI(api_key=self._api_key, base_url=_BASE_URL)
+        # Pass timeout + max_retries into the SDK so the configured timeout_sec
+        # controls request lifetime and the SDK owns the single transient retry
+        # (Fix-A parity with openai_mini). Outer asyncio.wait_for stays as the
+        # hard cancellation guard.
+        client = AsyncOpenAI(
+            api_key=self._api_key,
+            base_url=_BASE_URL,
+            timeout=float(self._timeout_sec),
+            max_retries=1,
+        )
         try:
             response = await asyncio.wait_for(
                 client.chat.completions.create(

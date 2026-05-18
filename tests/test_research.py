@@ -391,6 +391,60 @@ class TestResearchProviderError:
 
 
 # ---------------------------------------------------------------------------
+# PerplexityProvider — SDK timeout + retry hardening (Fix-A parity)
+# ---------------------------------------------------------------------------
+
+class TestPerplexityProviderHardening:
+    """Perplexity must pass SDK-level timeout + max_retries=1 to AsyncOpenAI.
+
+    The audit (2026-05-18) flagged that perplexity was the only research provider
+    still on the old single-shot pattern (asyncio.wait_for only, no SDK retry).
+    These tests pin the post-fix shape so it does not regress.
+    """
+
+    def _make_provider(self, timeout_sec: int = 240):
+        from ai_council.research.providers.perplexity import PerplexityProvider
+        return PerplexityProvider(api_key="test-key", timeout_sec=timeout_sec)
+
+    async def test_passes_timeout_and_max_retries_to_sdk(self) -> None:
+        provider = self._make_provider(timeout_sec=240)
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="ok"))]
+        mock_response.usage = MagicMock(prompt_tokens=10, completion_tokens=20)
+        mock_response.citations = []
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.perplexity.AsyncOpenAI",
+            return_value=mock_client,
+        ) as mock_ctor:
+            await provider.research("test query")
+
+        ctor_kwargs = mock_ctor.call_args.kwargs
+        assert ctor_kwargs.get("timeout") == 240.0, (
+            "Perplexity must pass timeout into AsyncOpenAI so the SDK enforces it"
+        )
+        assert ctor_kwargs.get("max_retries") == 1, (
+            "Perplexity must enable a single SDK-level transient retry (Fix-A parity)"
+        )
+
+    def test_settings_yaml_perplexity_timeout_above_floor(self) -> None:
+        """Perplexity timeout must stay comfortably above the measured ~68s.
+
+        Floor is 120s, not the literal current value: the regression we want
+        to catch is "someone reverts to the old 60s ceiling," not "someone
+        tunes the value within a healthy range." Real sonar-pro briefs were
+        measured at ~68s, so anything < 120s leaves no transient headroom.
+        """
+        import yaml
+        settings_path = Path(__file__).resolve().parent.parent / "config" / "settings.yaml"
+        data = yaml.safe_load(settings_path.read_text(encoding="utf-8"))
+        ppx = data["research"]["providers"]["perplexity"]
+        assert ppx["timeout_sec"] >= 120
+
+
+# ---------------------------------------------------------------------------
 # GeminiResearchProvider (Interactions API)
 # ---------------------------------------------------------------------------
 
