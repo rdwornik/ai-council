@@ -53,6 +53,16 @@ def save_research_to_file(
     lines.append(f"**Sources found:** {report.total_sources}")
     lines.append("")
 
+    if report.degraded:
+        successful_count = sum(1 for r in report.results if not r.error and r.content)
+        total_panel = successful_count + report.failed_count
+        lines.append(
+            f"> [!WARNING] **Degraded research panel** — {report.failed_count} of "
+            f"{total_panel} providers failed (includes build-time drops for missing API keys). "
+            "Report below is based on the survivors only. See ADR-08."
+        )
+        lines.append("")
+
     # Provider summary table
     lines.append("## Provider Summary\n")
     lines.append("| Provider | Status | Duration | Cost | Sources |")
@@ -147,6 +157,21 @@ def print_research_summary(
         f"  |  {report.total_sources} unique sources[/dim]"
     )
     console.print()
+
+    if report.degraded:
+        successful_count = sum(1 for r in report.results if not r.error and r.content)
+        total_panel = successful_count + report.failed_count
+        console.print(Rule("[bold red]!! DEGRADED RESEARCH PANEL !![/bold red]", style="red"))
+        console.print(
+            f"[bold red]{report.failed_count} of {total_panel} providers failed[/bold red] "
+            "(includes build-time drops for missing API keys). "
+            f"Report based on {successful_count} survivor(s). "
+            "[dim]See ADR-08; process will exit with code 3.[/dim]"
+        )
+        failed_names = [r.provider for r in report.results if r.error]
+        if failed_names:
+            console.print(f"[dim red]Failed providers (API-call): {', '.join(failed_names)}[/dim red]")
+        console.print()
 
     # Print summary section
     console.print(Rule("[bold]Summary[/bold]"))

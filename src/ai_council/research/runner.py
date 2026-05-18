@@ -174,6 +174,13 @@ async def run_research(
                 print(json.dumps(dataclasses.asdict(cached), indent=2, default=str), file=sys.stdout)
             return cached
 
+    # Compute selected panel (post --models filter) for degradation denominator.
+    # build_research_providers returns only providers that built successfully;
+    # selected_panel includes names that dropped at build time (missing API key).
+    selected_panel = research_cfg.deep_providers if deep else research_cfg.default_providers
+    if models_filter:
+        selected_panel = [n for n in selected_panel if n in models_filter]
+
     # Build providers
     providers = build_research_providers(config, deep=deep, models_filter=models_filter)
     if not providers:
@@ -185,8 +192,14 @@ async def run_research(
     # Run in parallel with live display
     results = await run_research_with_display(providers, query, console=console)
 
-    # Merge
-    report = merge_results(query, results, cache_key=cache_key)
+    # Merge (passes denominator + threshold so report.degraded is populated)
+    report = merge_results(
+        query,
+        results,
+        cache_key=cache_key,
+        selected_panel=selected_panel,
+        min_successful=research_cfg.min_successful_providers,
+    )
 
     # Summarize (async LLM call)
     report = await summarize_report(report, research_cfg, config.models)

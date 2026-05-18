@@ -1376,7 +1376,8 @@ class TestDegradationDetection:
         results = [_make_result("p1", error="fail", content="")]
         report = merge_results("q", results)
         assert report.degraded is False
-        assert report.failed_count == 0
+        # failed_count still tracks errored results (informational when no panel given)
+        assert report.failed_count == 1
 
 
 class TestDegradationBannerConsole:
@@ -1482,7 +1483,7 @@ class TestDegradationCLIExitCode:
     def test_cli_exits_3_on_degraded_run(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
-        from ai_council.cli import cli as cli_root
+        from ai_council.cli import main as cli_root
 
         async def fake_run_research(*args, **kwargs):
             return MergedResearchReport(
@@ -1495,18 +1496,19 @@ class TestDegradationCLIExitCode:
             )
 
         with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
-             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True):
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
             runner = CliRunner()
             result = runner.invoke(
                 cli_root,
-                ["-M", "r", "--output-dir", str(tmp_path), "trivial query"],
+                ["-M", "r", "--output", str(tmp_path), "trivial query"],
             )
         assert result.exit_code == 3, f"expected exit 3 on degraded; got {result.exit_code}\n{result.output}"
 
     def test_cli_exits_0_on_healthy_run(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
-        from ai_council.cli import cli as cli_root
+        from ai_council.cli import main as cli_root
 
         async def fake_run_research(*args, **kwargs):
             return MergedResearchReport(
@@ -1519,10 +1521,11 @@ class TestDegradationCLIExitCode:
             )
 
         with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
-             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True):
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
             runner = CliRunner()
             result = runner.invoke(
                 cli_root,
-                ["-M", "r", "--output-dir", str(tmp_path), "trivial query"],
+                ["-M", "r", "--output", str(tmp_path), "trivial query"],
             )
         assert result.exit_code == 0, f"expected exit 0 on healthy; got {result.exit_code}\n{result.output}"
