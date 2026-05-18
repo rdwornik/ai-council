@@ -87,6 +87,7 @@ class ResearchProviderConfig:
     cost_per_1m_output: float = 0.0
     base_url: str | None = None
     poll_interval_sec: int = 10
+    reasoning_effort: str | None = None  # e.g. "low", "medium", "high" — for reasoning-capable models
 
 
 @dataclass
@@ -359,6 +360,9 @@ def _load_research_config(raw: dict) -> ResearchConfig:
             cost_per_1m_output=float(p_raw.get("cost_per_1m_output", 0.0)),
             base_url=str(p_raw["base_url"]) if "base_url" in p_raw else None,
             poll_interval_sec=int(p_raw.get("poll_interval_sec", 10)),
+            reasoning_effort=(
+                str(p_raw["reasoning_effort"]) if "reasoning_effort" in p_raw else None
+            ),
         )
 
     cache_dir_raw = str(raw.get("cache_dir", "~/.ai-council/research_cache"))

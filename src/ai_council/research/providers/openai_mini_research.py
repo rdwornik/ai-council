@@ -53,10 +53,17 @@ class OpenAIMiniResearchProvider(ResearchProvider):
         start = time.monotonic()
         timestamp = datetime.utcnow().isoformat()
 
-        client = AsyncOpenAI(api_key=self._api_key)
+        # Pass timeout + max_retries into the SDK so the configured timeout_sec actually
+        # controls request lifetime, and the SDK owns the (single) transient retry. The
+        # outer asyncio.wait_for stays as a hard cancellation guard.
+        client = AsyncOpenAI(
+            api_key=self._api_key,
+            timeout=float(self._timeout_sec),
+            max_retries=1,
+        )
         try:
             response = await asyncio.wait_for(
-                self._call_with_retry(client, query),
+                self._call(client, query),
                 timeout=self._timeout_sec,
             )
         except asyncio.TimeoutError as exc:
@@ -90,14 +97,6 @@ class OpenAIMiniResearchProvider(ResearchProvider):
             duration_sec=duration,
             timestamp=timestamp,
         )
-
-    async def _call_with_retry(self, client: AsyncOpenAI, query: str):
-        """Single-shot retry around a transient APIError/APITimeoutError."""
-        try:
-            return await self._call(client, query)
-        except (APIError, APITimeoutError) as exc:
-            logger.warning("openai_mini: transient failure (%s); retrying once", exc)
-            return await self._call(client, query)
 
     async def _call(self, client: AsyncOpenAI, query: str):
         return await client.responses.create(

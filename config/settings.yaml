@@ -415,6 +415,7 @@ research:
       timeout_sec: 1800
       cost_per_1m_input: 5.00
       cost_per_1m_output: 30.00
+      reasoning_effort: "high"
 
     grok:
       model: "grok-4.20-reasoning"

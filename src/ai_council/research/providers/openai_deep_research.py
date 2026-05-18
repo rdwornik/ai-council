@@ -55,10 +55,14 @@ class OpenAIDeepResearchProvider(ResearchProvider):
         start = time.monotonic()
         timestamp = datetime.utcnow().isoformat()
 
-        client = AsyncOpenAI(api_key=self._api_key)
+        client = AsyncOpenAI(
+            api_key=self._api_key,
+            timeout=float(self._timeout_sec),
+            max_retries=1,
+        )
         try:
             response = await asyncio.wait_for(
-                self._call_with_retry(client, query),
+                self._call(client, query),
                 timeout=self._timeout_sec,
             )
         except asyncio.TimeoutError as exc:
@@ -92,13 +96,6 @@ class OpenAIDeepResearchProvider(ResearchProvider):
             duration_sec=duration,
             timestamp=timestamp,
         )
-
-    async def _call_with_retry(self, client: AsyncOpenAI, query: str):
-        try:
-            return await self._call(client, query)
-        except (APIError, APITimeoutError) as exc:
-            logger.warning("openai_deep: transient failure (%s); retrying once", exc)
-            return await self._call(client, query)
 
     async def _call(self, client: AsyncOpenAI, query: str):
         return await client.responses.create(
