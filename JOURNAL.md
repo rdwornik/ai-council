@@ -1,5 +1,17 @@
 # Journal — ai-council
 
+### 2026-05-18 — Claude billing-condition diagnosis + mode-scoped health gate
+
+Operator reported `council --inbox -M r` blocked at startup by health-check failures on `claude` / `claude-sonnet` (HTTP 400 from `api.anthropic.com`). Single live reproduction with full body capture isolated the cause as account-level: Anthropic returns `400 invalid_request_error` with message `"Your credit balance is too low to access the Anthropic API"` when the org is out of credits — not a code bug, not a stale model alias, not an SDK / `anthropic-version` mismatch. Model strings `claude-opus-4-7` / `claude-sonnet-4-6` and the request envelope were all accepted by the server. Git evidence: neither `fix/openai-research-provider-migration` nor `fix/research-panel-degradation-alarm` touched `claude` config, `anthropic.py`, or `healthcheck.py` — operator hypothesis falsified.
+
+**Result:** Two follow-up code fixes (since the billing condition is operator-handled out of band): (1) `classify_error` now recognises billing exhaustion (Anthropic `credit balance is too low` + OpenAI `insufficient_quota`) as a distinct non-retryable `"billing"` category with a clear health-check message — the prior `"invalid request during health check"` was opaque and misled diagnosis. (2) `council -M r` (research) now health-checks only the summarizer (`deepseek` by default), non-blocking; the merger's existing truncation fallback (`research/merger.py:184-186`) means a summarizer outage warns but never blocks retrieval. Debate modes preserve the full-pool blocking gate. Decision lives in a small testable helper `_select_health_check_targets`.
+
+**Out of scope / known:** Two `tests/test_research.py::TestDegradationCLIExitCode` cases fail in the full suite for the same billing condition (they make live `claude` API calls and take 5 min each) — pre-existing, resolves on top-up; not marked `@pytest.mark.integration` today.
+
+**Changes:** `src/ai_council/cli.py`, `src/ai_council/providers/base.py`, `src/ai_council/healthcheck.py`, `tests/test_cli.py`, `tests/test_base_provider.py`, `tests/test_healthcheck.py`.
+
+---
+
 ### 2026-05-18 — Research-panel degradation alarm + provider doc reconciliation
 
 Closed the systemic finding from the 2026-05-18 health-check audit by adding a loud aggregate alarm: when fewer than `min_successful_providers` succeed (default 3, denominator = selected panel including build-time dropouts), the research run still completes but emits a banner in console + saved markdown and the CLI exits with code 3 (distinct from Click's reserved 2). Decision recorded as ADR-08. Verified the configured Gemini agent ID `deep-research-preview-04-2026` is accepted at runtime via one minimal live `interactions.create()` call; CLAUDE.md Gotcha entry updated. Reconciled CLAUDE.md Grok provider-table row to match `settings.yaml` (`grok-4.20-reasoning`).

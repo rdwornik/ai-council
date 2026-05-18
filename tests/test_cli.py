@@ -178,6 +178,151 @@ def test_non_participant_all_in_panel_no_preferred():
     assert synth.name() in {"claude", "gemini"}
 
 
+# ---------------------------------------------------------------------------
+# Mode-scoped health-check gating (Issue 2)
+# ---------------------------------------------------------------------------
+
+
+def _modes_with_research() -> dict:
+    """Minimal modes dict including 'research' with its 'r' alias — enough for resolve_mode."""
+    from config.config_loader import ModeConfig
+
+    def _m(aliases, default=False, max_rounds=2):
+        return ModeConfig(
+            description="", emoji="", aliases=aliases, default=default,
+            max_rounds=max_rounds, token_budget=4096,
+        )
+
+    return {
+        "pick": _m(["p", "decide", "d"], default=True),
+        "ideas": _m(["i"], max_rounds=1),
+        "judge": _m(["j"]),
+        "research": _m(["r"], max_rounds=1),
+    }
+
+
+def _research_cfg(summary_model: str = "deepseek"):
+    from config.config_loader import ResearchConfig
+
+    return ResearchConfig(
+        default_providers=["perplexity"],
+        deep_providers=["perplexity"],
+        cache_dir=Path("/tmp/cache"),
+        cache_ttl_days=7,
+        summary_max_tokens=2500,
+        summary_model=summary_model,
+    )
+
+
+def test_health_check_targets_research_returns_summarizer_only_nonblocking():
+    """--mode research → only the summarizer is health-checked, and the gate is non-blocking."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {
+        "claude": MockProvider("claude"),
+        "claude-sonnet": MockProvider("claude-sonnet"),
+        "gemini": MockProvider("gemini"),
+        "deepseek": MockProvider("deepseek"),
+        "openai": MockProvider("openai"),
+        "grok": MockProvider("grok"),
+    }
+    targets, blocking, missing = _select_health_check_targets(
+        providers,
+        cli_mode_arg="r",
+        modes=_modes_with_research(),
+        research_cfg=_research_cfg("deepseek"),
+    )
+    assert list(targets.keys()) == ["deepseek"]
+    assert blocking is False
+    assert missing is None
+
+
+def test_health_check_targets_research_canonical_name():
+    """'research' (canonical) resolves identically to 'r' (alias)."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {"deepseek": MockProvider("deepseek"), "claude": MockProvider("claude")}
+    targets, blocking, missing = _select_health_check_targets(
+        providers,
+        cli_mode_arg="research",
+        modes=_modes_with_research(),
+        research_cfg=_research_cfg("deepseek"),
+    )
+    assert set(targets.keys()) == {"deepseek"}
+    assert blocking is False
+    assert missing is None
+
+
+def test_health_check_targets_research_summarizer_missing_returns_name_for_warning():
+    """If the summarizer model failed to build, return empty + non-blocking + the name
+    so the caller can emit an explicit WARN instead of silently doing nothing."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {"claude": MockProvider("claude"), "gemini": MockProvider("gemini")}
+    targets, blocking, missing = _select_health_check_targets(
+        providers,
+        cli_mode_arg="r",
+        modes=_modes_with_research(),
+        research_cfg=_research_cfg("deepseek"),  # deepseek not in providers
+    )
+    assert targets == {}
+    assert blocking is False
+    assert missing == "deepseek"
+
+
+def test_health_check_targets_debate_mode_returns_full_pool_blocking():
+    """--mode pick / ideas / judge → full provider pool, blocking gate (current behaviour)."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {
+        "claude": MockProvider("claude"),
+        "gemini": MockProvider("gemini"),
+        "deepseek": MockProvider("deepseek"),
+    }
+    for mode_arg in ("pick", "p", "ideas", "i", "judge", "j"):
+        targets, blocking, missing = _select_health_check_targets(
+            providers,
+            cli_mode_arg=mode_arg,
+            modes=_modes_with_research(),
+            research_cfg=_research_cfg("deepseek"),
+        )
+        assert set(targets.keys()) == {"claude", "gemini", "deepseek"}, mode_arg
+        assert blocking is True, mode_arg
+        assert missing is None, mode_arg
+
+
+def test_health_check_targets_no_mode_arg_defaults_to_full_blocking():
+    """No --mode flag (auto-detect path) → full pool, blocking. Pre-existing behaviour."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {"claude": MockProvider("claude"), "gemini": MockProvider("gemini")}
+    targets, blocking, missing = _select_health_check_targets(
+        providers,
+        cli_mode_arg=None,
+        modes=_modes_with_research(),
+        research_cfg=_research_cfg("deepseek"),
+    )
+    assert set(targets.keys()) == {"claude", "gemini"}
+    assert blocking is True
+    assert missing is None
+
+
+def test_health_check_targets_research_without_research_cfg_falls_back_to_full():
+    """If config.research is None (mis-config), don't crash — fall back to full pool / blocking."""
+    from ai_council.cli import _select_health_check_targets
+
+    providers = {"claude": MockProvider("claude")}
+    targets, blocking, missing = _select_health_check_targets(
+        providers,
+        cli_mode_arg="r",
+        modes=_modes_with_research(),
+        research_cfg=None,
+    )
+    assert set(targets.keys()) == {"claude"}
+    assert blocking is True
+    assert missing is None
+
+
 # --- _exclude_synthesizer_from_panel tests ---
 
 

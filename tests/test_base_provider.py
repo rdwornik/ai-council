@@ -66,6 +66,26 @@ def test_classify_content_policy():
     assert classify_error(Exception("content_policy violation detected")) == "content_policy"
 
 
+def test_classify_billing_credit_balance():
+    """Anthropic returns HTTP 400 invalid_request_error with 'credit balance is too low'
+    when the org has no credits. Must classify as 'billing', not the opaque 'invalid_request'."""
+    exc = Exception(
+        "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+        "'message': 'Your credit balance is too low to access the Anthropic API. "
+        "Please go to Plans & Billing to upgrade or purchase credits.'}}"
+    )
+    assert classify_error(exc) == "billing"
+
+
+def test_classify_billing_insufficient_quota():
+    """OpenAI surfaces billing exhaustion as 'insufficient_quota' / 'You exceeded your current quota'."""
+    exc = Exception(
+        "Error code: 429 - insufficient_quota: You exceeded your current quota, "
+        "please check your plan and billing details."
+    )
+    assert classify_error(exc) == "billing"
+
+
 def test_classify_unknown():
     assert classify_error(Exception("some weird unforeseen error xyzzy")) == "unknown"
 
@@ -109,3 +129,8 @@ def test_not_retryable_content_policy():
 
 def test_not_retryable_unknown():
     assert is_retryable("unknown") is False
+
+
+def test_not_retryable_billing():
+    """Billing failures must not retry — they aren't transient."""
+    assert is_retryable("billing") is False

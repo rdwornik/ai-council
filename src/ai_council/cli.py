@@ -24,7 +24,13 @@ from ai_council.providers.openai_provider import OpenAIProvider
 from ai_council.providers.xai import XAIProvider
 from ai_council.routing import RoutingError, TargetResolver
 from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
-from config.config_loader import default_mode, load_config, resolve_mode
+from config.config_loader import (
+    ModeConfig,
+    ResearchConfig,
+    default_mode,
+    load_config,
+    resolve_mode,
+)
 
 logger = logging.getLogger(__name__)
 console = Console(legacy_windows=False)
@@ -83,6 +89,78 @@ def _check_and_filter_providers(
 
     console.print()
     return working
+
+
+def _select_health_check_targets(
+    all_providers: dict[str, AIProvider],
+    *,
+    cli_mode_arg: str | None,
+    modes: dict[str, ModeConfig],
+    research_cfg: ResearchConfig | None,
+) -> tuple[dict[str, AIProvider], bool, str | None]:
+    """Decide which providers to health-check and whether the gate is blocking.
+
+    Research mode reaches the debate-provider pool only for the summarizer;
+    the retrieval providers are a separate pool and have their own ADR-08
+    degradation handling. So for an explicit --mode research / -M r, check
+    only the summarizer, and never block (summarizer outage is non-fatal —
+    research/merger.py falls back to truncation). All other modes keep the
+    pre-existing behaviour: ping the full debate pool with a blocking gate.
+
+    Returns (targets, blocking, missing_summarizer_name). The third element
+    is the configured summarizer name when research mode is selected but the
+    summarizer provider failed to build (e.g. missing API key) — callers
+    surface this as a non-blocking warning at startup.
+    """
+    if cli_mode_arg is not None and modes and research_cfg is not None:
+        try:
+            resolved = resolve_mode(cli_mode_arg, modes)
+        except ValueError:
+            resolved = None
+        if resolved == "research":
+            name = research_cfg.summary_model
+            if name in all_providers:
+                return {name: all_providers[name]}, False, None
+            return {}, False, name
+    return all_providers, True, None
+
+
+def _check_summarizer_health(
+    summarizer_providers: dict[str, AIProvider],
+    *,
+    missing_name: str | None = None,
+) -> None:
+    """Run a non-blocking health check on the research summarizer.
+
+    Prints OK/FAIL but never gates: research mode's own merger handles a
+    summarizer outage with a truncation fallback. Surfacing the failure
+    upfront lets the operator fix the key before minutes of retrieval work.
+
+    If `missing_name` is set, the summarizer failed to build (no API key /
+    init error) — warn explicitly instead of silently doing nothing.
+    """
+    if not summarizer_providers and missing_name is None:
+        return
+    console.print("\n[bold]Checking research summarizer...[/bold]")
+    if missing_name is not None:
+        console.print(
+            f"  [yellow]WARN[/yellow] {missing_name} (summarizer): "
+            f"unavailable (missing API key or provider init failed)"
+            f"\n  [dim]Research will fall back to truncation summary.[/dim]"
+        )
+    if summarizer_providers:
+        results = asyncio.run(run_health_checks(summarizer_providers))
+        for name in sorted(results):
+            ok, err = results[name]
+            if ok:
+                console.print(f"  [green]OK  [/green] {name} (summarizer)")
+            else:
+                short_err = err.splitlines()[0][:120] if err else "unknown error"
+                console.print(
+                    f"  [yellow]WARN[/yellow] {name} (summarizer): {short_err}"
+                    f"\n  [dim]Research will fall back to truncation summary.[/dim]"
+                )
+    console.print()
 
 
 def _interactive_confirm_mode(
@@ -309,7 +387,16 @@ def main(
         sys.exit(1)
 
     if not skip_health_check:
-        all_providers = _check_and_filter_providers(all_providers)
+        check_targets, blocking, missing_summarizer = _select_health_check_targets(
+            all_providers,
+            cli_mode_arg=mode_arg,
+            modes=config.modes,
+            research_cfg=config.research,
+        )
+        if blocking:
+            all_providers = _check_and_filter_providers(check_targets)
+        else:
+            _check_summarizer_health(check_targets, missing_name=missing_summarizer)
 
     runner = CouncilRunner(all_providers, config)
     policy = RunPolicy.default()

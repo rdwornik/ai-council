@@ -9,7 +9,7 @@ RETRYABLE_ERRORS: frozenset[str] = frozenset(
     {"timeout", "rate_limit", "connection_error", "server_error"}
 )
 NON_RETRYABLE_ERRORS: frozenset[str] = frozenset(
-    {"auth", "model_not_found", "content_policy", "invalid_request"}
+    {"auth", "model_not_found", "content_policy", "invalid_request", "billing"}
 )
 
 
@@ -17,10 +17,21 @@ def classify_error(exc: Exception) -> str:
     """Map an exception to a canonical error category string.
 
     Returns one of: timeout, rate_limit, auth, model_not_found, connection_error,
-    server_error, content_policy, invalid_request, unknown.
+    server_error, content_policy, invalid_request, billing, unknown.
     Used by healthcheck and retry logic to produce specific messages.
     """
     msg = str(exc).lower()
+    # Billing exhaustion comes through 400 (Anthropic: "credit balance is too low")
+    # or 429 (OpenAI: "insufficient_quota"). Check before generic rate_limit / invalid.
+    if (
+        "credit balance" in msg
+        or "insufficient_quota" in msg
+        or "insufficient quota" in msg
+        or "exceeded your current quota" in msg
+        or "plans & billing" in msg
+        or "billing details" in msg
+    ):
+        return "billing"
     if "timeout" in msg or "timed out" in msg:
         return "timeout"
     if "429" in msg or "rate limit" in msg or "rate_limit" in msg:
