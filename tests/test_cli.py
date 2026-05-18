@@ -226,7 +226,7 @@ def test_health_check_targets_research_returns_summarizer_only_nonblocking():
         "openai": MockProvider("openai"),
         "grok": MockProvider("grok"),
     }
-    targets, blocking = _select_health_check_targets(
+    targets, blocking, missing = _select_health_check_targets(
         providers,
         cli_mode_arg="r",
         modes=_modes_with_research(),
@@ -234,6 +234,7 @@ def test_health_check_targets_research_returns_summarizer_only_nonblocking():
     )
     assert list(targets.keys()) == ["deepseek"]
     assert blocking is False
+    assert missing is None
 
 
 def test_health_check_targets_research_canonical_name():
@@ -241,7 +242,7 @@ def test_health_check_targets_research_canonical_name():
     from ai_council.cli import _select_health_check_targets
 
     providers = {"deepseek": MockProvider("deepseek"), "claude": MockProvider("claude")}
-    targets, blocking = _select_health_check_targets(
+    targets, blocking, missing = _select_health_check_targets(
         providers,
         cli_mode_arg="research",
         modes=_modes_with_research(),
@@ -249,14 +250,16 @@ def test_health_check_targets_research_canonical_name():
     )
     assert set(targets.keys()) == {"deepseek"}
     assert blocking is False
+    assert missing is None
 
 
-def test_health_check_targets_research_summarizer_missing_returns_empty_nonblocking():
-    """If the summarizer model isn't in the provider pool, return empty + non-blocking — never gate."""
+def test_health_check_targets_research_summarizer_missing_returns_name_for_warning():
+    """If the summarizer model failed to build, return empty + non-blocking + the name
+    so the caller can emit an explicit WARN instead of silently doing nothing."""
     from ai_council.cli import _select_health_check_targets
 
     providers = {"claude": MockProvider("claude"), "gemini": MockProvider("gemini")}
-    targets, blocking = _select_health_check_targets(
+    targets, blocking, missing = _select_health_check_targets(
         providers,
         cli_mode_arg="r",
         modes=_modes_with_research(),
@@ -264,6 +267,7 @@ def test_health_check_targets_research_summarizer_missing_returns_empty_nonblock
     )
     assert targets == {}
     assert blocking is False
+    assert missing == "deepseek"
 
 
 def test_health_check_targets_debate_mode_returns_full_pool_blocking():
@@ -276,7 +280,7 @@ def test_health_check_targets_debate_mode_returns_full_pool_blocking():
         "deepseek": MockProvider("deepseek"),
     }
     for mode_arg in ("pick", "p", "ideas", "i", "judge", "j"):
-        targets, blocking = _select_health_check_targets(
+        targets, blocking, missing = _select_health_check_targets(
             providers,
             cli_mode_arg=mode_arg,
             modes=_modes_with_research(),
@@ -284,6 +288,7 @@ def test_health_check_targets_debate_mode_returns_full_pool_blocking():
         )
         assert set(targets.keys()) == {"claude", "gemini", "deepseek"}, mode_arg
         assert blocking is True, mode_arg
+        assert missing is None, mode_arg
 
 
 def test_health_check_targets_no_mode_arg_defaults_to_full_blocking():
@@ -291,7 +296,7 @@ def test_health_check_targets_no_mode_arg_defaults_to_full_blocking():
     from ai_council.cli import _select_health_check_targets
 
     providers = {"claude": MockProvider("claude"), "gemini": MockProvider("gemini")}
-    targets, blocking = _select_health_check_targets(
+    targets, blocking, missing = _select_health_check_targets(
         providers,
         cli_mode_arg=None,
         modes=_modes_with_research(),
@@ -299,6 +304,7 @@ def test_health_check_targets_no_mode_arg_defaults_to_full_blocking():
     )
     assert set(targets.keys()) == {"claude", "gemini"}
     assert blocking is True
+    assert missing is None
 
 
 def test_health_check_targets_research_without_research_cfg_falls_back_to_full():
@@ -306,7 +312,7 @@ def test_health_check_targets_research_without_research_cfg_falls_back_to_full()
     from ai_council.cli import _select_health_check_targets
 
     providers = {"claude": MockProvider("claude")}
-    targets, blocking = _select_health_check_targets(
+    targets, blocking, missing = _select_health_check_targets(
         providers,
         cli_mode_arg="r",
         modes=_modes_with_research(),
@@ -314,6 +320,7 @@ def test_health_check_targets_research_without_research_cfg_falls_back_to_full()
     )
     assert set(targets.keys()) == {"claude"}
     assert blocking is True
+    assert missing is None
 
 
 # --- _exclude_synthesizer_from_panel tests ---
