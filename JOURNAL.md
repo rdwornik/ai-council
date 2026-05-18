@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-18 — OpenAI research-provider migration
+
+Migrated `openai_mini` and `openai_deep` off the deprecated `o4-mini-deep-research` / `o3-deep-research` models onto the current `gpt-5.4-mini` / `gpt-5.5` + `web_search` Responses-API path. Sync call (background+poll dropped), single-shot retry on transient APIError, annotation-based parsers, real per-1M pricing in settings. Pre-migration live call confirmed `o4-mini-deep-research` returns `status=failed`; post-migration live calls verified non-empty content AND sources for both providers.
+
+**Changes:** `src/ai_council/research/providers/openai_mini_research.py`, `src/ai_council/research/providers/openai_deep_research.py`, `config/settings.yaml`, `tests/test_research.py`, `scripts/verify_openai_mini.py`, `scripts/verify_openai_deep.py`.
+
+---
+
 ### 2026-05-18 — Research-provider health check
 
 Diagnosed the five research providers; flagged `openai_mini` (likely deprecated `web_search_preview` tool name) and `grok` (model string `grok-4.20-reasoning` mismatches `CLAUDE.md` and may not resolve) as at-risk; also surfaced `openai_deep` (no search tool passed) and a `gemini` agent-ID mismatch. Report is evidence, not a fix.
