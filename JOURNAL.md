@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-18 — Research-provider health check
+
+Diagnosed the five research providers; flagged `openai_mini` (likely deprecated `web_search_preview` tool name) and `grok` (model string `grok-4.20-reasoning` mismatches `CLAUDE.md` and may not resolve) as at-risk; also surfaced `openai_deep` (no search tool passed) and a `gemini` agent-ID mismatch. Report is evidence, not a fix.
+
+**Changes:** `docs/audits/2026-05-18-research-provider-health-check.md`.
+
+---
+
 ### 2026-05-17 — Research-mode format in question guide
 
 `council-question-guide.md` now gives `research` mode its own retrieval-brief format (`### Background` / `### What to find out` / `### Source rules` / `### Output wanted`); decision-mode sections scoped with blockquotes pointing to the new format.
