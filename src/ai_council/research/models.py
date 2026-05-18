@@ -36,3 +36,5 @@ class MergedResearchReport:
     total_cost_usd: float = 0.0
     total_duration_sec: float = 0.0
     cache_key: str = ""
+    degraded: bool = False
+    failed_count: int = 0

@@ -86,8 +86,16 @@ def merge_results(
     query: str,
     results: list[ResearchResult],
     cache_key: str = "",
+    selected_panel: list[str] | None = None,
+    min_successful: int | None = None,
 ) -> MergedResearchReport:
-    """Merge research results into a single report (no LLM call)."""
+    """Merge research results into a single report (no LLM call).
+
+    selected_panel: provider names selected for this invocation (post --models filter).
+    Used as the denominator for degradation: a provider that dropped at build time
+    (missing API key) is not in `results` but IS in `selected_panel`, so it counts
+    as a failure. See ADR-08.
+    """
     successful = [r for r in results if not r.error and r.content]
 
     all_sources: list[Source] = []
@@ -100,6 +108,15 @@ def merge_results(
     total_cost = sum(r.cost_usd for r in results)
     total_duration = max((r.duration_sec for r in results), default=0.0)
 
+    if selected_panel is not None:
+        failed_count = max(0, len(selected_panel) - len(successful))
+    else:
+        failed_count = sum(1 for r in results if r.error or not r.content)
+
+    degraded = (
+        min_successful is not None and len(successful) < min_successful
+    )
+
     return MergedResearchReport(
         query=query,
         results=results,
@@ -109,6 +126,8 @@ def merge_results(
         total_cost_usd=total_cost,
         total_duration_sec=total_duration,
         cache_key=cache_key,
+        degraded=degraded,
+        failed_count=failed_count,
     )
 
 

@@ -203,7 +203,7 @@ Old `dict[name, full_path]` shape fails loud at load with a migration hint (ADR-
 | Provider | Key env var | Default | --deep only | Notes |
 |----------|-------------|---------|------------|-------|
 | `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
-| `grok` | `XAI_API_KEY` | yes | no | grok-3; Responses API; x_search + web_search; unique X/Twitter signal |
+| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-reasoning; Responses API; x_search + web_search; unique X/Twitter signal |
 | `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
 | `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API (`deep-research-preview-04-2026`); autonomous agent; ~5-20 min |
 | `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
@@ -263,7 +263,7 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - **google-genai async**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
 - **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__` — otherwise it binds to the wrong event loop
 - **Interactions API experimental warnings**: `client.aio.interactions` emits `UserWarning: Interactions usage is experimental` on every access — suppress with `warnings.catch_warnings()` + `warnings.simplefilter("ignore", UserWarning)` in the call site
-- **Interactions API agent IDs**: The SDK type hint only knows `"deep-research-pro-preview-12-2025"` as of google-genai 1.73. Agent ID is configured in `settings.yaml` under `research.providers.gemini.model` — update there to switch agents
+- **Interactions API agent IDs**: The google-genai SDK type hint only knows `"deep-research-pro-preview-12-2025"` as of v1.73, but the **runtime accepts newer IDs** — verified 2026-05-18 that the configured `"deep-research-preview-04-2026"` is accepted by `interactions.create()`. Agent ID is configured in `settings.yaml` under `research.providers.gemini.model` — update there to switch agents; ignore SDK type-hint warnings
 - **Research make_cache_key location**: `make_cache_key()` lives in `src/research/merger.py`, NOT `src/research/cache.py`
 - **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
 

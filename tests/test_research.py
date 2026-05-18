@@ -1296,3 +1296,411 @@ class TestResearchPanelMembership:
         cfg = load_config()
         assert cfg.research is not None
         assert "openai_deep" in cfg.research.deep_providers
+
+
+# ---------------------------------------------------------------------------
+# Degradation alarm — threshold detection + banner + exit code
+# (ADR-08: complete-run + banner + exit 3; denominator = selected panel)
+# ---------------------------------------------------------------------------
+
+class TestDegradationDetection:
+    """merge_results populates degraded/failed_count against the selected panel."""
+
+    def test_degraded_false_when_all_succeed(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 0
+
+    def test_degraded_true_when_below_threshold(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", error="API error", content=""),
+            _make_result("p3", error="timeout", content=""),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3"], min_successful=3,
+        )
+        assert report.degraded is True
+        assert report.failed_count == 2
+
+    def test_degraded_at_threshold_boundary(self) -> None:
+        """Exactly at the threshold is NOT degraded."""
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+            _make_result("p4", error="fail", content=""),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 1
+
+    def test_build_time_dropout_counts_as_failure(self) -> None:
+        """A configured-4 panel where 1 dropped at build time + 3 succeed → degraded if min=4."""
+        # Only 3 results returned (one provider skipped at build time, missing API key).
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        # Selected panel was 4 — denominator includes the dropped provider.
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=4,
+        )
+        assert report.degraded is True
+        assert report.failed_count == 1  # p4 dropped at build time
+
+    def test_build_time_dropout_not_degraded_when_threshold_met(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 1  # still 1 dropped, but threshold met
+
+    def test_backward_compat_no_threshold_no_degradation(self) -> None:
+        """Existing callers that pass no threshold: degraded defaults to False."""
+        results = [_make_result("p1", error="fail", content="")]
+        report = merge_results("q", results)
+        assert report.degraded is False
+        # failed_count still tracks errored results (informational when no panel given)
+        assert report.failed_count == 1
+
+
+class TestDegradationBannerConsole:
+    """print_research_summary emits a loud banner when report.degraded."""
+
+    def test_banner_appears_when_degraded(self) -> None:
+        from rich.console import Console
+
+        from ai_council.research.output import print_research_summary
+
+        report = MergedResearchReport(
+            query="q",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="API error", content=""),
+                _make_result("p3", error="timeout", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            degraded=True,
+            failed_count=2,
+        )
+        buf = io.StringIO()
+        con = Console(file=buf, force_terminal=False, width=120)
+        print_research_summary(report, file_path=None, from_cache=False, console=con)
+        out = buf.getvalue()
+        assert "DEGRADED" in out.upper()
+        assert "2" in out  # failed_count surfaced
+
+    def test_no_banner_when_not_degraded(self) -> None:
+        from rich.console import Console
+
+        from ai_council.research.output import print_research_summary
+
+        report = MergedResearchReport(
+            query="q",
+            results=[_make_result("p1", "content")],
+            merged_report="m",
+            summary_2500="s",
+            degraded=False,
+            failed_count=0,
+        )
+        buf = io.StringIO()
+        con = Console(file=buf, force_terminal=False, width=120)
+        print_research_summary(report, file_path=None, from_cache=False, console=con)
+        assert "DEGRADED" not in buf.getvalue().upper()
+
+
+class TestDegradationBannerMarkdown:
+    """save_research_to_file inserts a warning admonition when degraded."""
+
+    def test_warning_block_at_top_when_degraded(self, tmp_path: Path) -> None:
+        from ai_council.research.output import save_research_to_file
+
+        report = MergedResearchReport(
+            query="q",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="x", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            degraded=True,
+            failed_count=1,
+        )
+        paths = save_research_to_file(report, tmp_path)
+        text = paths[0].read_text(encoding="utf-8")
+        # Warning admonition appears before the Provider Summary table.
+        warn_idx = text.find("WARNING")
+        table_idx = text.find("## Provider Summary")
+        assert warn_idx != -1, "warning block missing from degraded markdown"
+        assert warn_idx < table_idx, "warning block should appear before Provider Summary"
+
+    def test_no_warning_block_when_not_degraded(self, tmp_path: Path) -> None:
+        from ai_council.research.output import save_research_to_file
+
+        report = MergedResearchReport(
+            query="q",
+            results=[_make_result("p1", "content")],
+            merged_report="m",
+            summary_2500="s",
+            degraded=False,
+        )
+        paths = save_research_to_file(report, tmp_path)
+        text = paths[0].read_text(encoding="utf-8")
+        assert "WARNING" not in text.upper() or "Degraded" not in text
+
+
+class TestDegradationConfig:
+    """min_successful_providers loads from settings.yaml with sensible default."""
+
+    def test_config_field_present_with_default_3(self) -> None:
+        from config.config_loader import load_config
+        cfg = load_config()
+        assert cfg.research is not None
+        assert hasattr(cfg.research, "min_successful_providers")
+        assert cfg.research.min_successful_providers == 3
+
+
+class TestDegradationCLIExitCode:
+    """CLI exits 3 when run completes degraded; 0 when healthy."""
+
+    def test_cli_exits_3_on_degraded_run(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok"), _make_result("p2", error="x", content="")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=True,
+                failed_count=2,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                ["-M", "r", "--output", str(tmp_path), "trivial query"],
+            )
+        assert result.exit_code == 3, f"expected exit 3 on degraded; got {result.exit_code}\n{result.output}"
+
+    def test_degraded_report_survives_cache_roundtrip(self, tmp_path: Path) -> None:
+        """ADR-08: a degraded report restored from cache must still be flagged degraded."""
+        key = "degradedround16x"
+        original = MergedResearchReport(
+            query="cache-degraded test",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="API error", content=""),
+                _make_result("p3", error="timeout", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            total_sources=1,
+            total_cost_usd=0.05,
+            total_duration_sec=10.0,
+            cache_key=key,
+            degraded=True,
+            failed_count=2,
+        )
+        cache_put(tmp_path, key, original)
+
+        retrieved = cache_get(tmp_path, key, ttl_days=7)
+        assert retrieved is not None
+        assert retrieved.degraded is True, "cache roundtrip dropped degraded flag (ADR-08 regression)"
+        assert retrieved.failed_count == 2
+
+    def test_cli_exits_3_on_degraded_cache_hit(self, tmp_path: Path) -> None:
+        """ADR-08: a degraded run served from cache still emits banner and exits 3."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+        from ai_council.research.cache import cache_put as _cache_put
+        from config.config_loader import load_config
+
+        cfg = load_config()
+        assert cfg.research is not None
+        # Use a tmp cache dir to keep the test isolated.
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        original_cache_dir = cfg.research.cache_dir
+        cfg.research.cache_dir = cache_dir
+        try:
+            key = make_cache_key("trivial query")
+            degraded_report = MergedResearchReport(
+                query="trivial query",
+                results=[
+                    _make_result("p1", "content"),
+                    _make_result("p2", error="API error", content=""),
+                ],
+                merged_report="m",
+                summary_2500="s",
+                cache_key=key,
+                degraded=True,
+                failed_count=2,
+            )
+            _cache_put(cache_dir, key, degraded_report)
+
+            with patch("ai_council.cli.load_config", return_value=cfg), \
+                 patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+                runner = CliRunner()
+                result = runner.invoke(
+                    cli_root,
+                    ["-M", "r", "--output", str(tmp_path), "trivial query"],
+                )
+            assert result.exit_code == 3, (
+                f"degraded cache hit should exit 3; got {result.exit_code}\n{result.output}"
+            )
+        finally:
+            cfg.research.cache_dir = original_cache_dir
+
+    def test_inbox_exits_3_when_any_batch_run_degraded(self, tmp_path: Path) -> None:
+        """ADR-08: --inbox exits 3 if any research item was degraded; loop completes first."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        # Two inbox files, both research mode. Second one returns degraded.
+        inbox_dir = tmp_path / "inbox"
+        inbox_dir.mkdir()
+        archive_dir = inbox_dir / "archive"
+        archive_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        (inbox_dir / "01-healthy.md").write_text(
+            "---\nmode: research\n---\nHealthy query one.\n", encoding="utf-8",
+        )
+        (inbox_dir / "02-degraded.md").write_text(
+            "---\nmode: research\n---\nDegraded query two.\n", encoding="utf-8",
+        )
+
+        call_count = {"n": 0}
+
+        async def fake_run_research(*args, **kwargs):
+            call_count["n"] += 1
+            # First call healthy, second call degraded — proves loop continues past degradation.
+            is_degraded = call_count["n"] >= 2
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[
+                    _make_result("p1", "ok"),
+                    _make_result("p2", error="x" if is_degraded else None, content="" if is_degraded else "ok"),
+                ],
+                merged_report="m",
+                summary_2500="s",
+                degraded=is_degraded,
+                failed_count=1 if is_degraded else 0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                [
+                    "--inbox",
+                    "--inbox-dir", str(inbox_dir),
+                    "--output", str(output_dir),
+                    "--skip-health-check",
+                ],
+            )
+
+        assert call_count["n"] == 2, (
+            f"loop should have processed both inbox files; processed {call_count['n']}\n{result.output}"
+        )
+        assert result.exit_code == 3, (
+            f"inbox with any degraded run should exit 3; got {result.exit_code}\n{result.output}"
+        )
+
+    def test_inbox_exits_0_when_all_batch_runs_healthy(self, tmp_path: Path) -> None:
+        """ADR-08: --inbox exits 0 when every research item completed cleanly."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        inbox_dir = tmp_path / "inbox"
+        inbox_dir.mkdir()
+        archive_dir = inbox_dir / "archive"
+        archive_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        (inbox_dir / "healthy.md").write_text(
+            "---\nmode: research\n---\nA healthy query.\n", encoding="utf-8",
+        )
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=False,
+                failed_count=0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                [
+                    "--inbox",
+                    "--inbox-dir", str(inbox_dir),
+                    "--output", str(output_dir),
+                    "--skip-health-check",
+                ],
+            )
+
+        assert result.exit_code == 0, (
+            f"healthy inbox batch should exit 0; got {result.exit_code}\n{result.output}"
+        )
+
+    def test_cli_exits_0_on_healthy_run(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=False,
+                failed_count=0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                ["-M", "r", "--output", str(tmp_path), "trivial query"],
+            )
+        assert result.exit_code == 0, f"expected exit 0 on healthy; got {result.exit_code}\n{result.output}"

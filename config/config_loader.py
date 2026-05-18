@@ -99,6 +99,9 @@ class ResearchConfig:
     summary_max_tokens: int
     summary_model: str
     providers: dict[str, ResearchProviderConfig] = field(default_factory=dict)
+    # Denominator = selected panel post --models filter; build-time dropouts count as failures.
+    # Run completes but exits with code 3 (see ADR-08).
+    min_successful_providers: int = 3
 
 
 @dataclass
@@ -376,4 +379,5 @@ def _load_research_config(raw: dict) -> ResearchConfig:
         summary_max_tokens=int(raw.get("summary_max_tokens", 2500)),
         summary_model=str(raw.get("summary_model", "deepseek")),
         providers=providers,
+        min_successful_providers=int(raw.get("min_successful_providers", 3)),
     )

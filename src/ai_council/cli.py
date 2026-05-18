@@ -333,6 +333,8 @@ def main(
             click.echo("No files in inbox.")
             return
 
+        # ADR-08: track degraded research runs across the batch; exit 3 at end.
+        inbox_any_degraded = False
         for file_path in all_files:
             try:
                 question_text, meta = parse_file(file_path, resolver=resolver)
@@ -369,7 +371,7 @@ def main(
                     continue
                 from ai_council.research.runner import run_research
                 try:
-                    asyncio.run(
+                    fm_report = asyncio.run(
                         run_research(
                             query=question_text,
                             config=config,
@@ -382,6 +384,8 @@ def main(
                             target_paths=fm_target_paths or None,
                         )
                     )
+                    if fm_report is not None and fm_report.degraded:
+                        inbox_any_degraded = True
                     archived = archive_file(file_path, archive_dir)
                     if file_path in dl_set:
                         click.echo(f"Processed from Downloads: {file_path.name} -> archived")
@@ -424,6 +428,8 @@ def main(
             except Exception as e:
                 logger.error("Failed: %s -- %s", file_path.name, e)
                 archive_file(file_path, archive_dir, failed=True)
+        if inbox_any_degraded:
+            sys.exit(3)
         return
 
 
@@ -458,7 +464,7 @@ def main(
             sys.exit(1)
         from ai_council.research.runner import run_research
         try:
-            asyncio.run(
+            report = asyncio.run(
                 run_research(
                     query=question_text,
                     config=config,
@@ -474,6 +480,9 @@ def main(
         except RuntimeError as exc:
             console.print(f"[bold red]Research error:[/bold red] {exc}")
             sys.exit(1)
+        # Exit-code convention (ADR-08): 0 ok / 1 hard error / 2 Click usage / 3 degraded.
+        if report is not None and report.degraded:
+            sys.exit(3)
         return
 
     mode_cfg = config.modes.get(effective_mode)
