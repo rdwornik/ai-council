@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+### 2026-05-18 — Perplexity research-provider timeout fix
+
+Research run reported `perplexity ✗ timeout 1m 00s`. One live reproduction with a 300s ad-hoc ceiling (real council research brief through the actual provider code path) completed cleanly in **68.2s** with 25.7k chars and 8 sources — confirming Perplexity itself is healthy and the 60s ceiling was simply too tight. Audit (2026-05-18) had already flagged Perplexity as the only research provider still on the old single-shot pattern (no SDK retry, no SDK timeout).
+
+**Result:** Raised `research.providers.perplexity.timeout_sec` from 60 → 240 in `settings.yaml`, and passed `timeout=` + `max_retries=1` into `AsyncOpenAI` so the SDK enforces request lifetime and owns a single transient retry — Fix-A parity with `openai_mini_research.py`. Post-fix live verification: 69.1s clean. Outer `asyncio.wait_for` retained as the hard cancellation guard. Added a regression test asserting both the SDK-level kwargs and the configured 240s value.
+
+**Changes:** `config/settings.yaml`, `src/ai_council/research/providers/perplexity.py`, `tests/test_research.py`.
+
+---
+
 ### 2026-05-18 — Claude billing-condition diagnosis + mode-scoped health gate
 
 Operator reported `council --inbox -M r` blocked at startup by health-check failures on `claude` / `claude-sonnet` (HTTP 400 from `api.anthropic.com`). Single live reproduction with full body capture isolated the cause as account-level: Anthropic returns `400 invalid_request_error` with message `"Your credit balance is too low to access the Anthropic API"` when the org is out of credits — not a code bug, not a stale model alias, not an SDK / `anthropic-version` mismatch. Model strings `claude-opus-4-7` / `claude-sonnet-4-6` and the request envelope were all accepted by the server. Git evidence: neither `fix/openai-research-provider-migration` nor `fix/research-panel-degradation-alarm` touched `claude` config, `anthropic.py`, or `healthcheck.py` — operator hypothesis falsified.
