@@ -1575,6 +1575,111 @@ class TestDegradationCLIExitCode:
         finally:
             cfg.research.cache_dir = original_cache_dir
 
+    def test_inbox_exits_3_when_any_batch_run_degraded(self, tmp_path: Path) -> None:
+        """ADR-08: --inbox exits 3 if any research item was degraded; loop completes first."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        # Two inbox files, both research mode. Second one returns degraded.
+        inbox_dir = tmp_path / "inbox"
+        inbox_dir.mkdir()
+        archive_dir = inbox_dir / "archive"
+        archive_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        (inbox_dir / "01-healthy.md").write_text(
+            "---\nmode: research\n---\nHealthy query one.\n", encoding="utf-8",
+        )
+        (inbox_dir / "02-degraded.md").write_text(
+            "---\nmode: research\n---\nDegraded query two.\n", encoding="utf-8",
+        )
+
+        call_count = {"n": 0}
+
+        async def fake_run_research(*args, **kwargs):
+            call_count["n"] += 1
+            # First call healthy, second call degraded — proves loop continues past degradation.
+            is_degraded = call_count["n"] >= 2
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[
+                    _make_result("p1", "ok"),
+                    _make_result("p2", error="x" if is_degraded else None, content="" if is_degraded else "ok"),
+                ],
+                merged_report="m",
+                summary_2500="s",
+                degraded=is_degraded,
+                failed_count=1 if is_degraded else 0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                [
+                    "--inbox",
+                    "--inbox-dir", str(inbox_dir),
+                    "--output", str(output_dir),
+                    "--skip-health-check",
+                ],
+            )
+
+        assert call_count["n"] == 2, (
+            f"loop should have processed both inbox files; processed {call_count['n']}\n{result.output}"
+        )
+        assert result.exit_code == 3, (
+            f"inbox with any degraded run should exit 3; got {result.exit_code}\n{result.output}"
+        )
+
+    def test_inbox_exits_0_when_all_batch_runs_healthy(self, tmp_path: Path) -> None:
+        """ADR-08: --inbox exits 0 when every research item completed cleanly."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+
+        inbox_dir = tmp_path / "inbox"
+        inbox_dir.mkdir()
+        archive_dir = inbox_dir / "archive"
+        archive_dir.mkdir()
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        (inbox_dir / "healthy.md").write_text(
+            "---\nmode: research\n---\nA healthy query.\n", encoding="utf-8",
+        )
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=False,
+                failed_count=0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True), \
+             patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                [
+                    "--inbox",
+                    "--inbox-dir", str(inbox_dir),
+                    "--output", str(output_dir),
+                    "--skip-health-check",
+                ],
+            )
+
+        assert result.exit_code == 0, (
+            f"healthy inbox batch should exit 0; got {result.exit_code}\n{result.output}"
+        )
+
     def test_cli_exits_0_on_healthy_run(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
