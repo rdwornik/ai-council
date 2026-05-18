@@ -429,13 +429,19 @@ class TestPerplexityProviderHardening:
             "Perplexity must enable a single SDK-level transient retry (Fix-A parity)"
         )
 
-    def test_settings_yaml_perplexity_timeout_is_240(self) -> None:
-        """The configured perplexity timeout in settings.yaml must be 240s."""
+    def test_settings_yaml_perplexity_timeout_above_floor(self) -> None:
+        """Perplexity timeout must stay comfortably above the measured ~68s.
+
+        Floor is 120s, not the literal current value: the regression we want
+        to catch is "someone reverts to the old 60s ceiling," not "someone
+        tunes the value within a healthy range." Real sonar-pro briefs were
+        measured at ~68s, so anything < 120s leaves no transient headroom.
+        """
         import yaml
         settings_path = Path(__file__).resolve().parent.parent / "config" / "settings.yaml"
         data = yaml.safe_load(settings_path.read_text(encoding="utf-8"))
         ppx = data["research"]["providers"]["perplexity"]
-        assert ppx["timeout_sec"] == 240
+        assert ppx["timeout_sec"] >= 120
 
 
 # ---------------------------------------------------------------------------
