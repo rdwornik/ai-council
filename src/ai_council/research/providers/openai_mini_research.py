@@ -1,4 +1,10 @@
-"""OpenAI o4-mini-deep-research provider (Responses API, background polling)."""
+"""OpenAI gpt-5.4-mini research provider (Responses API + web_search tool).
+
+Migrated 2026-05-18 off the deprecated `o4-mini-deep-research` deep-research model
+onto gpt-5.4-mini with the agentic `web_search` server-side tool. The legacy
+provider used a `background=True` + poll loop; the migrated path is synchronous
+(`responses.create` returns the completed response in one call).
+"""
 
 import asyncio
 import logging
@@ -12,25 +18,24 @@ from ai_council.research.provider import ResearchProvider, ResearchProviderError
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL_SEC = 15
 _SYSTEM_PROMPT = (
-    "You are a deep research assistant. Conduct thorough research on the given topic. "
-    "Include specific facts, recent data, expert opinions, and cite your sources. "
-    "Structure your report with an executive summary, key findings, detailed analysis, "
-    "and a bibliography."
+    "You are a research assistant with web search. Conduct thorough research on "
+    "the given topic. Include specific facts, recent data, expert opinions, and "
+    "cite your sources. Structure your report with an executive summary, key "
+    "findings, detailed analysis, and a bibliography."
 )
 
 
 class OpenAIMiniResearchProvider(ResearchProvider):
-    """Research via OpenAI o4-mini-deep-research (Responses API with background polling)."""
+    """Research via OpenAI gpt-5.4-mini + web_search (Responses API)."""
 
     def __init__(
         self,
         api_key: str,
-        model: str = "o4-mini-deep-research",
-        timeout_sec: int = 1200,  # 20 minutes
-        cost_per_1m_input: float = 2.00,
-        cost_per_1m_output: float = 8.00,
+        model: str = "gpt-5.4-mini",
+        timeout_sec: int = 300,
+        cost_per_1m_input: float = 0.75,
+        cost_per_1m_output: float = 4.50,
     ) -> None:
         self._api_key = api_key
         self._model = model
@@ -48,10 +53,17 @@ class OpenAIMiniResearchProvider(ResearchProvider):
         start = time.monotonic()
         timestamp = datetime.utcnow().isoformat()
 
-        client = AsyncOpenAI(api_key=self._api_key)
+        # Pass timeout + max_retries into the SDK so the configured timeout_sec actually
+        # controls request lifetime, and the SDK owns the (single) transient retry. The
+        # outer asyncio.wait_for stays as a hard cancellation guard.
+        client = AsyncOpenAI(
+            api_key=self._api_key,
+            timeout=float(self._timeout_sec),
+            max_retries=1,
+        )
         try:
-            result = await asyncio.wait_for(
-                self._run_with_polling(client, query),
+            response = await asyncio.wait_for(
+                self._call(client, query),
                 timeout=self._timeout_sec,
             )
         except asyncio.TimeoutError as exc:
@@ -64,39 +76,6 @@ class OpenAIMiniResearchProvider(ResearchProvider):
             raise ResearchProviderError("openai_mini", f"API error: {exc}") from exc
 
         duration = time.monotonic() - start
-        result.duration_sec = duration
-        result.timestamp = timestamp
-        return result
-
-    async def _run_with_polling(self, client: AsyncOpenAI, query: str) -> ResearchResult:
-        """Submit background research job and poll until complete."""
-        # Submit the research job in background mode
-        # Deep research models require at least one search tool
-        response = await client.responses.create(
-            model=self._model,
-            input=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": query},
-            ],
-            tools=[{"type": "web_search_preview"}],
-            background=True,
-        )
-        response_id = response.id
-        logger.debug("openai_mini: submitted background job %s", response_id)
-
-        # Poll until complete
-        while response.status not in ("completed", "failed", "cancelled"):
-            await asyncio.sleep(_POLL_INTERVAL_SEC)
-            response = await client.responses.retrieve(response_id)
-            elapsed = time.monotonic()
-            logger.debug("openai_mini: job %s status=%s (%.0fs elapsed)", response_id, response.status, elapsed)
-
-        if response.status != "completed":
-            raise ResearchProviderError(
-                "openai_mini", f"Job {response_id} ended with status: {response.status}"
-            )
-
-        # Extract content and sources from completed response
         content = self._extract_content(response)
         sources = self._extract_sources(response)
 
@@ -107,6 +86,7 @@ class OpenAIMiniResearchProvider(ResearchProvider):
             + output_tokens / 1_000_000 * self._cost_per_1m_output
         )
 
+        logger.debug("openai_mini research complete: %.1fs, %d sources", duration, len(sources))
         return ResearchResult(
             provider=self.name(),
             query=query,
@@ -114,10 +94,22 @@ class OpenAIMiniResearchProvider(ResearchProvider):
             sources=sources,
             token_count=input_tokens + output_tokens,
             cost_usd=cost,
+            duration_sec=duration,
+            timestamp=timestamp,
+        )
+
+    async def _call(self, client: AsyncOpenAI, query: str):
+        return await client.responses.create(
+            model=self._model,
+            input=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": query},
+            ],
+            tools=[{"type": "web_search"}],
         )
 
     def _extract_content(self, response: object) -> str:
-        """Extract text content from a completed Responses API response."""
+        """Extract text content from Responses API output (message items + content blocks)."""
         output = getattr(response, "output", None)
         if not output:
             return ""
@@ -139,21 +131,31 @@ class OpenAIMiniResearchProvider(ResearchProvider):
         return str(output)
 
     def _extract_sources(self, response: object) -> list[Source]:
-        """Extract web search citations from a Responses API response."""
+        """Extract web_search citations — annotations on content blocks (and item fallback)."""
         sources: list[Source] = []
+        seen: set[str] = set()
         output = getattr(response, "output", None)
         if not output or not isinstance(output, list):
             return sources
         for item in output:
-            # web_search_call items have result with citations
             item_type = getattr(item, "type", None)
             if item_type == "web_search_call":
                 continue
-            annotations = getattr(item, "annotations", None)
-            if annotations:
-                for ann in annotations:
-                    url = getattr(ann, "url", None)
-                    title = getattr(ann, "title", None)
-                    if url:
-                        sources.append(Source(title=str(title or url), url=str(url)))
+            self._collect_annotations(getattr(item, "annotations", None), sources, seen)
+            content = getattr(item, "content", None)
+            if isinstance(content, list):
+                for block in content:
+                    self._collect_annotations(getattr(block, "annotations", None), sources, seen)
         return sources
+
+    def _collect_annotations(
+        self, annotations: object, sources: list[Source], seen: set[str]
+    ) -> None:
+        if not annotations:
+            return
+        for ann in annotations:
+            url = getattr(ann, "url", None)
+            title = getattr(ann, "title", None)
+            if url and url not in seen:
+                seen.add(url)
+                sources.append(Source(title=str(title or url), url=str(url)))

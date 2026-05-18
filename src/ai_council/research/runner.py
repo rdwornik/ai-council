@@ -93,6 +93,7 @@ def _instantiate_provider(name: str, p_cfg, api_key: str) -> ResearchProvider:
             timeout_sec=p_cfg.timeout_sec,
             cost_per_1m_input=p_cfg.cost_per_1m_input,
             cost_per_1m_output=p_cfg.cost_per_1m_output,
+            reasoning_effort=p_cfg.reasoning_effort or "high",
         )
     elif name == "gemini":
         from ai_council.research.providers.gemini_research import GeminiResearchProvider
