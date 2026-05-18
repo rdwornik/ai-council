@@ -250,9 +250,24 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - [corp-by-os](../corp-by-os/) — root orchestrator
 - [corp-os-meta](../corp-os-meta/) — shared schema
 
-## Downloads scanning
+## Inbox file detection
 
-`--inbox` auto-scans `~/Downloads/*.md` before the council_inbox folder. Detection: any YAML frontmatter key matching `mode`, `rounds`, `models`, `synthesizer`, or `full` (case-insensitive). Config in `settings.yaml` under `inbox.scan_downloads`, `inbox.downloads_dir`, `inbox.council_frontmatter_keys`. Detected files are archived to `council_inbox/archive/`.
+`--inbox` processes files from two sources. Filename conventions differ between them — this is the authoritative rule:
+
+**1. `council_inbox/*.md` (primary inbox)** — `scan_inbox()` in `src/ai_council/inbox.py`.
+- **Rule:** any file ending in `.md` is picked up. No filename token required. No frontmatter required.
+- Directory configured at `inbox.dir` in `settings.yaml` (default `./council_inbox`).
+- Processed oldest-first by mtime.
+
+**2. `~/Downloads/*.md` (opt-in pre-scan)** — `scan_downloads_folder()` in `src/ai_council/inbox.py`.
+- A Downloads `.md` file is picked up if **either** condition is true:
+  - (a) **filename stem contains the substring `council`** (case-insensitive) — e.g. `council-q.md`, `My_Council_Brief.md`, `ASK_COUNCIL.MD`; **or**
+  - (b) its YAML frontmatter contains any key in `inbox.council_frontmatter_keys` (case-insensitive). Default keys: `mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`.
+- Files matching neither condition are ignored (left in Downloads).
+- Malformed YAML frontmatter is logged and the file is skipped unless it already qualified by filename.
+- Toggle via `inbox.scan_downloads`; directory via `inbox.downloads_dir`.
+
+**Common to both:** Processed files are moved to `council_inbox/archive/` with a `YYYY-MM-DDTHHMM_` timestamp prefix (or `FAILED_<timestamp>_` on routing/parse failure). The `FAILED_` and timestamp prefixes are stripped from the slug used for output filenames via `clean_slug()`.
 
 ## Gotchas
 
@@ -266,6 +281,8 @@ ai-council is fully standalone. It is used for architectural decision-making acr
 - **Interactions API agent IDs**: The google-genai SDK type hint only knows `"deep-research-pro-preview-12-2025"` as of v1.73, but the **runtime accepts newer IDs** — verified 2026-05-18 that the configured `"deep-research-preview-04-2026"` is accepted by `interactions.create()`. Agent ID is configured in `settings.yaml` under `research.providers.gemini.model` — update there to switch agents; ignore SDK type-hint warnings
 - **Research make_cache_key location**: `make_cache_key()` lives in `src/research/merger.py`, NOT `src/research/cache.py`
 - **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
+- **Downloads pickup needs "council" in filename OR council frontmatter key**: A `.md` file in `~/Downloads` is only picked up by `--inbox` if its stem contains `council` (case-insensitive) **or** its frontmatter has one of: `mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`. A bare `question.md` with no frontmatter sitting in Downloads will be silently ignored. Files dropped directly in `council_inbox/` have no such requirement — any `*.md` is processed.
+  - verify: `Grep("council.*file_path.stem.lower|council_keys", path="src/ai_council/inbox.py")` returns the two-branch detection in `scan_downloads_folder()`
 
 ## Known issues
 
