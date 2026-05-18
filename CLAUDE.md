@@ -203,7 +203,7 @@ Old `dict[name, full_path]` shape fails loud at load with a migration hint (ADR-
 | Provider | Key env var | Default | --deep only | Notes |
 |----------|-------------|---------|------------|-------|
 | `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
-| `grok` | `XAI_API_KEY` | yes | no | grok-3; Responses API; x_search + web_search; unique X/Twitter signal |
+| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-reasoning; Responses API; x_search + web_search; unique X/Twitter signal |
 | `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
 | `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API (`deep-research-preview-04-2026`); autonomous agent; ~5-20 min |
 | `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
