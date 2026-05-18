@@ -1296,3 +1296,233 @@ class TestResearchPanelMembership:
         cfg = load_config()
         assert cfg.research is not None
         assert "openai_deep" in cfg.research.deep_providers
+
+
+# ---------------------------------------------------------------------------
+# Degradation alarm — threshold detection + banner + exit code
+# (ADR-08: complete-run + banner + exit 3; denominator = selected panel)
+# ---------------------------------------------------------------------------
+
+class TestDegradationDetection:
+    """merge_results populates degraded/failed_count against the selected panel."""
+
+    def test_degraded_false_when_all_succeed(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 0
+
+    def test_degraded_true_when_below_threshold(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", error="API error", content=""),
+            _make_result("p3", error="timeout", content=""),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3"], min_successful=3,
+        )
+        assert report.degraded is True
+        assert report.failed_count == 2
+
+    def test_degraded_at_threshold_boundary(self) -> None:
+        """Exactly at the threshold is NOT degraded."""
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+            _make_result("p4", error="fail", content=""),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 1
+
+    def test_build_time_dropout_counts_as_failure(self) -> None:
+        """A configured-4 panel where 1 dropped at build time + 3 succeed → degraded if min=4."""
+        # Only 3 results returned (one provider skipped at build time, missing API key).
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        # Selected panel was 4 — denominator includes the dropped provider.
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=4,
+        )
+        assert report.degraded is True
+        assert report.failed_count == 1  # p4 dropped at build time
+
+    def test_build_time_dropout_not_degraded_when_threshold_met(self) -> None:
+        results = [
+            _make_result("p1", "content"),
+            _make_result("p2", "content"),
+            _make_result("p3", "content"),
+        ]
+        report = merge_results(
+            "q", results, selected_panel=["p1", "p2", "p3", "p4"], min_successful=3,
+        )
+        assert report.degraded is False
+        assert report.failed_count == 1  # still 1 dropped, but threshold met
+
+    def test_backward_compat_no_threshold_no_degradation(self) -> None:
+        """Existing callers that pass no threshold: degraded defaults to False."""
+        results = [_make_result("p1", error="fail", content="")]
+        report = merge_results("q", results)
+        assert report.degraded is False
+        assert report.failed_count == 0
+
+
+class TestDegradationBannerConsole:
+    """print_research_summary emits a loud banner when report.degraded."""
+
+    def test_banner_appears_when_degraded(self) -> None:
+        from rich.console import Console
+
+        from ai_council.research.output import print_research_summary
+
+        report = MergedResearchReport(
+            query="q",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="API error", content=""),
+                _make_result("p3", error="timeout", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            degraded=True,
+            failed_count=2,
+        )
+        buf = io.StringIO()
+        con = Console(file=buf, force_terminal=False, width=120)
+        print_research_summary(report, file_path=None, from_cache=False, console=con)
+        out = buf.getvalue()
+        assert "DEGRADED" in out.upper()
+        assert "2" in out  # failed_count surfaced
+
+    def test_no_banner_when_not_degraded(self) -> None:
+        from rich.console import Console
+
+        from ai_council.research.output import print_research_summary
+
+        report = MergedResearchReport(
+            query="q",
+            results=[_make_result("p1", "content")],
+            merged_report="m",
+            summary_2500="s",
+            degraded=False,
+            failed_count=0,
+        )
+        buf = io.StringIO()
+        con = Console(file=buf, force_terminal=False, width=120)
+        print_research_summary(report, file_path=None, from_cache=False, console=con)
+        assert "DEGRADED" not in buf.getvalue().upper()
+
+
+class TestDegradationBannerMarkdown:
+    """save_research_to_file inserts a warning admonition when degraded."""
+
+    def test_warning_block_at_top_when_degraded(self, tmp_path: Path) -> None:
+        from ai_council.research.output import save_research_to_file
+
+        report = MergedResearchReport(
+            query="q",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="x", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            degraded=True,
+            failed_count=1,
+        )
+        paths = save_research_to_file(report, tmp_path)
+        text = paths[0].read_text(encoding="utf-8")
+        # Warning admonition appears before the Provider Summary table.
+        warn_idx = text.find("WARNING")
+        table_idx = text.find("## Provider Summary")
+        assert warn_idx != -1, "warning block missing from degraded markdown"
+        assert warn_idx < table_idx, "warning block should appear before Provider Summary"
+
+    def test_no_warning_block_when_not_degraded(self, tmp_path: Path) -> None:
+        from ai_council.research.output import save_research_to_file
+
+        report = MergedResearchReport(
+            query="q",
+            results=[_make_result("p1", "content")],
+            merged_report="m",
+            summary_2500="s",
+            degraded=False,
+        )
+        paths = save_research_to_file(report, tmp_path)
+        text = paths[0].read_text(encoding="utf-8")
+        assert "WARNING" not in text.upper() or "Degraded" not in text
+
+
+class TestDegradationConfig:
+    """min_successful_providers loads from settings.yaml with sensible default."""
+
+    def test_config_field_present_with_default_3(self) -> None:
+        from config.config_loader import load_config
+        cfg = load_config()
+        assert cfg.research is not None
+        assert hasattr(cfg.research, "min_successful_providers")
+        assert cfg.research.min_successful_providers == 3
+
+
+class TestDegradationCLIExitCode:
+    """CLI exits 3 when run completes degraded; 0 when healthy."""
+
+    def test_cli_exits_3_on_degraded_run(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from ai_council.cli import cli as cli_root
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok"), _make_result("p2", error="x", content="")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=True,
+                failed_count=2,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                ["-M", "r", "--output-dir", str(tmp_path), "trivial query"],
+            )
+        assert result.exit_code == 3, f"expected exit 3 on degraded; got {result.exit_code}\n{result.output}"
+
+    def test_cli_exits_0_on_healthy_run(self, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from ai_council.cli import cli as cli_root
+
+        async def fake_run_research(*args, **kwargs):
+            return MergedResearchReport(
+                query=kwargs.get("query", "q"),
+                results=[_make_result("p1", "ok")],
+                merged_report="m",
+                summary_2500="s",
+                degraded=False,
+                failed_count=0,
+            )
+
+        with patch("ai_council.research.runner.run_research", side_effect=fake_run_research), \
+             patch("ai_council.cli.run_research", side_effect=fake_run_research, create=True):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli_root,
+                ["-M", "r", "--output-dir", str(tmp_path), "trivial query"],
+            )
+        assert result.exit_code == 0, f"expected exit 0 on healthy; got {result.exit_code}\n{result.output}"
