@@ -1,4 +1,8 @@
-"""OpenAI o3-deep-research provider (Responses API, background polling, --deep only)."""
+"""OpenAI gpt-5.5 deep research provider (Responses API + web_search, reasoning=high).
+
+Migrated 2026-05-18 off the deprecated `o3-deep-research` model onto gpt-5.5 with
+the agentic `web_search` tool and high reasoning effort. Gated behind `--deep`.
+"""
 
 import asyncio
 import logging
@@ -12,32 +16,34 @@ from ai_council.research.provider import ResearchProvider, ResearchProviderError
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL_SEC = 20
 _SYSTEM_PROMPT = (
-    "You are an expert deep research analyst. Conduct exhaustive research on the given "
-    "topic. Synthesize information from multiple sources, identify expert consensus and "
-    "dissenting views, and provide a comprehensive analysis with full citations. "
-    "Structure your report with executive summary, key findings, detailed analysis by "
-    "subtopic, methodology notes, and a complete bibliography."
+    "You are an expert deep research analyst with web search. Conduct exhaustive "
+    "research on the given topic. Synthesize information from multiple sources, "
+    "identify expert consensus and dissenting views, and provide a comprehensive "
+    "analysis with full citations. Structure your report with executive summary, "
+    "key findings, detailed analysis by subtopic, methodology notes, and a "
+    "complete bibliography."
 )
 
 
 class OpenAIDeepResearchProvider(ResearchProvider):
-    """Research via OpenAI o3-deep-research (Responses API, --deep flag only)."""
+    """Research via OpenAI gpt-5.5 + web_search + high reasoning (Responses API)."""
 
     def __init__(
         self,
         api_key: str,
-        model: str = "o3-deep-research",
-        timeout_sec: int = 2700,  # 45 minutes
-        cost_per_1m_input: float = 10.00,
-        cost_per_1m_output: float = 40.00,
+        model: str = "gpt-5.5",
+        timeout_sec: int = 1800,
+        cost_per_1m_input: float = 5.00,
+        cost_per_1m_output: float = 30.00,
+        reasoning_effort: str = "high",
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._timeout_sec = timeout_sec
         self._cost_per_1m_input = cost_per_1m_input
         self._cost_per_1m_output = cost_per_1m_output
+        self._reasoning_effort = reasoning_effort
 
     def name(self) -> str:
         return "openai_deep"
@@ -51,8 +57,8 @@ class OpenAIDeepResearchProvider(ResearchProvider):
 
         client = AsyncOpenAI(api_key=self._api_key)
         try:
-            result = await asyncio.wait_for(
-                self._run_with_polling(client, query),
+            response = await asyncio.wait_for(
+                self._call_with_retry(client, query),
                 timeout=self._timeout_sec,
             )
         except asyncio.TimeoutError as exc:
@@ -65,33 +71,6 @@ class OpenAIDeepResearchProvider(ResearchProvider):
             raise ResearchProviderError("openai_deep", f"API error: {exc}") from exc
 
         duration = time.monotonic() - start
-        result.duration_sec = duration
-        result.timestamp = timestamp
-        return result
-
-    async def _run_with_polling(self, client: AsyncOpenAI, query: str) -> ResearchResult:
-        """Submit background research job and poll until complete."""
-        response = await client.responses.create(
-            model=self._model,
-            input=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": query},
-            ],
-            background=True,
-        )
-        response_id = response.id
-        logger.debug("openai_deep: submitted background job %s", response_id)
-
-        while response.status not in ("completed", "failed", "cancelled"):
-            await asyncio.sleep(_POLL_INTERVAL_SEC)
-            response = await client.responses.retrieve(response_id)
-            logger.debug("openai_deep: job %s status=%s", response_id, response.status)
-
-        if response.status != "completed":
-            raise ResearchProviderError(
-                "openai_deep", f"Job {response_id} ended with status: {response.status}"
-            )
-
         content = self._extract_content(response)
         sources = self._extract_sources(response)
 
@@ -102,6 +81,7 @@ class OpenAIDeepResearchProvider(ResearchProvider):
             + output_tokens / 1_000_000 * self._cost_per_1m_output
         )
 
+        logger.debug("openai_deep research complete: %.1fs, %d sources", duration, len(sources))
         return ResearchResult(
             provider=self.name(),
             query=query,
@@ -109,6 +89,26 @@ class OpenAIDeepResearchProvider(ResearchProvider):
             sources=sources,
             token_count=input_tokens + output_tokens,
             cost_usd=cost,
+            duration_sec=duration,
+            timestamp=timestamp,
+        )
+
+    async def _call_with_retry(self, client: AsyncOpenAI, query: str):
+        try:
+            return await self._call(client, query)
+        except (APIError, APITimeoutError) as exc:
+            logger.warning("openai_deep: transient failure (%s); retrying once", exc)
+            return await self._call(client, query)
+
+    async def _call(self, client: AsyncOpenAI, query: str):
+        return await client.responses.create(
+            model=self._model,
+            input=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": query},
+            ],
+            tools=[{"type": "web_search"}],
+            reasoning={"effort": self._reasoning_effort},
         )
 
     def _extract_content(self, response: object) -> str:
@@ -134,15 +134,29 @@ class OpenAIDeepResearchProvider(ResearchProvider):
 
     def _extract_sources(self, response: object) -> list[Source]:
         sources: list[Source] = []
+        seen: set[str] = set()
         output = getattr(response, "output", None)
         if not output or not isinstance(output, list):
             return sources
         for item in output:
-            annotations = getattr(item, "annotations", None)
-            if annotations:
-                for ann in annotations:
-                    url = getattr(ann, "url", None)
-                    title = getattr(ann, "title", None)
-                    if url:
-                        sources.append(Source(title=str(title or url), url=str(url)))
+            item_type = getattr(item, "type", None)
+            if item_type == "web_search_call":
+                continue
+            self._collect_annotations(getattr(item, "annotations", None), sources, seen)
+            content = getattr(item, "content", None)
+            if isinstance(content, list):
+                for block in content:
+                    self._collect_annotations(getattr(block, "annotations", None), sources, seen)
         return sources
+
+    def _collect_annotations(
+        self, annotations: object, sources: list[Source], seen: set[str]
+    ) -> None:
+        if not annotations:
+            return
+        for ann in annotations:
+            url = getattr(ann, "url", None)
+            title = getattr(ann, "title", None)
+            if url and url not in seen:
+                seen.add(url)
+                sources.append(Source(title=str(title or url), url=str(url)))

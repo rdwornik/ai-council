@@ -16,8 +16,8 @@ import logging
 import os
 import sys
 
-from ai_council.research.providers.openai_mini_research import OpenAIMiniResearchProvider
 from ai_council.research.provider import ResearchProviderError
+from ai_council.research.providers.openai_mini_research import OpenAIMiniResearchProvider
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 

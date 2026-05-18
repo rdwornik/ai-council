@@ -401,18 +401,20 @@ research:
       cost_per_1m_output: 15.00
 
     openai_mini:
-      model: "o4-mini-deep-research"
+      # Migrated 2026-05-18 off deprecated o4-mini-deep-research onto gpt-5.4-mini + web_search.
+      model: "gpt-5.4-mini"
       api_key_env: "OPENAI_API_KEY"
-      timeout_sec: 1200
-      cost_per_1m_input: 2.00
-      cost_per_1m_output: 8.00
+      timeout_sec: 300
+      cost_per_1m_input: 0.75
+      cost_per_1m_output: 4.50
 
     openai_deep:
-      model: "o3-deep-research"
+      # Migrated 2026-05-18 off deprecated o3-deep-research onto gpt-5.5 + web_search + reasoning effort=high.
+      model: "gpt-5.5"
       api_key_env: "OPENAI_API_KEY"
-      timeout_sec: 2700
-      cost_per_1m_input: 10.00
-      cost_per_1m_output: 40.00
+      timeout_sec: 1800
+      cost_per_1m_input: 5.00
+      cost_per_1m_output: 30.00
 
     grok:
       model: "grok-4.20-reasoning"
