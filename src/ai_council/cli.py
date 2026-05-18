@@ -24,7 +24,13 @@ from ai_council.providers.openai_provider import OpenAIProvider
 from ai_council.providers.xai import XAIProvider
 from ai_council.routing import RoutingError, TargetResolver
 from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
-from config.config_loader import default_mode, load_config, resolve_mode
+from config.config_loader import (
+    ModeConfig,
+    ResearchConfig,
+    default_mode,
+    load_config,
+    resolve_mode,
+)
 
 logger = logging.getLogger(__name__)
 console = Console(legacy_windows=False)
@@ -83,6 +89,60 @@ def _check_and_filter_providers(
 
     console.print()
     return working
+
+
+def _select_health_check_targets(
+    all_providers: dict[str, AIProvider],
+    *,
+    cli_mode_arg: str | None,
+    modes: dict[str, ModeConfig],
+    research_cfg: ResearchConfig | None,
+) -> tuple[dict[str, AIProvider], bool]:
+    """Decide which providers to health-check and whether the gate is blocking.
+
+    Research mode reaches the debate-provider pool only for the summarizer;
+    the retrieval providers are a separate pool and have their own ADR-08
+    degradation handling. So for an explicit --mode research / -M r, check
+    only the summarizer, and never block (summarizer outage is non-fatal —
+    research/merger.py falls back to truncation). All other modes keep the
+    pre-existing behaviour: ping the full debate pool with a blocking gate.
+    """
+    if cli_mode_arg is not None and modes and research_cfg is not None:
+        try:
+            resolved = resolve_mode(cli_mode_arg, modes)
+        except ValueError:
+            resolved = None
+        if resolved == "research":
+            summarizer = research_cfg.summary_model
+            target = {summarizer: all_providers[summarizer]} if summarizer in all_providers else {}
+            return target, False
+    return all_providers, True
+
+
+def _check_summarizer_health(
+    summarizer_providers: dict[str, AIProvider],
+) -> None:
+    """Run a non-blocking health check on the research summarizer.
+
+    Prints OK/FAIL but never gates: research mode's own merger handles a
+    summarizer outage with a truncation fallback. Surfacing the failure
+    upfront lets the operator fix the key before minutes of retrieval work.
+    """
+    if not summarizer_providers:
+        return
+    console.print("\n[bold]Checking research summarizer...[/bold]")
+    results = asyncio.run(run_health_checks(summarizer_providers))
+    for name in sorted(results):
+        ok, err = results[name]
+        if ok:
+            console.print(f"  [green]OK  [/green] {name} (summarizer)")
+        else:
+            short_err = err.splitlines()[0][:120] if err else "unknown error"
+            console.print(
+                f"  [yellow]WARN[/yellow] {name} (summarizer): {short_err}"
+                f"\n  [dim]Research will fall back to truncation summary.[/dim]"
+            )
+    console.print()
 
 
 def _interactive_confirm_mode(
@@ -309,7 +369,16 @@ def main(
         sys.exit(1)
 
     if not skip_health_check:
-        all_providers = _check_and_filter_providers(all_providers)
+        check_targets, blocking = _select_health_check_targets(
+            all_providers,
+            cli_mode_arg=mode_arg,
+            modes=config.modes,
+            research_cfg=config.research,
+        )
+        if blocking:
+            all_providers = _check_and_filter_providers(check_targets)
+        else:
+            _check_summarizer_health(check_targets)
 
     runner = CouncilRunner(all_providers, config)
     policy = RunPolicy.default()
