@@ -79,7 +79,10 @@ def test_classify_billing_credit_balance():
 
 def test_classify_billing_insufficient_quota():
     """OpenAI surfaces billing exhaustion as 'insufficient_quota' / 'You exceeded your current quota'."""
-    exc = Exception("Error code: 429 - insufficient_quota: You exceeded your current quota, please check your plan and billing details.")
+    exc = Exception(
+        "Error code: 429 - insufficient_quota: You exceeded your current quota, "
+        "please check your plan and billing details."
+    )
     assert classify_error(exc) == "billing"
 
 
