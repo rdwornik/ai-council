@@ -130,6 +130,25 @@ async def test_connection_error_returns_specific_message():
     assert "unreachable" in err
 
 
+async def test_billing_error_returns_specific_message():
+    """A 'credit balance is too low' 400 surfaces as a clear billing message — not 'invalid_request'."""
+    providers = {"claude": MockProvider("claude")}
+    providers["claude"].generate = AsyncMock(
+        side_effect=ProviderError(
+            "claude",
+            "Error code: 400 - {'error': {'type': 'invalid_request_error', "
+            "'message': 'Your credit balance is too low to access the Anthropic API.'}}",
+        )
+    )
+    results = await run_health_checks(providers)
+    ok, err = results["claude"]
+    assert ok is False
+    err_lower = err.lower()
+    assert "credit" in err_lower or "billing" in err_lower
+    # And critically NOT the misleading generic message:
+    assert err != "invalid request during health check"
+
+
 async def test_unknown_error_falls_back_to_raw_message():
     """Unclassified errors return the raw exception message."""
     providers = {"deepseek": MockProvider("deepseek")}
