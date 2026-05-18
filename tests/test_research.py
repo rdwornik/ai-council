@@ -1102,3 +1102,197 @@ class TestGeminiCitationParsing:
             result = await provider.research("test")
 
         assert len(result.sources) == 1
+
+
+# ---------------------------------------------------------------------------
+# OpenAI research providers — post-migration (gpt-5.x + web_search)
+# ---------------------------------------------------------------------------
+
+def _make_openai_response(
+    text: str = "OpenAI research report.",
+    input_tokens: int = 200,
+    output_tokens: int = 500,
+    annotations: list | None = None,
+) -> MagicMock:
+    """Build a mock OpenAI Responses API response (web_search annotation shape)."""
+    response = MagicMock()
+
+    block = MagicMock()
+    block.text = text
+    block.annotations = annotations or []
+
+    item = MagicMock()
+    item.type = "message"
+    item.content = [block]
+    item.text = None
+    item.annotations = None
+    response.output = [item]
+
+    usage = MagicMock()
+    usage.input_tokens = input_tokens
+    usage.output_tokens = output_tokens
+    response.usage = usage
+    return response
+
+
+class TestOpenAIMiniResearchProviderMigrated:
+    """Post-migration: gpt-5.4-mini + web_search on Responses API."""
+
+    def _make_provider(self, **kwargs):  # type: ignore[return]
+        from ai_council.research.providers.openai_mini_research import (
+            OpenAIMiniResearchProvider,
+        )
+        defaults = dict(api_key="test-openai-key", timeout_sec=120)
+        defaults.update(kwargs)
+        return OpenAIMiniResearchProvider(**defaults)
+
+    async def test_default_model_is_gpt_5_4_mini(self) -> None:
+        provider = self._make_provider()
+        assert provider.model_string() == "gpt-5.4-mini"
+
+    async def test_uses_web_search_tool_and_migrated_model(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_openai_response()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_mini_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            await provider.research("test query")
+
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-5.4-mini"
+        tool_types = [t["type"] for t in call_kwargs["tools"]]
+        assert "web_search" in tool_types
+        assert "web_search_preview" not in tool_types
+
+    async def test_does_not_use_deprecated_model(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_openai_response()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_mini_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            await provider.research("test")
+
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert "deep-research" not in call_kwargs["model"]
+
+    async def test_parses_annotation_sources(self) -> None:
+        provider = self._make_provider()
+        ann = MagicMock()
+        ann.url = "https://example.com/article"
+        ann.title = "Example article"
+        mock_response = _make_openai_response(
+            text="Real findings here.", annotations=[ann]
+        )
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_mini_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            result = await provider.research("test")
+
+        assert result.content and len(result.content) > 0
+        assert len(result.sources) == 1
+        assert result.sources[0].url == "https://example.com/article"
+
+
+class TestOpenAIDeepResearchProviderMigrated:
+    """Post-migration: gpt-5.5 + web_search + reasoning effort=high."""
+
+    def _make_provider(self, **kwargs):  # type: ignore[return]
+        from ai_council.research.providers.openai_deep_research import (
+            OpenAIDeepResearchProvider,
+        )
+        defaults = dict(api_key="test-openai-key", timeout_sec=300)
+        defaults.update(kwargs)
+        return OpenAIDeepResearchProvider(**defaults)
+
+    async def test_default_model_is_gpt_5_5(self) -> None:
+        provider = self._make_provider()
+        assert provider.model_string() == "gpt-5.5"
+
+    async def test_uses_web_search_tool_and_high_reasoning(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_openai_response()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_deep_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            await provider.research("test query")
+
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-5.5"
+        tool_types = [t["type"] for t in call_kwargs["tools"]]
+        assert "web_search" in tool_types
+        reasoning = call_kwargs.get("reasoning")
+        assert reasoning is not None
+        effort = (
+            reasoning.get("effort")
+            if isinstance(reasoning, dict)
+            else getattr(reasoning, "effort", None)
+        )
+        assert effort == "high"
+
+    async def test_does_not_use_deprecated_model(self) -> None:
+        provider = self._make_provider()
+        mock_response = _make_openai_response()
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_deep_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            await provider.research("test")
+
+        call_kwargs = mock_client.responses.create.call_args.kwargs
+        assert "deep-research" not in call_kwargs["model"]
+
+    async def test_parses_annotation_sources(self) -> None:
+        provider = self._make_provider()
+        ann = MagicMock()
+        ann.url = "https://example.com/deep"
+        ann.title = "Deep source"
+        mock_response = _make_openai_response(
+            text="Deep findings here.", annotations=[ann]
+        )
+        mock_client = MagicMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "ai_council.research.providers.openai_deep_research.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            result = await provider.research("test")
+
+        assert result.content and len(result.content) > 0
+        assert len(result.sources) == 1
+        assert result.sources[0].url == "https://example.com/deep"
+
+
+class TestResearchPanelMembership:
+    """Config-level guard: openai_deep is --deep only, never in default panel."""
+
+    def test_default_panel_excludes_openai_deep(self) -> None:
+        from config.config_loader import load_config
+        cfg = load_config()
+        assert cfg.research is not None
+        assert "openai_deep" not in cfg.research.default_providers
+
+    def test_deep_panel_includes_openai_deep(self) -> None:
+        from config.config_loader import load_config
+        cfg = load_config()
+        assert cfg.research is not None
+        assert "openai_deep" in cfg.research.deep_providers
