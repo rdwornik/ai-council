@@ -16,6 +16,7 @@ _HEALTHCHECK_MESSAGES: dict[str, str] = {
     "server_error": "server error during health check",
     "content_policy": "content policy rejection during health check",
     "invalid_request": "invalid request during health check",
+    "billing": "insufficient credit balance / quota — top up at provider console",
 }
 
 _PING_PROMPT = "Reply with the word OK only."
