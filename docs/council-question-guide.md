@@ -516,6 +516,55 @@ python -m ai_council.cli --inbox
 
 ---
 
+## Naming your brief file
+
+Where you save the file determines whether the inbox picks it up automatically.
+The authoritative detection rules live in `CLAUDE.md` (see *Inbox file detection*);
+the rules below are derived from that source of truth.
+
+### `council_inbox/` — any `.md` file is picked up
+
+Drop it anywhere inside `council_inbox/` with any filename ending in `.md`.
+No naming token required.
+
+```
+council_inbox/my-question.md      ✓
+council_inbox/vault-decision.md   ✓
+council_inbox/q.md                ✓
+```
+
+### `~/Downloads/` — file must signal it is a Council brief
+
+A `.md` file in Downloads is picked up **only if at least one** of these is true:
+
+**A. Filename contains `council` (case-insensitive):**
+```
+council-vault-decision.md    ✓
+My_Council_Brief.md          ✓
+ASK_COUNCIL_Q.md             ✓
+vault-decision.md            ✗  (not picked up — no "council" token)
+```
+
+**B. YAML frontmatter contains any recognised Council key:**
+`mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`
+
+```yaml
+---
+mode: judge        # ← this key qualifies the file regardless of filename
+---
+```
+
+A file with neither condition (e.g. a bare `question.md` with no frontmatter)
+is silently ignored and left in Downloads.
+
+### Recommendation
+
+When in doubt, **drop the file in `council_inbox/`** — no naming ceremony needed.
+Use the Downloads path only for files you write on another device or in a notes app
+and want auto-detected without a manual move.
+
+---
+
 ## After every debate — distil the transcript to an ADR
 
 A council debate produces a decision, and a decision must be recorded. After a run completes, distil the synthesizer's verdict into a lightweight ADR (Status / Context / Decision / Consequences) in the target project's `docs/decisions/`. The transcript in `docs/decisions/transcripts/` is the evidence; the ADR is the canonical record. This step is part of the council workflow, not optional — a debate is not done until its ADR exists.
