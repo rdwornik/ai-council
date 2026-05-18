@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-05-18 — Research-panel degradation alarm + provider doc reconciliation
+
+Closed the systemic finding from the 2026-05-18 health-check audit by adding a loud aggregate alarm: when fewer than `min_successful_providers` succeed (default 3, denominator = selected panel including build-time dropouts), the research run still completes but emits a banner in console + saved markdown and the CLI exits with code 3 (distinct from Click's reserved 2). Decision recorded as ADR-08. Verified the configured Gemini agent ID `deep-research-preview-04-2026` is accepted at runtime via one minimal live `interactions.create()` call; CLAUDE.md Gotcha entry updated. Reconciled CLAUDE.md Grok provider-table row to match `settings.yaml` (`grok-4.20-reasoning`).
+
+**Changes:** `config/config_loader.py`, `config/settings.yaml`, `src/ai_council/cli.py`, `src/ai_council/research/{merger,models,output,runner}.py`, `tests/test_research.py`, `CLAUDE.md`, `docs/decisions/ADR-08_research-degradation-alarm.md`.
+
+---
+
 ### 2026-05-18 — OpenAI research-provider migration
 
 Migrated `openai_mini` and `openai_deep` off the deprecated `o4-mini-deep-research` / `o3-deep-research` models onto the current `gpt-5.4-mini` / `gpt-5.5` + `web_search` Responses-API path. Sync call (background+poll dropped), single-shot retry on transient APIError, annotation-based parsers, real per-1M pricing in settings. Pre-migration live call confirmed `o4-mini-deep-research` returns `status=failed`; post-migration live calls verified non-empty content AND sources for both providers.
