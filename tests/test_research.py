@@ -1505,6 +1505,76 @@ class TestDegradationCLIExitCode:
             )
         assert result.exit_code == 3, f"expected exit 3 on degraded; got {result.exit_code}\n{result.output}"
 
+    def test_degraded_report_survives_cache_roundtrip(self, tmp_path: Path) -> None:
+        """ADR-08: a degraded report restored from cache must still be flagged degraded."""
+        key = "degradedround16x"
+        original = MergedResearchReport(
+            query="cache-degraded test",
+            results=[
+                _make_result("p1", "content"),
+                _make_result("p2", error="API error", content=""),
+                _make_result("p3", error="timeout", content=""),
+            ],
+            merged_report="m",
+            summary_2500="s",
+            total_sources=1,
+            total_cost_usd=0.05,
+            total_duration_sec=10.0,
+            cache_key=key,
+            degraded=True,
+            failed_count=2,
+        )
+        cache_put(tmp_path, key, original)
+
+        retrieved = cache_get(tmp_path, key, ttl_days=7)
+        assert retrieved is not None
+        assert retrieved.degraded is True, "cache roundtrip dropped degraded flag (ADR-08 regression)"
+        assert retrieved.failed_count == 2
+
+    def test_cli_exits_3_on_degraded_cache_hit(self, tmp_path: Path) -> None:
+        """ADR-08: a degraded run served from cache still emits banner and exits 3."""
+        from click.testing import CliRunner
+
+        from ai_council.cli import main as cli_root
+        from ai_council.research.cache import cache_put as _cache_put
+        from config.config_loader import load_config
+
+        cfg = load_config()
+        assert cfg.research is not None
+        # Use a tmp cache dir to keep the test isolated.
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        original_cache_dir = cfg.research.cache_dir
+        cfg.research.cache_dir = cache_dir
+        try:
+            key = make_cache_key("trivial query")
+            degraded_report = MergedResearchReport(
+                query="trivial query",
+                results=[
+                    _make_result("p1", "content"),
+                    _make_result("p2", error="API error", content=""),
+                ],
+                merged_report="m",
+                summary_2500="s",
+                cache_key=key,
+                degraded=True,
+                failed_count=2,
+            )
+            _cache_put(cache_dir, key, degraded_report)
+
+            with patch("ai_council.cli.load_config", return_value=cfg), \
+                 patch("ai_council.cli._check_and_filter_providers", side_effect=lambda p: p):
+                runner = CliRunner()
+                result = runner.invoke(
+                    cli_root,
+                    ["-M", "r", "--output", str(tmp_path), "trivial query"],
+                )
+            assert result.exit_code == 3, (
+                f"degraded cache hit should exit 3; got {result.exit_code}\n{result.output}"
+            )
+        finally:
+            cfg.research.cache_dir = original_cache_dir
+
     def test_cli_exits_0_on_healthy_run(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 

@@ -66,17 +66,20 @@ def cache_get(cache_dir: Path, key: str, ttl_days: int) -> MergedResearchReport 
     merged_report = report_file.read_text(encoding="utf-8")
     summary = summary_file.read_text(encoding="utf-8") if summary_file.exists() else merged_report
 
-    # Reconstruct minimal ResearchResult list from meta
+    # Reconstruct minimal ResearchResult list from meta. Per-provider error is
+    # preserved so degraded cache hits stay degraded (ADR-08).
     results: list[ResearchResult] = []
     for p in meta.get("providers", []):
+        err = p.get("error")
         results.append(ResearchResult(
             provider=p.get("name", ""),
             query=meta.get("query", ""),
-            content="(loaded from cache)",
+            content="" if err else "(loaded from cache)",
             token_count=p.get("token_count", 0),
             cost_usd=p.get("cost_usd", 0.0),
             duration_sec=p.get("duration_sec", 0.0),
             timestamp=meta.get("cached_at", ""),
+            error=err,
         ))
 
     return MergedResearchReport(
@@ -88,6 +91,8 @@ def cache_get(cache_dir: Path, key: str, ttl_days: int) -> MergedResearchReport 
         total_cost_usd=meta.get("total_cost_usd", 0.0),
         total_duration_sec=meta.get("total_duration_sec", 0.0),
         cache_key=key,
+        degraded=bool(meta.get("degraded", False)),
+        failed_count=int(meta.get("failed_count", 0)),
     )
 
 
@@ -106,6 +111,8 @@ def cache_put(cache_dir: Path, key: str, report: MergedResearchReport) -> None:
             "total_sources": report.total_sources,
             "total_cost_usd": report.total_cost_usd,
             "total_duration_sec": report.total_duration_sec,
+            "degraded": report.degraded,
+            "failed_count": report.failed_count,
             "providers": [
                 {
                     "name": r.provider,

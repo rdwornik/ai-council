@@ -40,6 +40,8 @@ Make degradation **un-missable** for humans (banner) and **machine-detectable** 
 
 Code `3` was chosen specifically to avoid collision with Click's framework-reserved `2`.
 
+**Scope note — inbox batch mode.** The exit-code table above applies cleanly to **interactive** research runs. In `--inbox` batch mode the loop catches per-file exceptions, logs them, archives the failed file as `*.failed.md`, and continues processing the next file — hard per-file failures do **not** propagate to the process exit code today. The batch loop currently surfaces *only* degradation: if any research item in the batch returned `degraded=True`, the process exits `3` after the batch completes; otherwise `0`. Tracking hard batch failures as a separate exit-code dimension is out of scope for ADR-08 and is a candidate for a future amendment if operators need it.
+
 **Denominator — selected panel, not built panel**
 
 The threshold is compared against the **selected** panel (the list of provider names selected for this invocation, post `--models` filter), **not** the built panel (providers that successfully instantiated). A provider that drops at build time because its API key is missing is therefore counted as a non-success, identical to an API-call failure.
