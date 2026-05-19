@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+### 2026-05-19 — ADR-53 chunk 4: AGENTS.md retired, CLAUDE.md v2.1 live
+
+- **Did:** Executed ADR-53 chunk 4 — full migration of `ai-council/AGENTS.md` content into a single canonical `CLAUDE.md` v2.1 (139 lines, ≤200 cap). Displaced technical depth (architecture tree, key commands, design decisions, transcript routing, debate modes, research providers, folder governance, inbox detection) moved to `ARCHITECTURE.md` (6 new `[L-opt]` sections, ADR-51 conformant) and `README.md` (3 missing CLI examples). Stale test count ("266 unit tests") removed from `.claude/rules/testing.md` (local-only; `.claude/` is gitignored). Moot BACKLOG.md P3 item (AGENTS.md creation) removed. AGENTS.md deleted.
+- **Result:** `ai-council` now has a single 12-section CLAUDE.md agent-instruction file per ADR-53. ARCHITECTURE.md fully populated per ADR-51. No Python touched; 407 unit tests unchanged. AGENTS.md historical references in JOURNAL, LESSONS, and audits left intact as immutable records.
+- **Changes:** `ARCHITECTURE.md` (+6 sections), `BACKLOG.md` (moot item removed), `README.md` (3 CLI examples), `CLAUDE.md` (full v2.1 rewrite, 139 lines), `AGENTS.md` (deleted).
+- **Abandoned:** nothing.
+- **Next:** Merge `docs/chunk4-ai-council-claude-md-migration` → `main`; run Phase 2 smoke test (Step 5 in BACKLOG, Synthesizer Refresh stream).
+
+---
+
 ### 2026-05-19 — ADR-51/52 conformance (ARCHITECTURE.md + AGENTS.md §7)
 
 - **Did:** Created `ARCHITECTURE.md` from the ADR-51 canonical template (Purpose, Codemap with `<!-- CODEMAP:START/END -->` markers, Layer Boundaries & Invariants, Data Flow); added ADR-51 + ADR-52 to `AGENTS.md` §7 ecosystem ADR list; bumped `Last updated` stamp to 2026-05-19.
