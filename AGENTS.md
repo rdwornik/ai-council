@@ -112,7 +112,7 @@ ADRs in `docs/decisions/`. Active list (one-liner each):
 See `docs/decisions/README.md` for the full index. Debate transcripts in `docs/decisions/transcripts/`.
 
 Ecosystem ADRs in `.dev-knowledge/docs/decisions/` also bind this repo as a child:
-- **ADR-29** (append-only LESSONS), **ADR-34** (filename conventions), **ADR-38** (`src/ai_council/` namespace), **ADR-42** (handoffs centralized in `.dev-knowledge`), **ADR-43** (cross-project transcript routing), **ADR-48 / ADR-49** (no CHANGELOG; no BACKLOG_ARCHIVE; Conventional Commits; JOURNAL / LESSONS structure), **Council #28** (AGENTS.md required at Scale M+).
+- **ADR-29** (append-only LESSONS), **ADR-34** (filename conventions), **ADR-38** (`src/ai_council/` namespace), **ADR-42** (handoffs centralized in `.dev-knowledge`), **ADR-43** (cross-project transcript routing), **ADR-48 / ADR-49** (no CHANGELOG; no BACKLOG_ARCHIVE; Conventional Commits; JOURNAL / LESSONS structure), **Council #28** (AGENTS.md required at Scale M+), **ADR-51** (architecture doc convention — ARCHITECTURE.md mandatory at Scale M+), **ADR-52** (AGENTS.md convention — canonical cross-tool agent-instruction contract).
 
 ## 8. Out of scope
 
@@ -154,5 +154,5 @@ Anti-patterns specific to this repo:
 
 ---
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-19
 **Maintained by:** Rob
