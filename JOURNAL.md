@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+### 2026-05-19 — ADR-51/52 conformance (ARCHITECTURE.md + AGENTS.md §7)
+
+- **Did:** Created `ARCHITECTURE.md` from the ADR-51 canonical template (Purpose, Codemap with `<!-- CODEMAP:START/END -->` markers, Layer Boundaries & Invariants, Data Flow); added ADR-51 + ADR-52 to `AGENTS.md` §7 ecosystem ADR list; bumped `Last updated` stamp to 2026-05-19.
+- **Result:** `ai-council` fully conformant with ADR-51 and ADR-52. 407 unit tests pass unchanged.
+- **Changes:** `ARCHITECTURE.md` (new), `AGENTS.md` (§7 + Last updated stamp).
+- **Abandoned:** nothing.
+- **Next:** corp-ops trigger-based rollout (separate task per audit).
+
+---
+
 ### 2026-05-18 — Perplexity research-provider timeout fix
 
 Research run reported `perplexity ✗ timeout 1m 00s`. One live reproduction with a 300s ad-hoc ceiling (real council research brief through the actual provider code path) completed cleanly in **68.2s** with 25.7k chars and 8 sources — confirming Perplexity itself is healthy and the 60s ceiling was simply too tight. Audit (2026-05-18) had already flagged Perplexity as the only research provider still on the old single-shot pattern (no SDK retry, no SDK timeout).
