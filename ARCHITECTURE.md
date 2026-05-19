@@ -122,4 +122,100 @@ Research mode branches at step 2: `research/runner.py` → cache check → paral
 
 ---
 
+## Key Design Decisions [L-opt]
+
+- **Panel system**: `determine_panel()` in `runner.py`; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is the default; `--lite` uses 3-model panel; `--full` is a no-op kept for backward compat.
+- **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden during critique rounds (ADR-03).
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default `gemini`; falls back with `is_participant=True` if none available.
+- **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `config/settings.yaml` — none hard-coded.
+- **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`.
+- **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()` + progressive display; merges results; summarizes via LLM; file cache under `~/.ai-council/research_cache/` with 7-day TTL.
+
+---
+
+## Transcript Routing [L-opt]
+
+Opt-in, per-invocation mirroring of debate transcripts to named target project directories (ADR-43).
+
+**Two-layer model:**
+- **Names** (e.g., `.dev-knowledge`) come from frontmatter or `--target-project` flag — dynamic per invocation.
+- **Ecosystem root** (`dev_root`) declared once in `config/settings.yaml`; paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`.
+
+**Behavior:**
+- Canonical `output/` always written first (hard requirement; failure is hard error).
+- Mirror writes are best-effort: failure logs warning, canonical never affected.
+- Unknown target name → `RoutingError` at parse time (before debate runs), listing known names.
+- No `target-project` → canonical only, unchanged behavior.
+
+**Key files:** `src/ai_council/routing.py` (TargetResolver + RoutingError), `config/settings.yaml` (dev_root + target_projects list).
+
+---
+
+## Debate Modes [L-opt]
+
+| Mode | Aliases | Default rounds | Purpose |
+|------|---------|---------------|---------|
+| `pick` | `p`, `pick`, `d`, `decide` | 2 | Choose between options **(default)** |
+| `ideas` | `i`, `ideas` | 1 | Brainstorm; surface unknowns and divergent ideas |
+| `judge` | `j`, `judge` | 2 | Evaluate a proposal or claim; get a verdict |
+| `research` | `r`, `research` | — | Multi-source web research with citations |
+
+- `pick` uses `prompts.initial`/`prompts.critique`/`prompts.synthesis` from `settings.yaml` (backward compat).
+- `ideas`/`judge` use per-mode blocks in the `modes:` section of `settings.yaml`.
+- Mode auto-detected from question text via cheap LLM call (5s interactive confirm); resolved by `resolve_mode()` in `config_loader.py`.
+- `research` routes to `src/research/runner.py:run_research()` before the debate pipeline.
+
+---
+
+## Research Providers [L-opt]
+
+| Provider | Env var | Default | `--deep` only | Notes |
+|----------|---------|---------|--------------|-------|
+| `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
+| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-reasoning; Responses API; unique X/Twitter signal |
+| `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
+| `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API; autonomous agent; ~5-20 min |
+| `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
+
+Missing API keys are silently skipped — remaining providers still run.
+
+---
+
+## Folder Governance [L-opt]
+
+| Folder | Contents |
+|--------|---------|
+| `src/` | All Python source code |
+| `tests/` | All tests |
+| `config/` | `settings.yaml` and `config_loader.py` |
+| `scripts/` | `check.ps1` and utility scripts |
+| `docs/` | `decisions/` (ADRs), `handoffs/`, `audits/` (pre-ADR-34 reports in `audits/archive/legacy/`) |
+| `output/` | Gitignored; debate transcripts and research reports |
+| `council_inbox/` | Gitignored; drop `.md` files for batch processing |
+| `eval/` | Evaluation data (`eval_history.jsonl`) |
+| `LESSONS.md` | Repo-local lessons (append-only; at repo root) |
+
+Do not create files outside these directories without updating this section.
+
+---
+
+## Inbox File Detection [L-opt]
+
+`--inbox` processes files from two sources. Filename conventions differ — this is authoritative:
+
+**1. `council_inbox/*.md` (primary inbox)** — `scan_inbox()` in `src/ai_council/inbox.py`
+- Any `.md` file is picked up. No filename token or frontmatter required.
+- Directory configured at `inbox.dir` in `settings.yaml` (default `./council_inbox`).
+- Processed oldest-first by mtime.
+
+**2. `~/Downloads/*.md` (opt-in pre-scan)** — `scan_downloads_folder()` in `src/ai_council/inbox.py`
+- Picked up if **either**: (a) filename stem contains `council` (case-insensitive); **or** (b) YAML frontmatter contains any key in `inbox.council_frontmatter_keys` (default: `mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`).
+- Files matching neither condition are silently ignored.
+- Malformed YAML frontmatter is logged; file is skipped unless it already qualified by filename.
+- Toggle via `inbox.scan_downloads`; directory via `inbox.downloads_dir`.
+
+**Common to both:** Processed files move to `council_inbox/archive/` with `YYYY-MM-DDTHHMM_` prefix (or `FAILED_<timestamp>_` on failure). Prefixes are stripped from the slug used for output filenames via `clean_slug()`.
+
+---
+
 **Maintained by:** Rob

@@ -87,12 +87,6 @@ Handoff Future State references items here by stream + title (pointers, not dupl
 
 ## Stream: Governance
 
-### [P3] [open] AGENTS.md addition per ADR-28
-- **What:** Create `AGENTS.md` per ADR-28 mandate for M-tier repos
-- **Why:** Strażnik M2 finding — deferred per "low urgency" framing; no functional impact, purely governance artifact
-- **Added:** 2026-05-12 by strażnik audit (M2 — deferred)
-- **Status:** open
-
 ### [P3] [open] ADR-02 amendment (panelist/synthesizer overlap policy)
 - **What:** Amend ADR-02 to codify the cost-reframed policy on panelist/synthesizer overlap
 - **Why:** Conditional on Phase 3 Branch A (Opus chosen as synthesizer) — likely won't trigger after cost reframe if Gemini retained

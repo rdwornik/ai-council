@@ -1,336 +1,139 @@
 # CLAUDE.md — AI Council
+> **Session contract for Claude Code in this repo.** Read on every session start (auto). Single canonical agent-instruction file (≤200 lines). Per ADR-53.
+>
+> **For universal rules:** read `../.dev-knowledge/protocols/ESSENTIALS.md` and `protocols/PLAYBOOK.md`.
 
-## What this repo does
+## 1. First read (session start)
 
-Multi-model AI debate tool. Pose an architectural question; a panel of AI models (Claude, Gemini, GPT, Grok, DeepSeek) debate in parallel rounds with anonymized critique; a non-participating model synthesizes the final verdict into a structured decision document.
+In order, read:
+1. This file (you're here)
+2. `../.dev-knowledge/protocols/ESSENTIALS.md` — Rob's universal working style
+3. `../.dev-knowledge/protocols/PLAYBOOK.md` — universal protocols (only sections relevant to current task)
+4. Most recent handoff under `.dev-knowledge/docs/handoffs/` if continuing prior session
+5. Last 5 entries of `JOURNAL.md`
 
-## Quick start
+If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag it.
 
-```bash
-python -m venv .venv && .venv\Scripts\Activate.ps1  # Windows
-pip install -e ".[dev]"
-cp .env.example .env  # add API keys
-council "Should we use REST or GraphQL?" --rounds 1
-pytest tests/ -m "not integration and not envcheck" -v
-```
+## 2. Repo identity
 
-## Architecture
+- **Name:** `ai-council`
+- **Scale:** `M` (per `.dev-knowledge/protocols/PLAYBOOK.md` Project Scale Tiers)
+- **Status:** `active`
+- **Purpose:** Multi-model AI debate and research CLI tool; produces binding ADRs governing the `Dev/` ecosystem.
+- **Owner:** Rob
+- **Critical paths:** `src/ai_council/`, `tests/`, `docs/decisions/`, `config/settings.yaml`
 
-Per ADR-38, all source modules live under `src/ai_council/` (namespace package).
+## 3. Architecture
 
-```
-src/ai_council/
-  cli.py               — Click entry point; PROVIDER_CLASSES dict; builds RunRequest, delegates to CouncilRunner
-  orchestrator.py      — CouncilRunner.run(); debate lifecycle coordination (extracted from runner.py)
-  runner.py            — build_all_providers(); determine_panel(); pick_synthesizer(); re-exports CouncilRunner
-  debate.py            — run_debate() → DebateOutcome; persona injection; blind voting via _anonymize_responses()
-  synthesis.py         — synthesize(); builds transcript; calls non-participating synthesizer → DebateResult
-  output.py            — save_to_file(); print_round_summary(); print_synthesis(); print_cost_summary()
-  models.py            — Dataclasses: Question, ModelResponse, Round, DebateOutcome, DebateResult, RunRequest, DebateMetrics
-  policy.py            — RunPolicy: min_panel_size, retry_on patterns, should_retry()
-  metrics.py           — build_call_metrics(); build_debate_metrics(); per-provider cost rates
-  healthcheck.py       — run_health_checks(); pings all providers before debate starts
-  inbox.py             — Inbox folder scanning, frontmatter parsing, auto-archive, Downloads detection
-  routing.py           — TargetResolver; resolves target-project names to transcript dirs; RoutingError on unknown
-  mode_detector.py     — detect_mode(); _pick_cheapest(); auto-classifies question via cheap LLM call
-  providers/
-    base.py            — AIProvider ABC + ProviderError
-    anthropic.py       — Claude (Anthropic SDK, asyncio.to_thread)
-    gemini.py          — Gemini (google-genai, native async)
-    openai_provider.py — GPT (AsyncOpenAI)
-    xai.py             — Grok (OpenAI-compatible, base_url)
-    deepseek.py        — DeepSeek (OpenAI-compatible, base_url)
-  research/
-    __init__.py        — Package init
-    models.py          — Dataclasses: Source, ResearchResult, MergedResearchReport
-    provider.py        — ResearchProvider ABC + ResearchProviderError
-    display.py         — run_research_with_display(); Rich Live progress table; asyncio.wait() spinner loop
-    merger.py          — make_cache_key(); merge_results(); summarize_report(); _deduplicate_sources()
-    cache.py           — cache_get(); cache_put(); cache_invalidate(); file-based TTL cache
-    runner.py          — build_research_providers(); run_research(); full pipeline orchestration
-    output.py          — save_research_to_file(); print_research_summary()
-    providers/
-      perplexity.py         — Perplexity sonar-pro (OpenAI-compatible, base_url)
-      openai_mini_research.py — o4-mini-deep-research (Responses API + background polling)
-      openai_deep_research.py — o3-deep-research (--deep only, 45 min timeout)
-      gemini_research.py    — Gemini Deep Research (Interactions API, autonomous agent, ~5-20 min)
-config/                — top-level package, sibling of src/ (NOT under src/ai_council/)
-  settings.yaml        — Models, prompts, personas, panels, defaults (single source of truth)
-  config_loader.py     — YAML -> typed dataclasses; API key detection at startup
-scripts/
-  check.ps1            — pytest + mypy + ruff pre-merge check
-  council-ask.ps1      — helper script for quick CLI invocations
-tests/                 — 362 unit tests + integration tests
-```
+See `ARCHITECTURE.md` for the structural model; read it before structural changes (required at Scale M+, per ADR-51).
 
-## Dev standards
+## 4. Conventions
 
-- Python 3.12+, `pyproject.toml` as single dependency source
-- `ruff` for linting/formatting, `pytest` + `pytest-asyncio` for testing
-- Feature branches, no deletions without asking
-- Logging not print, dataclasses not dicts
-- Click CLI, Rich console output
-- Do NOT merge OpenAI-compatible providers (xai.py, deepseek.py) — keep separate
-- Before merging any branch, run: `.\scripts\check.ps1` (pytest + mypy + ruff)
+- **Naming:** snake_case Python; kebab-case markdown; `ADR-NN_topic.md` future ADRs (7 existing kebab-case grandfathered per ADR-29)
+- **Commits:** Conventional Commits — `type(scope): summary` (imperative; body for non-trivial changes)
+- **Branches:** `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<scope>`
+- **Testing:** `pytest tests/ -m "not integration and not envcheck" -v` (unit suite, no API keys); `pytest -x --tb=short` (quick); `asyncio_mode = auto` in `pyproject.toml`
+- **Linting:** `ruff check src/ tests/ --fix`; pre-merge: `.\scripts\check.ps1` (pytest + mypy + ruff)
 
-## Key commands
+**Out of scope for this repo:**
+- Client/pre-sales data → Obsidian vault
+- Cross-ecosystem lessons → `.dev-knowledge/LESSONS.md`
+- Curated Council transcripts → `.dev-knowledge/docs/decisions/transcripts/`
 
-```bash
-# Default: full 5-model panel, pick mode (default) — auto-detected or explicit
-council "Should we use REST or GraphQL?" --rounds 1
-python -m ai_council.cli "Should we use REST or GraphQL?" --rounds 1  # also works
+## 5. Critical rules
 
-# 3-model panel (lite mode)
-council --lite "Quick question" --rounds 1
+1. Read `.claude/rules/` before making code changes: `code-standards.md`, `python-env.md`, `testing.md`
+2. API keys live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
+3. Run `.\scripts\check.ps1` (pytest + mypy + ruff) before every merge
+4. `LESSONS.md` is append-only — never edit old entries (ADR-29)
+5. ADRs are immutable — supersede with a new ADR; never edit in place
+6. Config strings (models, prompts, personas, timeouts) live in `config/settings.yaml` — never hardcode
+7. Do NOT merge `xai.py` and `deepseek.py` into a single provider — keep separate
 
-# Ideas mode — brainstorm
-council -M i "What features am I not using in my auth system?"
+## 6. Session start protocol
 
-# Judge mode — evaluate a proposal
-council -M j "Is this microservices architecture production-ready?"
+1. `/boot` (loads skills, memory, recent commits)
+2. `git status` — clean working tree?
+3. `git log --oneline -5` — recent context
+4. Read most recent handoff under `.dev-knowledge/docs/handoffs/` if continuing
+5. `pytest --collect-only -q` — test discovery sanity check
+6. Run `.\scripts\check.ps1` when ready to merge
+7. Wait for Rob's prompt — never improvise
 
-# Full 5-model panel (no-op — default is already full)
-council "Monorepo vs polyrepo?" --rounds 2 --full
+## 7. Slash commands available
 
-# Custom models + custom synthesizer
-council "SQL or NoSQL?" --models claude,openai --synthesizer gemini
+User-level (`~/.claude/commands/`):
+- `/session-summary` — generate token-efficient session summary
+- `/boot` — load context (skills, memory, recent commits)
+- `/save` — stage + commit with Conventional Commits message
 
-# From file
-council --file question.md --rounds 3
+Repo-level (`./.claude/commands/`):
+- `/save` — commit workflow with full body per git-discipline rule
 
-# Inbox batch mode (reads council_inbox/*.md with optional frontmatter overrides)
-council --inbox
+## 8. Skills active
 
-# Research mode — parallel web research (Perplexity + Gemini + o4-mini)
-council -M research "Best HTAP databases in 2026"
-council -M r "LLM inference hardware comparison"
+User-level (`~/.claude/skills/`):
+- `gotchas` — universal dev gotchas (encoding, shell safety, test pitfalls)
+- `boot`, `session-summary`, `handoff`, `save` — session lifecycle skills
 
-# Research mode — include slow deep providers (o3-deep-research, ~45 min)
-council -M research "LLM inference hardware" --deep
+Repo-level (`./.claude/rules/`):
+- `code-standards.md` — ecosystem code standards
+- `python-env.md` — venv, install, async-first guidance
+- `testing.md` — pytest + pytest-asyncio standards
 
-# Research mode — skip cache read/write
-council -M r "Redis vs Valkey" --no-cache
+Code review: Codex via `/review`; threshold 3+ files for a full review.
 
-# Debug logging
-council "question" --rounds 1 --verbose
-```
+## 9. Hooks active
 
-## Key design decisions
+Pre-commit (`.pre-commit-config.yaml`):
+- `normalize-headers` — `scripts/normalize_headers.py`; normalizes dated-log headers in `LESSONS.md`/`JOURNAL.md`
 
-- **Panel system**: `determine_panel()` in runner.py; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is now the default; `--lite` uses the 3-model panel; `--full` is a no-op kept for backward compat
-- **Persona injection**: Per-provider personas in `settings.yaml`; injected via `{persona}` placeholder in prompt templates
-- **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden
-- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default synthesizer is `gemini` (`gemini-3.1-pro-preview`); falls back with `is_participant=True` if none available
-- **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `settings.yaml`
-- **RunPolicy**: Retry logic (`retry_on` patterns, `min_panel_size`) decoupled from debate logic; passed into `run_debate()`
-- **DebateOutcome**: `run_debate()` returns `DebateOutcome` (rounds + degradation fields); not `list[Round]`
-- **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`
-- **provider_statuses**: Dict tracking per-provider `"ok"` | `"failed"` — surfaced in output and saved to markdown
-- **Cost tracking**: `metrics.py` builds `DebateMetrics` with per-call token counts and estimated USD costs
-- **Mode system**: `pick`/`ideas`/`judge`/`research` via `--mode`/`-M`; aliases `p`/`i`/`j`/`r`; auto-detected from question text; mode-specific prompt templates and `persona_mode_directives` in settings.yaml; `pick` uses existing `prompts.*` for backward compat; `RunRequest.mode` and `DebateResult.mode` carry mode through pipeline
-- **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()`+`as_completed` progressive display; merges results; summarizes via LLM; writes `{ts}_{slug}_research.md`; file cache under `~/.ai-council/research_cache/` with 7-day TTL
+Manual pre-merge gate:
+- `.\scripts\check.ps1` — pytest + mypy + ruff (run before every merge; not wired to pre-commit)
 
-## Transcript Routing
+## 10. Anti-patterns specific to Claude Code in this repo
 
-Opt-in, per-invocation mirroring of debate transcripts to named target project directories.
-
-**Two-layer model (refactored 2026-05-11 per ADR-43 amendment cycle 1):**
-- **Names** (e.g., `.dev-knowledge`) come from frontmatter or `--target-project` flag — dynamic per invocation
-- **Ecosystem root** (`dev_root`) declared once in `config/settings.yaml`; project names listed; paths computed as `<dev_root>/<name>/docs/decisions/transcripts/`
-
-**Frontmatter (inbox mode):**
-```yaml
----
-mode: judge
-target-project: .dev-knowledge          # single string
-# OR
-target-project: [.dev-knowledge, foo]   # multi-target (rare)
----
-```
-
-**CLI flag (direct mode):**
-```bash
-council --target-project .dev-knowledge "question"
-# Multi-target — repeat the flag:
-council --target-project .dev-knowledge --target-project foo "question"
-```
-
-**Config (`config/settings.yaml`):**
-```yaml
-# Declare ecosystem root once; list opt-in project names below.
-dev_root: "C:/Users/1028120/Documents/Dev/"
-
-target_projects:
-  - ".dev-knowledge"
-  # - "corp-monorepo"
-```
-
-Old `dict[name, full_path]` shape fails loud at load with a migration hint (ADR-43 amendment cycle 1).
-
-**Behavior:**
-- Transcript written to `<dev_root>/<name>/docs/decisions/transcripts/<filename>` (auto-mkdir)
-- Canonical `output/` is always written first (hard requirement; failure is hard error)
-- Mirror writes are best-effort: failure logs a warning, canonical is never affected
-- Unknown target name → `RoutingError` at parse time (before debate runs), listing known names
-- No `target-project` specified → canonical only, unchanged behavior
-- All 4 modes (pick / ideas / judge / research) route through the same plumbing
-
-**Key files:**
-- `src/ai_council/routing.py` — `TargetResolver` + `RoutingError`
-- `config/settings.yaml` — `dev_root` + `target_projects` list (single source of truth)
-- `config/config_loader.py` — `AppConfig.dev_root: Path | None`, `AppConfig.target_projects: list[str]`
-- `docs/decisions/ADR-43_*.md` in `.dev-knowledge` — authoritative architecture decision
-
-## Debate modes
-
-| Mode | Aliases | Default rounds | Purpose |
-|------|---------|---------------|---------|
-| `pick` | `p`, `pick`, `d`, `decide` | 2 | Choose between options. **(default)** |
-| `ideas` | `i`, `ideas` | 1 | Brainstorm. Surface unknowns and divergent ideas. |
-| `judge` | `j`, `judge` | 2 | Evaluate a proposal or claim. Get a verdict. |
-| `research` | `r`, `research` | — | Multi-source web research report with citations. |
-
-- `pick` uses `prompts.initial`/`prompts.critique`/`prompts.synthesis` from settings.yaml (backward compat).
-- `ideas`/`judge` use per-mode `round1_header`/`round1_instruction`/`round1_structure`/`round2_instruction`/`synthesis_output` from `modes:` block in settings.yaml.
-- `persona_mode_directives` in settings.yaml injects a `CRITICAL INSTRUCTION:` override at top of each persona for `ideas`/`judge`.
-- Mode auto-detected from question text via cheap LLM call (deepseek > gemini > others); 5s interactive confirm.
-- Inbox frontmatter can specify `mode:` — CLI `--mode` overrides it.
-- `resolve_mode()` in `config_loader.py` maps aliases; raises `ValueError` for unknown modes.
-- `research` mode routes to `src/research/runner.py:run_research()` before the debate pipeline; `--deep` adds o3-deep-research; `--no-cache` bypasses file cache.
-
-## Research providers
-
-| Provider | Key env var | Default | --deep only | Notes |
-|----------|-------------|---------|------------|-------|
-| `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
-| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-reasoning; Responses API; x_search + web_search; unique X/Twitter signal |
-| `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
-| `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API (`deep-research-preview-04-2026`); autonomous agent; ~5-20 min |
-| `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
-
-Missing API keys are silently skipped — remaining providers still run.
-
-## Test suite
-
-```bash
-pytest tests/ -m "not integration and not envcheck" -v   # 362 unit tests (6 deselected), no API keys needed
-pytest tests/ -m envcheck -v             # verify API keys are in environment
-pytest tests/test_integration.py -v      # requires 2+ API keys in .env
-```
-
-Coverage: cli, config, debate, healthcheck, inbox, models, mode_detector, output, synthesis, research (models/cache/merger/display/runner/provider)
-
-## Dependencies
-
-- `click` — CLI framework
-- `rich` — Console output formatting
-- `pyyaml` — Config loading
-- `python-dotenv` — .env file loading
-- `anthropic`, `openai`, `google-genai` — AI provider SDKs
-- `python-frontmatter` — Inbox file parsing
-
-## API Keys
-
-Keys loaded globally from `Documents/.secrets/.env` via PowerShell profile.
-Do NOT add API keys to local `.env`.
-Check: `keys list` | Update: `keys set KEY value` | Reload: `keys reload`
-
-This repo uses: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `PERPLEXITY_API_KEY`
-
-## Integration points
-
-ai-council is fully standalone. It is used for architectural decision-making across the ecosystem.
-
-- AI Council debates produce binding decisions (see ECOSYSTEM.md)
-- 5 LLM providers: Claude, Gemini, GPT, Grok, DeepSeek
-
-## Related repos
-
-- [ECOSYSTEM.md](../ECOSYSTEM.md) — full ecosystem overview, AI Council binding decisions
-- [corp-by-os](../corp-by-os/) — root orchestrator
-- [corp-os-meta](../corp-os-meta/) — shared schema
-
-## Inbox file detection
-
-`--inbox` processes files from two sources. Filename conventions differ between them — this is the authoritative rule:
-
-**1. `council_inbox/*.md` (primary inbox)** — `scan_inbox()` in `src/ai_council/inbox.py`.
-- **Rule:** any file ending in `.md` is picked up. No filename token required. No frontmatter required.
-- Directory configured at `inbox.dir` in `settings.yaml` (default `./council_inbox`).
-- Processed oldest-first by mtime.
-
-**2. `~/Downloads/*.md` (opt-in pre-scan)** — `scan_downloads_folder()` in `src/ai_council/inbox.py`.
-- A Downloads `.md` file is picked up if **either** condition is true:
-  - (a) **filename stem contains the substring `council`** (case-insensitive) — e.g. `council-q.md`, `My_Council_Brief.md`, `ASK_COUNCIL.MD`; **or**
-  - (b) its YAML frontmatter contains any key in `inbox.council_frontmatter_keys` (case-insensitive). Default keys: `mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`.
-- Files matching neither condition are ignored (left in Downloads).
-- Malformed YAML frontmatter is logged and the file is skipped unless it already qualified by filename.
-- Toggle via `inbox.scan_downloads`; directory via `inbox.downloads_dir`.
-
-**Common to both:** Processed files are moved to `council_inbox/archive/` with a `YYYY-MM-DDTHHMM_` timestamp prefix (or `FAILED_<timestamp>_` on routing/parse failure). The `FAILED_` and timestamp prefixes are stripped from the slug used for output filenames via `clean_slug()`.
-
-## Gotchas
-
-- **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks. Use ASCII only.
+- **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks — ASCII only
+- **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__`
+- **Interactions API warnings**: suppress `UserWarning` from `client.aio.interactions` at the call site
 - **MockProvider ABC**: `async def generate` must exist in class body AND be shadowed by `AsyncMock` in `__init__`
-- **pytest-asyncio**: Needs `asyncio_mode = auto` in `pytest.ini`
+- **pytest-asyncio**: `asyncio_mode = auto` required in `pyproject.toml`
 - **Critique template**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
-- **google-genai async**: `client.aio.models.generate_content()` — native async, NOT `asyncio.to_thread`
-- **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__` — otherwise it binds to the wrong event loop
-- **Interactions API experimental warnings**: `client.aio.interactions` emits `UserWarning: Interactions usage is experimental` on every access — suppress with `warnings.catch_warnings()` + `warnings.simplefilter("ignore", UserWarning)` in the call site
-- **Interactions API agent IDs**: The google-genai SDK type hint only knows `"deep-research-pro-preview-12-2025"` as of v1.73, but the **runtime accepts newer IDs** — verified 2026-05-18 that the configured `"deep-research-preview-04-2026"` is accepted by `interactions.create()`. Agent ID is configured in `settings.yaml` under `research.providers.gemini.model` — update there to switch agents; ignore SDK type-hint warnings
-- **Research make_cache_key location**: `make_cache_key()` lives in `src/research/merger.py`, NOT `src/research/cache.py`
+- **Inbox loop parity**: Features added to interactive CLI must be explicitly mirrored into inbox loop
+- **`_anonymize_responses()` shuffle**: Part of blind-voting contract — do not change without an ADR
+- **`make_cache_key()` location**: In `src/research/merger.py`, NOT `src/research/cache.py`
 - **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
-- **Downloads pickup needs "council" in filename OR council frontmatter key**: A `.md` file in `~/Downloads` is only picked up by `--inbox` if its stem contains `council` (case-insensitive) **or** its frontmatter has one of: `mode`, `rounds`, `models`, `synthesizer`, `full`, `target-project`. A bare `question.md` with no frontmatter sitting in Downloads will be silently ignored. Files dropped directly in `council_inbox/` have no such requirement — any `*.md` is processed.
-  - verify: `Grep("council.*file_path.stem.lower|council_keys", path="src/ai_council/inbox.py")` returns the two-branch detection in `scan_downloads_folder()`
 
-## Known issues
+Do NOT:
+- Re-add scope-tag enforcement — withdrawn under ADR-46; `validate_scope_tags.py` deleted
+- Recreate `CHANGELOG.md` or `BACKLOG_ARCHIVE.md` — removed per ADR-49
+- Edit existing `LESSONS.md` entries — append-only per ADR-29
+- Add API keys to a repo-local `.env` — global secrets only
+- Change Council runtime behavior to fix question-quality problems — fix in `docs/council-question-guide.md`
 
-- o3-deep-research integration test not run (blocked — $10+ per run)
-- gemini deep-research integration test not run (blocked — takes 5-20 min per call)
+## 11. Recent ADRs binding here
 
+**Local (`docs/decisions/`):**
+- ADR-01: Synthesizer Selection — non-participating model synthesizes; default gemini (Revised 2026-04-30)
+- ADR-02: Default Panel Composition — full 5-model default; `--lite` for 3-model (Revised 2026-05-11)
+- ADR-03: Blind Voting in Round 2 — `_anonymize_responses()` shuffles; hides provider identity
+- ADR-04: Mode System — pick/ideas/judge/research with aliases and auto-detection
+- ADR-05: Research Mode Integration — parallel-research code path, file cache, `--deep` opt-in
+- ADR-06: Cost Optimization — per-provider tracking; Qwen trial deferred (Revised 2026-05-11)
+- ADR-07: Dual Output Paths — superseded by ADR-43 (opt-in target-project routing)
 
-## Folder governance
-- `src/` — all Python source code
-- `tests/` — all tests
-- `config/` — settings.yaml and config_loader.py
-- `scripts/` — check.ps1 and utility scripts
-- `docs/` — decisions/ (ADRs), handoffs/ (session handoffs), audits/ (codex reviews; pre-ADR-34 reports in audits/archive/legacy/)
-- `output/` — gitignored; debate transcripts and research reports
-- `council_inbox/` — gitignored; drop .md files for batch processing
-- `eval/` — evaluation data (eval_history.jsonl)
-- `LESSONS.md` — ai-council-local lessons (at repo root; moved from tasks/ per I7)
-- Do not create files outside these directories without updating this section
+**Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**
+- ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
+- ADR-42: handoffs centralized in `.dev-knowledge`; ADR-43: cross-project transcript routing
+- ADR-48/49: no CHANGELOG/BACKLOG_ARCHIVE; Conventional Commits; JOURNAL/LESSONS structure
+- ADR-51: ARCHITECTURE.md convention (Scale M+); ADR-53: CLAUDE.md as single canonical instruction file
 
-## Lessons Discovery
+## 12. Section history
 
-Set `DEV_KNOWLEDGE_PATH` to point to the .dev-knowledge repo:
+- v1.0 (pre-ADR-53) — technical reference document (architecture, commands, design decisions)
+- v2.1 (2026-05-19) — ADR-53: retire AGENTS.md; CLAUDE.md becomes substantive single canonical agent-instruction file; technical depth moved to ARCHITECTURE.md
 
-```powershell
-$env:DEV_KNOWLEDGE_PATH = "C:/Users/1028120/Documents/Dev/.dev-knowledge"
-```
+---
 
-**Where lessons go:**
-
-- ai-council-local lessons (provider quirks, SDK gotchas, CLI patterns specific to this repo) → `LESSONS.md` (repo root)
-- Cross-ecosystem lessons (universalizable methodology, governance patterns) → `$DEV_KNOWLEDGE_PATH/LESSONS.md`
-
-**Criterion:** lesson applies only to ai-council code → stays local. Lesson applies across repos → flows to .dev-knowledge.
-
-**ADR naming:** future ADRs use underscore convention (`ADR-NN_topic.md`) per ADR-34. The 7 existing kebab-case ADRs (`ADR-01-synthesizer-selection.md` etc.) are grandfathered per ADR-29 — do not rename.
-
-## Documentation conventions
-
-Per ADR-48/49 (2026-05-17):
-
-- **No CHANGELOG** — git history (Conventional Commits) plus the "Changes" line in each JOURNAL entry is the change record.
-- **No BACKLOG_ARCHIVE** — done backlog items leave BACKLOG silently; a *significant* abandoned item becomes a lightweight decision-note in `docs/decisions/`.
-- **Commit-message standard:** Conventional Commits — `type(scope): summary`; imperative summary; body for non-trivial changes.
-- **JOURNAL entry structure:** Did / Result / Changes / Abandoned / Next. One H3 dated entry per session (`### YYYY-MM-DD — Topic`).
-- **LESSONS entry structure:** `### YYYY-MM-DD | Topic` (pipe schema); reverse-chronological.
-- **Header normalizer:** `scripts/normalize_headers.py` — wired as pre-commit hook; converts `## YYYY-MM-DD` dated entries to `###`; idempotent.
-
-## Global Skills
-Before modifying code, consult ~/.claude/skills/gotchas/ for known ecosystem traps.
-After pytest passes, check ~/.claude/skills/verify/ for verification scripts.
-
+**Last updated:** 2026-05-19
+**Maintained by:** Rob
