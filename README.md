@@ -85,10 +85,15 @@ council "Should we adopt a monorepo?"
 # 3-model panel (claude, gemini, openai)
 council --lite "Quick question"
 
-# Force a specific mode
+# Force a specific mode (using -M flag)
 council -M ideas "What caching strategies should we consider?"
 council -M judge "Is this microservices design production-ready?"
 council -M pick "REST vs GraphQL?" --rounds 1
+council -M p "Quick architectural pick" --rounds 1    # short alias for pick
+council -M d "SQL or NoSQL?"                          # decide alias for pick
+
+# Full 5-model panel (--full is a no-op; full panel is the default)
+council "Monorepo vs polyrepo?" --rounds 2 --full
 
 # Specific models
 council "SQL or NoSQL?" --models claude,openai,grok
@@ -105,7 +110,8 @@ council -M r "LLM inference hardware comparison" --deep   # adds o3-deep-researc
 council -M r "Redis vs Valkey" --no-cache                 # skip cache
 ```
 
-> `python -m ai_council.cli` also works in place of `council` — same binary.
+> `python -m ai_council.cli` also works in place of `council` — same binary, e.g.:
+> `python -m ai_council.cli "Should we use REST or GraphQL?" --rounds 1 -M pick`
 
 ### Inbox mode — batch processing
 
