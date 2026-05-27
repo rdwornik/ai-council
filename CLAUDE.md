@@ -28,7 +28,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 
 ## 4. Conventions
 
-- **Naming:** snake_case Python; kebab-case markdown; `ADR-NN_topic.md` future ADRs (7 existing kebab-case grandfathered per ADR-29)
+- **Naming:** snake_case Python; kebab-case markdown; `ADR-NN-topic.md` future ADRs (existing ADRs hyphen-named per ADR-34)
 - **Commits:** Conventional Commits — `type(scope): summary` (imperative; body for non-trivial changes)
 - **Branches:** `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<scope>`
 - **Testing:** `pytest tests/ -m "not integration and not envcheck" -v` (unit suite, no API keys); `pytest -x --tb=short` (quick); `asyncio_mode = auto` in `pyproject.toml`
