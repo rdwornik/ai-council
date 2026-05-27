@@ -1,5 +1,4 @@
 ---
-scale: M
 last_reviewed: 2026-05-19
 status: active
 owner: Rob
@@ -96,7 +95,7 @@ Utility-exemption modules (importable from any layer): none.
 
 ---
 
-## Data Flow [L-opt]
+## Data Flow
 
 End-to-end debate pipeline:
 
@@ -122,7 +121,7 @@ Research mode branches at step 2: `research/runner.py` → cache check → paral
 
 ---
 
-## Key Design Decisions [L-opt]
+## Key Design Decisions
 
 - **Panel system**: `determine_panel()` in `runner.py`; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is the default; `--lite` uses 3-model panel; `--full` is a no-op kept for backward compat.
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden during critique rounds (ADR-03).
@@ -133,7 +132,7 @@ Research mode branches at step 2: `research/runner.py` → cache check → paral
 
 ---
 
-## Transcript Routing [L-opt]
+## Transcript Routing
 
 Opt-in, per-invocation mirroring of debate transcripts to named target project directories (ADR-43).
 
@@ -151,7 +150,7 @@ Opt-in, per-invocation mirroring of debate transcripts to named target project d
 
 ---
 
-## Debate Modes [L-opt]
+## Debate Modes
 
 | Mode | Aliases | Default rounds | Purpose |
 |------|---------|---------------|---------|
@@ -167,7 +166,7 @@ Opt-in, per-invocation mirroring of debate transcripts to named target project d
 
 ---
 
-## Research Providers [L-opt]
+## Research Providers
 
 | Provider | Env var | Default | `--deep` only | Notes |
 |----------|---------|---------|--------------|-------|
@@ -181,7 +180,7 @@ Missing API keys are silently skipped — remaining providers still run.
 
 ---
 
-## Folder Governance [L-opt]
+## Folder Governance
 
 | Folder | Contents |
 |--------|---------|
@@ -199,7 +198,7 @@ Do not create files outside these directories without updating this section.
 
 ---
 
-## Inbox File Detection [L-opt]
+## Inbox File Detection
 
 `--inbox` processes files from two sources. Filename conventions differ — this is authoritative:
 
