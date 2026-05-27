@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-05-19
+last_reviewed: 2026-05-27
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-05-19` (`initial ADR-51 conformance authoring`)
+> Last updated: `2026-05-27` (`codemap + layer model → inline Mermaid; de-tier frontmatter/section tags`)
 
 ## Purpose [CORE]
 
@@ -17,45 +17,85 @@ owner: Rob
 
 ## Codemap [CORE]
 
-> **Open item.** The codemap generator output spec is undecided (ADR-51 open question). This codemap is hand-maintained in the transitional text form until the generator ships.
+> **Codemap form.** The codemap generator shipped 2026-05-22 (ADR-51 amendment); generator adoption is **opt-in** and ai-council maintains this block by hand. The Mermaid graph shows the module dependency structure; per-module responsibilities follow in the table below.
 
 <!-- CODEMAP:START -->
+```mermaid
+flowchart TD
+    cli[cli.py]:::interface
+    inbox[inbox.py]:::interface
+    orchestrator[orchestrator.py]:::orchestration
+    runner[runner.py]:::orchestration
+    debate[debate.py]:::core
+    synthesis[synthesis.py]:::core
+    mode_detector[mode_detector.py]:::core
+    providers[providers/]:::core
+    research[research/]:::core
+    output[output.py]:::output
+    routing[routing.py]:::output
+    models[models.py]:::foundation
+    metrics[metrics.py]:::foundation
+    healthcheck[healthcheck.py]:::foundation
+    policy[policy.py]:::foundation
+    config[config/]:::foundation
+
+    cli --> orchestrator
+    inbox --> orchestrator
+    orchestrator --> runner
+    runner --> mode_detector
+    runner --> healthcheck
+    runner --> debate
+    runner --> config
+    debate --> providers
+    debate --> synthesis
+    debate --> models
+    synthesis --> models
+    synthesis --> output
+    output --> routing
+    research --> providers
+
+    classDef foundation fill:#e8e8e8,stroke:#888
+    classDef core fill:#bde0fe,stroke:#1971c2
+    classDef orchestration fill:#a5d8ff,stroke:#1971c2
+    classDef interface fill:#74c0fc,stroke:#1864ab
+    classDef output fill:#ffd8a8,stroke:#e8590c
+
+    click cli href "src/ai_council/cli.py" "Open cli.py"
+    click inbox href "src/ai_council/inbox.py" "Open inbox.py"
+    click orchestrator href "src/ai_council/orchestrator.py" "Open orchestrator.py"
+    click runner href "src/ai_council/runner.py" "Open runner.py"
+    click debate href "src/ai_council/debate.py" "Open debate.py"
+    click synthesis href "src/ai_council/synthesis.py" "Open synthesis.py"
+    click mode_detector href "src/ai_council/mode_detector.py" "Open mode_detector.py"
+    click providers href "src/ai_council/providers/" "Open providers"
+    click research href "src/ai_council/research/" "Open research"
+    click output href "src/ai_council/output.py" "Open output.py"
+    click routing href "src/ai_council/routing.py" "Open routing.py"
+    click models href "src/ai_council/models.py" "Open models.py"
 ```
-src/ai_council/
-  cli.py              CLI entry; Click args → RunRequest; health-check gate   (interface)
-  inbox.py            File-based batch input; YAML frontmatter; archive        (interface)
-  orchestrator.py     CouncilRunner; debate lifecycle coordinator               (orchestration)
-  runner.py           Panel selection; provider init; mode resolution           (orchestration)
-  debate.py           Parallel debate rounds; blind-vote critique; retry        (core)
-  synthesis.py        Final synthesis; transcript assembly; DebateResult build  (core)
-  mode_detector.py    LLM-based question classification (pick/ideas/judge)      (core)
-  providers/          5 debate-provider implementations                         (core)
-    base.py           AIProvider ABC; error classification
-    anthropic.py      Claude (Anthropic SDK)
-    openai_provider.py  GPT (OpenAI SDK)
-    gemini.py         Gemini (google-genai SDK)
-    xai.py            Grok (OpenAI-compatible base_url)
-    deepseek.py       DeepSeek (OpenAI-compatible base_url)
-  output.py           Rich console render + markdown archive write               (output)
-  routing.py          TargetResolver; secondary transcript routing (ADR-43)      (output)
-  models.py           Pure dataclasses; all shared data shapes; no logic         (foundation)
-  metrics.py          Token-count + cost tracking per provider call              (foundation)
-  healthcheck.py      Provider health checks; startup gate                       (foundation)
-  policy.py           RunPolicy; retry backoff spec                              (foundation)
-  research/           Research mode subsystem (isolated code path)               (core — research)
-    runner.py         Research orchestrator: cache → parallel → merge → summarize
-    provider.py       ResearchProvider ABC
-    cache.py          File-based cache (TTL; dedup by question hash)
-    merger.py         Dedup sources; synthesize report
-    models.py         ResearchResult, MergedResearchReport, Source
-    display.py        Live progress display
-    output.py         Save research results to markdown
-    providers/        5 research providers (Perplexity/OAI-mini/OAI-deep/Gemini/Grok)
-config/
-  config_loader.py    Type-safe YAML → dataclass loaders; appConfig singleton   (foundation)
-  settings.yaml       Single config source of truth: models, prompts, personas  (foundation)
-```
+<!-- hand-authored Mermaid codemap per ADR-51 amendment 2026-05-22; not generator-managed -->
 <!-- CODEMAP:END -->
+
+**Module responsibilities** (semantic complement to the structural graph):
+
+| Module | Layer | Responsibility |
+|--------|-------|----------------|
+| `cli.py` | interface | CLI entry; Click args → RunRequest; health-check gate |
+| `inbox.py` | interface | File-based batch input; YAML frontmatter; archive |
+| `orchestrator.py` | orchestration | CouncilRunner; debate lifecycle coordinator |
+| `runner.py` | orchestration | Panel selection; provider init; mode resolution |
+| `debate.py` | core | Parallel debate rounds; blind-vote critique; retry |
+| `synthesis.py` | core | Final synthesis; transcript assembly; DebateResult build |
+| `mode_detector.py` | core | LLM-based question classification (pick/ideas/judge) |
+| `providers/` | core | 5 debate-provider implementations: `base.py` (AIProvider ABC), `anthropic.py`, `openai_provider.py`, `gemini.py`, `xai.py`, `deepseek.py` |
+| `research/` | core | Research-mode subsystem (isolated code path): `runner.py`, `provider.py` (ABC), `cache.py`, `merger.py`, `models.py`, `display.py`, `output.py`, `providers/` (5 research providers) |
+| `output.py` | output | Rich console render + markdown archive write |
+| `routing.py` | output | TargetResolver; secondary transcript routing (ADR-43) |
+| `models.py` | foundation | Pure dataclasses; all shared data shapes; no logic |
+| `metrics.py` | foundation | Token-count + cost tracking per provider call |
+| `healthcheck.py` | foundation | Provider health checks; startup gate |
+| `policy.py` | foundation | RunPolicy; retry backoff spec |
+| `config/` | foundation | `config_loader.py` (type-safe YAML → dataclass; appConfig singleton) + `settings.yaml` (single config source of truth: models, prompts, personas) |
 
 ---
 
@@ -64,6 +104,26 @@ config/
 ### Layer model
 
 Four layers in dependency order (interface → orchestration → core → foundation). `output` is a cross-cutting concern that writes results produced by `core`.
+
+```mermaid
+flowchart TD
+    interface["interface<br/>cli, inbox"]:::interface
+    orchestration["orchestration<br/>orchestrator, runner"]:::orchestration
+    core["core<br/>debate, synthesis, mode_detector, providers, research"]:::core
+    foundation["foundation<br/>models, metrics, healthcheck, policy, config"]:::foundation
+    output["output (cross-cutting)<br/>output, routing"]:::output
+
+    interface --> orchestration
+    orchestration --> core
+    core --> foundation
+    core -.writes via.-> output
+
+    classDef foundation fill:#e8e8e8,stroke:#888
+    classDef core fill:#bde0fe,stroke:#1971c2
+    classDef orchestration fill:#a5d8ff,stroke:#1971c2
+    classDef interface fill:#74c0fc,stroke:#1864ab
+    classDef output fill:#ffd8a8,stroke:#e8590c
+```
 
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).  
 **Config file:** N/A  
