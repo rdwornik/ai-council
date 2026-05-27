@@ -1,6 +1,6 @@
 # BACKLOG — ai-council
 
-<!-- schema: ADR-41 | grooming: per-handoff (~2 min) + quarterly deep (first 2026-07-01) -->
+<!-- schema: ADR-41 as relaxed by ADR-47 | grooming: per-handoff (~2 min) + quarterly deep (first 2026-07-01) -->
 
 Canonical cross-session pending items. Single source of truth for all actionable work.
 Handoff Future State references items here by stream + title (pointers, not duplication).
