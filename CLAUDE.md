@@ -42,7 +42,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 ## 5. Critical rules
 
 1. Read `.claude/rules/` before making code changes: `code-standards.md`, `python-env.md`, `testing.md`
-2. API keys live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
+2. API keys (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `PERPLEXITY_API_KEY`) live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
 3. Run `.\scripts\check.ps1` (pytest + mypy + ruff) before every merge
 4. `LESSONS.md` is append-only — never edit old entries (ADR-29)
 5. ADRs are immutable — supersede with a new ADR; never edit in place
