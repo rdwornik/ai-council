@@ -17,7 +17,6 @@ If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag
 ## 2. Repo identity
 
 - **Name:** `ai-council`
-- **Scale:** `M` (per `.dev-knowledge/protocols/PLAYBOOK.md` Project Scale Tiers)
 - **Status:** `active`
 - **Purpose:** Multi-model AI debate and research CLI tool; produces binding ADRs governing the `Dev/` ecosystem.
 - **Owner:** Rob
@@ -25,7 +24,7 @@ If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag
 
 ## 3. Architecture
 
-See `ARCHITECTURE.md` for the structural model; read it before structural changes (required at Scale M+, per ADR-51).
+See `ARCHITECTURE.md` for the structural model; read it before structural changes (required per ADR-51 — mandatory for every repo).
 
 ## 4. Conventions
 
@@ -126,7 +125,7 @@ Do NOT:
 - ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
 - ADR-42: handoffs centralized in `.dev-knowledge`; ADR-43: cross-project transcript routing
 - ADR-48/49: no CHANGELOG/BACKLOG_ARCHIVE; Conventional Commits; JOURNAL/LESSONS structure
-- ADR-51: ARCHITECTURE.md convention (Scale M+); ADR-53: CLAUDE.md as single canonical instruction file
+- ADR-51: ARCHITECTURE.md convention (universal); ADR-53: CLAUDE.md as single canonical instruction file
 
 ## 12. Section history
 
