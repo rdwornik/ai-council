@@ -21,6 +21,7 @@ owner: Rob
 
 <!-- CODEMAP:START -->
 ```mermaid
+%%{init: {'theme':'dark'}}%%
 flowchart TD
     cli[cli.py]:::interface
     inbox[inbox.py]:::interface
@@ -106,6 +107,7 @@ flowchart TD
 Four layers in dependency order (interface → orchestration → core → foundation). `output` is a cross-cutting concern that writes results produced by `core`.
 
 ```mermaid
+%%{init: {'theme':'dark'}}%%
 flowchart TD
     interface["interface<br/>cli, inbox"]:::interface
     orchestration["orchestration<br/>orchestrator, runner"]:::orchestration
