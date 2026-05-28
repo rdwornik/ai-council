@@ -21,7 +21,7 @@ owner: Rob
 
 <!-- CODEMAP:START -->
 ```mermaid
-%%{init: {'theme':'dark'}}%%
+%%{init: {'theme':'base', 'themeVariables': {'darkMode':true,'background':'#1a1a1a','primaryColor':'#2d2d3d','primaryTextColor':'#f0f0f0','primaryBorderColor':'#8a86ff','lineColor':'#a0a0ff','textColor':'#f0f0f0','mainBkg':'#2d2d3d','secondaryColor':'#3d2d3d','tertiaryColor':'#22323a','clusterBkg':'#222232','clusterBorder':'#555577','edgeLabelBackground':'#1a1a1a','titleColor':'#f0f0f0','nodeBorder':'#8a86ff'}}}%%
 flowchart TD
     cli[cli.py]:::interface
     inbox[inbox.py]:::interface
@@ -55,11 +55,11 @@ flowchart TD
     output --> routing
     research --> providers
 
-    classDef foundation fill:#e8e8e8,stroke:#888
-    classDef core fill:#bde0fe,stroke:#1971c2
-    classDef orchestration fill:#a5d8ff,stroke:#1971c2
-    classDef interface fill:#74c0fc,stroke:#1864ab
-    classDef output fill:#ffd8a8,stroke:#e8590c
+    classDef foundation fill:#e8e8e8,stroke:#888,color:#222
+    classDef core fill:#bde0fe,stroke:#1971c2,color:#000
+    classDef orchestration fill:#a5d8ff,stroke:#1971c2,color:#000
+    classDef interface fill:#74c0fc,stroke:#1864ab,color:#000
+    classDef output fill:#ffd8a8,stroke:#e8590c,color:#222
 
     click cli href "src/ai_council/cli.py" "Open cli.py"
     click inbox href "src/ai_council/inbox.py" "Open inbox.py"
@@ -107,7 +107,7 @@ flowchart TD
 Four layers in dependency order (interface → orchestration → core → foundation). `output` is a cross-cutting concern that writes results produced by `core`.
 
 ```mermaid
-%%{init: {'theme':'dark'}}%%
+%%{init: {'theme':'base', 'themeVariables': {'darkMode':true,'background':'#1a1a1a','primaryColor':'#2d2d3d','primaryTextColor':'#f0f0f0','primaryBorderColor':'#8a86ff','lineColor':'#a0a0ff','textColor':'#f0f0f0','mainBkg':'#2d2d3d','secondaryColor':'#3d2d3d','tertiaryColor':'#22323a','clusterBkg':'#222232','clusterBorder':'#555577','edgeLabelBackground':'#1a1a1a','titleColor':'#f0f0f0','nodeBorder':'#8a86ff'}}}%%
 flowchart TD
     interface["interface<br/>cli, inbox"]:::interface
     orchestration["orchestration<br/>orchestrator, runner"]:::orchestration
@@ -120,11 +120,11 @@ flowchart TD
     core --> foundation
     core -.writes via.-> output
 
-    classDef foundation fill:#e8e8e8,stroke:#888
-    classDef core fill:#bde0fe,stroke:#1971c2
-    classDef orchestration fill:#a5d8ff,stroke:#1971c2
-    classDef interface fill:#74c0fc,stroke:#1864ab
-    classDef output fill:#ffd8a8,stroke:#e8590c
+    classDef foundation fill:#e8e8e8,stroke:#888,color:#222
+    classDef core fill:#bde0fe,stroke:#1971c2,color:#000
+    classDef orchestration fill:#a5d8ff,stroke:#1971c2,color:#000
+    classDef interface fill:#74c0fc,stroke:#1864ab,color:#000
+    classDef output fill:#ffd8a8,stroke:#e8590c,color:#222
 ```
 
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).  
