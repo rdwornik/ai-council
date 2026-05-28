@@ -29,6 +29,9 @@
       120
     ],
     "explorer.sortOrder": "default",
+    "explorer.sortOrderLexicographicOptions": "upper",
+    "explorer.sortOrderReverse": true,
+    "explorer.compactFolders": false,
     "errorLens.enabledDiagnosticLevels": [
       "error",
       "warning",
