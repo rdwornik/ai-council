@@ -17,7 +17,6 @@ If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag
 ## 2. Repo identity
 
 - **Name:** `ai-council`
-- **Scale:** `M` (per `.dev-knowledge/protocols/PLAYBOOK.md` Project Scale Tiers)
 - **Status:** `active`
 - **Purpose:** Multi-model AI debate and research CLI tool; produces binding ADRs governing the `Dev/` ecosystem.
 - **Owner:** Rob
@@ -25,11 +24,11 @@ If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag
 
 ## 3. Architecture
 
-See `ARCHITECTURE.md` for the structural model; read it before structural changes (required at Scale M+, per ADR-51).
+See `ARCHITECTURE.md` for the structural model; read it before structural changes (required per ADR-51 — mandatory for every repo).
 
 ## 4. Conventions
 
-- **Naming:** snake_case Python; kebab-case markdown; `ADR-NN_topic.md` future ADRs (7 existing kebab-case grandfathered per ADR-29)
+- **Naming:** snake_case Python; kebab-case markdown; `ADR-NN-topic.md` future ADRs (existing ADRs hyphen-named per ADR-34)
 - **Commits:** Conventional Commits — `type(scope): summary` (imperative; body for non-trivial changes)
 - **Branches:** `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<scope>`
 - **Testing:** `pytest tests/ -m "not integration and not envcheck" -v` (unit suite, no API keys); `pytest -x --tb=short` (quick); `asyncio_mode = auto` in `pyproject.toml`
@@ -43,7 +42,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 ## 5. Critical rules
 
 1. Read `.claude/rules/` before making code changes: `code-standards.md`, `python-env.md`, `testing.md`
-2. API keys live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
+2. API keys (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `PERPLEXITY_API_KEY`) live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
 3. Run `.\scripts\check.ps1` (pytest + mypy + ruff) before every merge
 4. `LESSONS.md` is append-only — never edit old entries (ADR-29)
 5. ADRs are immutable — supersede with a new ADR; never edit in place
@@ -126,7 +125,7 @@ Do NOT:
 - ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
 - ADR-42: handoffs centralized in `.dev-knowledge`; ADR-43: cross-project transcript routing
 - ADR-48/49: no CHANGELOG/BACKLOG_ARCHIVE; Conventional Commits; JOURNAL/LESSONS structure
-- ADR-51: ARCHITECTURE.md convention (Scale M+); ADR-53: CLAUDE.md as single canonical instruction file
+- ADR-51: ARCHITECTURE.md convention (universal); ADR-53: CLAUDE.md as single canonical instruction file
 
 ## 12. Section history
 

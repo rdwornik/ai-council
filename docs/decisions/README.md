@@ -1,6 +1,6 @@
 # Architectural Decision Records
 
-ADRs documenting ai-council architectural choices. Kebab-case naming grandfathered (ADR-01 through ADR-07) per ADR-29 of `.dev-knowledge`. Future ADRs use underscore naming per ADR-34.
+ADRs documenting ai-council architectural choices. Hyphen (kebab-case) naming per ADR-34 of `.dev-knowledge`. Future ADRs use hyphen naming per ADR-34.
 
 Cross-repo ADRs affecting routing semantics live in `.dev-knowledge/docs/decisions/` (e.g., ADR-43).
 
