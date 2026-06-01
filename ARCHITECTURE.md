@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-05-27
+last_reviewed: 2026-06-02
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-05-27` (`codemap + layer model → inline Mermaid; de-tier frontmatter/section tags`)
+> Last updated: `2026-06-02` (`universalization conformance audit: fix post-ADR-38 namespace path; align Folder Governance to ADR-60 child-repo taxonomy`)
 
 ## Purpose [CORE]
 
@@ -224,7 +224,7 @@ Opt-in, per-invocation mirroring of debate transcripts to named target project d
 - `pick` uses `prompts.initial`/`prompts.critique`/`prompts.synthesis` from `settings.yaml` (backward compat).
 - `ideas`/`judge` use per-mode blocks in the `modes:` section of `settings.yaml`.
 - Mode auto-detected from question text via cheap LLM call (5s interactive confirm); resolved by `resolve_mode()` in `config_loader.py`.
-- `research` routes to `src/research/runner.py:run_research()` before the debate pipeline.
+- `research` routes to `src/ai_council/research/runner.py:run_research()` before the debate pipeline.
 
 ---
 
@@ -250,10 +250,9 @@ Missing API keys are silently skipped — remaining providers still run.
 | `tests/` | All tests |
 | `config/` | `settings.yaml` and `config_loader.py` |
 | `scripts/` | `check.ps1` and utility scripts |
-| `docs/` | `decisions/` (ADRs), `handoffs/`, `audits/` (pre-ADR-34 reports in `audits/archive/legacy/`) |
+| `docs/` | `decisions/` (ADRs + `transcripts/`), `audits/` (reports; pre-ADR-34 in `audits/archive/legacy/`), `archive/` — ADR-60 child-repo taxonomy (no `handoffs/`; those centralize in `.dev-knowledge`) |
 | `output/` | Gitignored; debate transcripts and research reports |
 | `council_inbox/` | Gitignored; drop `.md` files for batch processing |
-| `eval/` | Evaluation data (`eval_history.jsonl`) |
 | `LESSONS.md` | Repo-local lessons (append-only; at repo root) |
 
 Do not create files outside these directories without updating this section.
