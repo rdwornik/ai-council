@@ -1,7 +1,13 @@
+---
+last_reviewed: 2026-06-02
+status: active
+owner: Rob
+---
+
 # CLAUDE.md — AI Council
 > **Session contract for Claude Code in this repo.** Read on every session start (auto). Single canonical agent-instruction file (≤200 lines). Per ADR-53.
 >
-> **For universal rules:** read `../.dev-knowledge/protocols/ESSENTIALS.md` and `protocols/PLAYBOOK.md`.
+> **For universal rules:** read `../.dev-knowledge/protocols/ESSENTIALS.md` and `../.dev-knowledge/protocols/PLAYBOOK.md`.
 
 ## 1. First read (session start)
 
@@ -62,25 +68,27 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 ## 7. Slash commands available
 
 User-level (`~/.claude/commands/`):
-- `/session-summary` — generate token-efficient session summary
 - `/boot` — load context (skills, memory, recent commits)
-- `/save` — stage + commit with Conventional Commits message
+- `/session-summary` — generate token-efficient session summary
+- `/evolve` — evolution audit: promote/prune/graduate learned rules
+- `/codex-review` — invoke Codex review on a staged code diff
 
-Repo-level (`./.claude/commands/`):
-- `/save` — commit workflow with full body per git-discipline rule
+Repo-level: none — this repo has no `./.claude/commands/` directory (`.claude/` holds `rules/` only).
 
 ## 8. Skills active
 
 User-level (`~/.claude/skills/`):
 - `gotchas` — universal dev gotchas (encoding, shell safety, test pitfalls)
-- `boot`, `session-summary`, `handoff`, `save` — session lifecycle skills
+- `verify` — domain verification scripts for the ecosystem (run after pytest)
+
+(`boot`/`session-summary`/`evolve`/`codex-review` are **commands**, not skills — see §7.)
 
 Repo-level (`./.claude/rules/`):
 - `code-standards.md` — ecosystem code standards
 - `python-env.md` — venv, install, async-first guidance
 - `testing.md` — pytest + pytest-asyncio standards
 
-Code review: Codex via `/review`; threshold 3+ files for a full review.
+Code review: Codex via `/codex-review`; threshold 3+ files for a full review.
 
 ## 9. Hooks active
 
@@ -100,7 +108,7 @@ Manual pre-merge gate:
 - **Critique template**: Uses `{previous_responses_anonymized}`, not `{previous_responses}`
 - **Inbox loop parity**: Features added to interactive CLI must be explicitly mirrored into inbox loop
 - **`_anonymize_responses()` shuffle**: Part of blind-voting contract — do not change without an ADR
-- **`make_cache_key()` location**: In `src/research/merger.py`, NOT `src/research/cache.py`
+- **`make_cache_key()` location**: In `src/ai_council/research/merger.py`, NOT `src/ai_council/research/cache.py`
 - **Windows /dev/null**: Use `io.StringIO()` for Console mocking in tests, not `open("/dev/null", "w")`
 
 Do NOT:
@@ -120,19 +128,25 @@ Do NOT:
 - ADR-05: Research Mode Integration — parallel-research code path, file cache, `--deep` opt-in
 - ADR-06: Cost Optimization — per-provider tracking; Qwen trial deferred (Revised 2026-05-11)
 - ADR-07: Dual Output Paths — superseded by ADR-43 (opt-in target-project routing)
+- ADR-08: Research Degradation Alarm — <3 research providers succeed → exit code 3 + alarm banner
 
 **Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**
 - ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
 - ADR-42: handoffs centralized in `.dev-knowledge`; ADR-43: cross-project transcript routing
 - ADR-48/49: no CHANGELOG/BACKLOG_ARCHIVE; Conventional Commits; JOURNAL/LESSONS structure
 - ADR-51: ARCHITECTURE.md convention (universal); ADR-53: CLAUDE.md as single canonical instruction file
+- ADR-59: universal visual pattern (dot-prefix configs, ALL-CAPS canonical, `.code-workspace` sort) — repo conforms; ADR-60: docs/ folder taxonomy (decisions/ + audits/ + archive/, README-seeded)
+- ADR-67: AI-Council process operationalization — six-step gated loop; downstream `/council-question` template + gate + `council.return_dir` are ai-council's to implement (not yet built)
+
+> **BACKLOG schema (ADR-41/47 → ADR-64/65/66):** whether the ADR-64/65/66 story-map layout binds child repos or is `.dev-knowledge`-scoped is unresolved upstream (`.dev-knowledge` BACKLOG #20 open). This repo's `BACKLOG.md` retains the ADR-41/47 stream schema pending that decision.
 
 ## 12. Section history
 
 - v1.0 (pre-ADR-53) — technical reference document (architecture, commands, design decisions)
 - v2.1 (2026-05-19) — ADR-53: retire AGENTS.md; CLAUDE.md becomes substantive single canonical agent-instruction file; technical depth moved to ARCHITECTURE.md
+- v2.2 (2026-06-02) — universalization conformance audit: add `last_reviewed` frontmatter (resolves audit.py check #10 WARN); fix §header PLAYBOOK path; reconcile §7/§8 to actual `~/.claude/` + `.claude/` state (`/save` repo-command and `handoff`/`save` skills do not exist; +`/evolve`/`/codex-review`; +`verify` skill; `/review`→`/codex-review`); §10 namespace path `src/research/`→`src/ai_council/research/`; §11 +local ADR-08, +ecosystem ADR-59/60/67, note unresolved backlog-schema scope
 
 ---
 
-**Last updated:** 2026-05-19
+**Last updated:** 2026-06-02
 **Maintained by:** Rob

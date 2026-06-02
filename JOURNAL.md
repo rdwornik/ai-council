@@ -1,5 +1,16 @@
 # Journal — ai-council
 
+### 2026-06-02 — Universalization coherence audit (G1): doc-truth conformance to current standard
+
+- **Did:** Ran the per-child-repo universalization coherence audit against `.dev-knowledge` committed `main` (read-only). Confirmed machine floor via imported `scripts/audit.py` `audit_repo` (not the CLI). Fixed doc-truth drift the 10 checks don't cover: ARCHITECTURE.md (post-ADR-38 namespace path `src/research/`→`src/ai_council/research/`; Folder Governance aligned to ADR-60 child-repo taxonomy — dropped stale `handoffs/` + never-existed `eval/` rows; `last_reviewed` re-stamped after end-to-end re-read) and CLAUDE.md (added `last_reviewed` frontmatter; PLAYBOOK path; §7/§8 reconciled to actual `~/.claude/`+`.claude/` state; §10 namespace path; §11 +local ADR-08, +ecosystem ADR-59/60/67).
+- **Result:** Machine floor 9/10→**10/10 pass, 0 fail, 0 warn** (cleared the canonical_freshness FAIL the 2026-05-28 mermaid commits had introduced + the CLAUDE.md no-frontmatter WARN). 407 unit tests pass unchanged. Doc-only; no Codex gate.
+- **Decisions (operator):** **D1 = Defer** — keep ai-council's ADR-41/47 BACKLOG stream schema; do NOT migrate to the ADR-64/65/66 story-map. Cascade of ADR-64/65/66 to child repos is unresolved upstream (`.dev-knowledge` BACKLOG #20 open); deferred to the canonical-baseline decision. CLAUDE.md §11 pending note left as-is. **D2 = Track, don't build** — added one open BACKLOG item (Governance stream) capturing the ADR-67 implementation obligation (`/council-question` template + question-gate + `council.return_dir`); downstream, not built now.
+- **Changes:** `ARCHITECTURE.md` (15add98), `CLAUDE.md` v2.2 (690b326), `BACKLOG.md` (+1 ADR-67 item), `JOURNAL.md` (this entry).
+- **Abandoned:** BACKLOG schema migration (D1 = Defer — would pre-empt an open upstream decision).
+- **Next:** Merge `chore/universalization-conformance` → `main` (`--no-ff`); delete branch. ADR-67 implementation stays deferred.
+
+---
+
 ### 2026-05-19 — ADR-53 chunk 4: AGENTS.md retired, CLAUDE.md v2.1 live
 
 - **Did:** Executed ADR-53 chunk 4 — full migration of `ai-council/AGENTS.md` content into a single canonical `CLAUDE.md` v2.1 (139 lines, ≤200 cap). Displaced technical depth (architecture tree, key commands, design decisions, transcript routing, debate modes, research providers, folder governance, inbox detection) moved to `ARCHITECTURE.md` (6 new `[L-opt]` sections, ADR-51 conformant) and `README.md` (3 missing CLI examples). Stale test count ("266 unit tests") removed from `.claude/rules/testing.md` (local-only; `.claude/` is gitignored). Moot BACKLOG.md P3 item (AGENTS.md creation) removed. AGENTS.md deleted.
