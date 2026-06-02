@@ -93,6 +93,13 @@ Handoff Future State references items here by stream + title (pointers, not dupl
 - **Added:** 2026-05-12 by operator
 - **Status:** open
 
+### [P3] [open] Implement ADR-67 AI-Council gated loop (/council-question template + question-gate + council.return_dir)
+- **What:** Build ai-council's downstream pieces of the ADR-67 six-step gated Council loop: a Council-question template (mandates exactly one decision + options + constraints/invariants + relevant prior ADRs), a question-quality gate that validates a filled question before release (required sections, one decision, options enumerated, ADR context attached), and deterministic known-path I/O reading the operator's return directory from `~/.claude` global config (`council.return_dir`). Trigger: `/council-question` generates + self-gates the question.
+- **Why:** ADR-67 (`.dev-knowledge`, Accepted 2026-06-01) defines the contract; its cross-domain table assigns the template + gate + return-path implementation to `ai-council`. Currently unbuilt.
+- **Deferred:** Downstream work — do NOT build before the canonical-baseline / Phase-2 universalization settles (mirrors `.dev-knowledge` BACKLOG #70 deferral). Tracked here per ADR-41 (child-repo execution items live in the child repo).
+- **Added:** 2026-06-02 by universalization-conformance audit (ADR-67 obligation)
+- **Status:** open
+
 ---
 
 ## Cross-stream / Ecosystem
