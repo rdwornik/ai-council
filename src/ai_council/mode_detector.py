@@ -1,3 +1,4 @@
+# ruff: noqa: E501  # CLASSIFICATION_PROMPT is an LLM prompt string; line-wrapping changes model behavior
 """Cheap LLM call to classify a question into a debate mode."""
 
 import asyncio

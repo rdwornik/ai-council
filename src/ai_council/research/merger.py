@@ -72,7 +72,8 @@ def _build_merged_document(results: list[ResearchResult]) -> str:
         if not result.content or result.error:
             continue
         provider_label = result.provider.upper()
-        parts.append(f"## Report from {provider_label} ({result.model if hasattr(result, 'model') else result.provider})\n")
+        model_label = result.model if hasattr(result, "model") else result.provider
+        parts.append(f"## Report from {provider_label} ({model_label})\n")
         parts.append(result.content.strip())
         if result.sources:
             parts.append("\n### Sources from this provider")
