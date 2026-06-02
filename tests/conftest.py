@@ -11,9 +11,13 @@ _global_env = Path.home() / "Documents" / ".secrets" / ".env"
 if _global_env.exists():
     load_dotenv(_global_env, override=False)
 
-from ai_council.models import ModelResponse, Question, Round
-from ai_council.providers.base import AIProvider
-from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig
+from ai_council.models import (  # noqa: E402  # after load_dotenv so env vars are set before import
+    ModelResponse,
+    Question,
+    Round,
+)
+from ai_council.providers.base import AIProvider  # noqa: E402
+from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig  # noqa: E402
 
 
 @pytest.fixture
@@ -33,7 +37,7 @@ def sample_model_config() -> ModelConfig:
 def sample_prompts_config() -> PromptsConfig:
     return PromptsConfig(
         initial="{persona}\nAnswer this question: {question}",
-        critique="{persona}\nRound {round}. Question: {question}\n\nProposals:\n{previous_responses_anonymized}\n\nCritique:",
+        critique="{persona}\nRound {round}. Question: {question}\n\nProposals:\n{previous_responses_anonymized}\n\nCritique:",  # noqa: E501
         synthesis="Question: {question}\n\nTranscript:\n{full_transcript}\n\nSynthesize:",
         personas={"mock": "Be a mock architect."},
     )

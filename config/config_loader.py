@@ -109,7 +109,11 @@ class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
     prompts: PromptsConfig
-    inbox: InboxConfig = field(default_factory=lambda: InboxConfig(Path("./council_inbox"), Path("./council_inbox/archive")))
+    inbox: InboxConfig = field(
+        default_factory=lambda: InboxConfig(
+            Path("./council_inbox"), Path("./council_inbox/archive")
+        )
+    )
     available_providers: set[str] = field(default_factory=set)
     modes: dict[str, ModeConfig] = field(default_factory=dict)
     persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)

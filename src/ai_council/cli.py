@@ -283,12 +283,30 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     epilog=_EPILOG,
 )
 @click.argument("question", required=False)
-@click.option("--file", "question_file", type=click.Path(exists=True), help="Read question from a .md file instead of inline argument.")
+@click.option(
+    "--file", "question_file",
+    type=click.Path(exists=True),
+    help="Read question from a .md file instead of inline argument.",
+)
 @click.option("--rounds", default=None, type=int, help="Number of debate rounds (default: from mode config).")
-@click.option("--models", default=None, help="Comma-separated panel override, e.g. claude,openai,grok. Overrides --full and default panel.")
-@click.option("--full", "use_full_panel", is_flag=True, help="[No-op] Full panel is now the default. Kept for backward compatibility.")
-@click.option("--lite", is_flag=True, default=False, help="Use the 3-model panel (claude, gemini, openai) instead of the full 5-model default.")
-@click.option("--output", "output_path", default=None, help="Output directory for saved transcripts (default: ./output).")
+@click.option(
+    "--models", default=None,
+    help="Comma-separated panel override, e.g. claude,openai,grok. Overrides --full and default panel.",
+)
+@click.option(
+    "--full", "use_full_panel",
+    is_flag=True,
+    help="[No-op] Full panel is now the default. Kept for backward compatibility.",
+)
+@click.option(
+    "--lite", is_flag=True, default=False,
+    help="Use the 3-model panel (claude, gemini, openai) instead of the full 5-model default.",
+)
+@click.option(
+    "--output", "output_path",
+    default=None,
+    help="Output directory for saved transcripts (default: ./output).",
+)
 @click.option(
     "--synthesizer", default=None,
     help="Model that writes the final verdict: claude, openai, gemini, grok, deepseek. "
@@ -306,9 +324,16 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
 )
 @click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging.")
 @click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in the inbox folder.")
-@click.option("--inbox-dir", "inbox_dir_override", default=None, help="Override the inbox folder path (default: from config).")
+@click.option(
+    "--inbox-dir", "inbox_dir_override",
+    default=None,
+    help="Override the inbox folder path (default: from config).",
+)
 @click.option("--skip-health-check", is_flag=True, default=False, help="Skip the API connectivity check at startup.")
-@click.option("--deep", is_flag=True, default=False, help="Research mode: include slower deep-research providers (o3-deep-research).")
+@click.option(
+    "--deep", is_flag=True, default=False,
+    help="Research mode: include slower deep-research providers (o3-deep-research).",
+)
 @click.option("--no-cache", "no_cache", is_flag=True, default=False, help="Research mode: skip cache read and write.")
 @click.option(
     "--format", "output_format", default="text",

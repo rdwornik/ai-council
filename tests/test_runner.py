@@ -245,7 +245,9 @@ async def test_runner_run_raises_when_panel_too_small(two_providers, multi_model
         await runner.run(request, output_dir=tmp_path)
 
 
-async def test_runner_run_uses_output_dir_from_config_when_none(all_providers, multi_model_config, fake_round, fake_result):
+async def test_runner_run_uses_output_dir_from_config_when_none(
+    all_providers, multi_model_config, fake_round, fake_result
+):
     """When output_dir=None, runner uses config.defaults.output_dir."""
     request = RunRequest(
         question=Question(text="Q", source="cli"),

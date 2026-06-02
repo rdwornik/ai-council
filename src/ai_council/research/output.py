@@ -136,7 +136,7 @@ def print_research_summary(
     failed = [r for r in report.results if r.error]
 
     total_sources = sum(len(r.sources) for r in successful if r.sources)
-    console.print(f"[bold]Providers:[/bold] {len(successful)} succeeded, {len(failed)} failed | {total_sources} sources total")
+    console.print(f"[bold]Providers:[/bold] {len(successful)} succeeded, {len(failed)} failed | {total_sources} sources total")  # noqa: E501
     for r in report.results:
         if r.error:
             icon = "[red]✗[/red]"
