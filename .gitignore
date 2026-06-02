@@ -35,3 +35,6 @@ council_inbox/*.md
 
 # Data
 *.db
+
+# Ephemeral Tier-1 closure output
+logs/
