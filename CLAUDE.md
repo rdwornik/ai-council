@@ -138,13 +138,14 @@ Do NOT:
 - ADR-59: universal visual pattern (dot-prefix configs, ALL-CAPS canonical, `.code-workspace` sort) — repo conforms; ADR-60: docs/ folder taxonomy (decisions/ + audits/ + archive/, README-seeded)
 - ADR-67: AI-Council process operationalization — six-step gated loop; downstream `/council-question` template + gate + `council.return_dir` are ai-council's to implement (not yet built)
 
-> **BACKLOG schema (ADR-41/47 → ADR-64/65/66):** whether the ADR-64/65/66 story-map layout binds child repos or is `.dev-knowledge`-scoped is unresolved upstream (`.dev-knowledge` BACKLOG #20 open). This repo's `BACKLOG.md` retains the ADR-41/47 stream schema pending that decision.
+> **BACKLOG form (resolved 2026-06-02):** the ADR-66 story-map binds all repos with **proportional depth** (`.dev-knowledge` ADR-38 A6; BACKLOG #20 closed). This repo's `BACKLOG.md` was migrated from the ADR-41/47 stream schema to the story-map on 2026-06-02 (all items preserved).
 
 ## 12. Section history
 
 - v1.0 (pre-ADR-53) — technical reference document (architecture, commands, design decisions)
 - v2.1 (2026-05-19) — ADR-53: retire AGENTS.md; CLAUDE.md becomes substantive single canonical agent-instruction file; technical depth moved to ARCHITECTURE.md
 - v2.2 (2026-06-02) — universalization conformance audit: add `last_reviewed` frontmatter (resolves audit.py check #10 WARN); fix §header PLAYBOOK path; reconcile §7/§8 to actual `~/.claude/` + `.claude/` state (`/save` repo-command and `handoff`/`save` skills do not exist; +`/evolve`/`/codex-review`; +`verify` skill; `/review`→`/codex-review`); §10 namespace path `src/research/`→`src/ai_council/research/`; §11 +local ADR-08, +ecosystem ADR-59/60/67, note unresolved backlog-schema scope
+- v2.3 (2026-06-02) — ecosystem-unify to the canonical standard (ADR-38 A6): added `CONTRIBUTING.md`; normalized VISION (Mission→Vision, +Values/References) and ARCHITECTURE (+Key conventions/Authority/Validators/Governing ADRs) to the canonical spine; migrated `BACKLOG.md` to the ADR-66 story-map (11 items preserved); `LESSONS.md` H1 → canonical title; §11 backlog-schema note resolved (#20 closed)
 
 ---
 

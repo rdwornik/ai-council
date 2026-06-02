@@ -278,4 +278,40 @@ Do not create files outside these directories without updating this section.
 
 ---
 
+## Key conventions
+
+- **Naming.** snake_case Python; kebab-case markdown; `ADR-NN-topic.md` for decisions (ADR-34); Council CLI output `council-out-YYYYMMDD-HHMMSS-topic.md`; ALL-CAPS for top-level governance markdown.
+- **Append-only files.** `LESSONS.md` — never edit old entries (ADR-29). `JOURNAL.md` — newest-first prepend.
+- **Immutable dated artifacts.** ADRs, transcripts, audits — supersede via a new file or in-file marker, never edit in place.
+- **Config as source of truth.** Model strings, prompts, personas, timeouts, cost rates live solely in `config/settings.yaml` — none hard-coded (Invariant 3).
+- **Layer discipline.** interface → orchestration → core → foundation; `output` is cross-cutting. `models.py` is logic-free; `cli.py` does no business logic.
+
+---
+
+## Authority and governance
+
+`ai-council` is a **tool repo** governed by `.dev-knowledge` (Layer-2 binding authority, ADR-31). It owns its local tool-design ADRs (`docs/decisions/ADR-01…08`) and conforms to ecosystem ADRs (naming, file lifecycle, the seven-file canonical baseline ADR-38 A6).
+
+- **Conformance:** verified out-of-band, read-only, by `.dev-knowledge/scripts/audit.py` against the canonical standard. `.dev-knowledge` never writes here (Layer-2 invariant, ADR-28).
+- **Decision flow:** Council debate (this tool) → verdict → ADR authored + ratified by `.dev-knowledge` → distributed to downstream repos. Local ADRs cover only this tool's internal design.
+- **Cross-domain split (ADR-67):** the process spec lives in `.dev-knowledge`; the `/council-question` template + gate + `council.return_dir` I/O are this repo's to implement (see `BACKLOG.md`).
+
+---
+
+## Validators and enforcement
+
+- **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit.
+- **`tests/`** — pytest unit + integration suites. Unit suite (no API keys): `pytest tests/ -m "not integration and not envcheck"`.
+- **Pre-commit:** `normalize-headers` (`scripts/normalize_headers.py`) — dated-log header normalization in `LESSONS.md` / `JOURNAL.md`.
+- **External conformance (read-only):** `.dev-knowledge/scripts/audit.py` — seven-file canonical baseline + structural spine (ADR-38 A6); manual `run`, no commit gating here.
+
+---
+
+## Governing ADRs
+
+- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm.
+- **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only LESSONS) · ADR-34 (naming) · ADR-38 (namespace + A6 seven-file baseline) · ADR-42 (handoffs centralized) · ADR-43 (transcript routing) · ADR-51 (ARCHITECTURE convention) · ADR-53 (CLAUDE.md) · ADR-59 (visual pattern) · ADR-60 (docs taxonomy) · ADR-67 (Council process operationalization).
+
+---
+
 **Maintained by:** Rob

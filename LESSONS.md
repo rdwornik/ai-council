@@ -1,4 +1,12 @@
-# AI Council — Lessons Learned
+# Lessons Learned — ai-council
+
+<!-- scope: hybrid -->
+
+> **Format (entries from 2026-06-02):** `### YYYY-MM-DD | source | lesson | category | [scope: X] | action taken`
+> Earlier entries below use a `CONTEXT / MISTAKE / RULE` body under a `### YYYY-MM-DD | title` header (grandfathered per ADR-29).
+> New entries go at the top. Never edit old entries. Never delete.
+
+---
 
 ### 2026-05-12 | Architect failure mode — defending local config as "by-design"
 - CONTEXT: Scrum-master addendum (2026-05-12) — strażnik caught that `tasks/lessons.md` location was non-canonical after main review implementation
