@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-06-03 — ADR-71 rollout: consume hub TOC hook + add TOC to council-question-guide
+
+**Did:** Wired ai-council as the second consumer of the `.dev-knowledge` hub TOC hook (ADR-71 pinned-pull, rev `69558c7`) — added `repo: ../.dev-knowledge` stanza scoped to `docs/council-question-guide.md` with `toc-freshness` (gate, pre-commit) + `toc-generate` (manual); ran `toc-generate` to produce a 29-entry TOC in the guide; confirmed gate passes-fresh / fails-stale.
+**Result:** 407 unit tests unchanged; ruff clean; `toc-freshness` Passed on current file, exit 1 on stale edit. Codemap not touched (gated on BACKLOG #79 — ai-council's frozen codemap hand-authored status ungrounded).
+**Changes:** `.pre-commit-config.yaml` (+hub TOC stanza, +`default_stages: [pre-commit]`), `docs/council-question-guide.md` (+32 lines TOC), `JOURNAL.md` (this). 2 commits on `feat/consume-toc-hook`; merged `--no-ff`.
+
+---
+
 ### 2026-06-02 — Universalization coherence audit (G1): doc-truth conformance to current standard
 
 - **Did:** Ran the per-child-repo universalization coherence audit against `.dev-knowledge` committed `main` (read-only). Confirmed machine floor via imported `scripts/audit.py` `audit_repo` (not the CLI). Fixed doc-truth drift the 10 checks don't cover: ARCHITECTURE.md (post-ADR-38 namespace path `src/research/`→`src/ai_council/research/`; Folder Governance aligned to ADR-60 child-repo taxonomy — dropped stale `handoffs/` + never-existed `eval/` rows; `last_reviewed` re-stamped after end-to-end re-read) and CLAUDE.md (added `last_reviewed` frontmatter; PLAYBOOK path; §7/§8 reconciled to actual `~/.claude/`+`.claude/` state; §10 namespace path; §11 +local ADR-08, +ecosystem ADR-59/60/67).
