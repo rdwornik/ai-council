@@ -1,3 +1,5 @@
+default_stages: [pre-commit]
+
 repos:
   - repo: local
     hooks:
@@ -7,3 +9,11 @@ repos:
         entry: python scripts/normalize_headers.py
         files: ^(LESSONS|JOURNAL)\.md$
         pass_filenames: true
+
+  - repo: ../.dev-knowledge
+    rev: 69558c7
+    hooks:
+      - id: toc-freshness
+        files: '^docs/council-question-guide\.md$'
+      - id: toc-generate
+        files: '^docs/council-question-guide\.md$'
