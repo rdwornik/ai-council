@@ -304,3 +304,64 @@ maybe Self-MoA) for the **verifiable** regime, and lean **Pole A** (full refeed,
 LLM-judge) for the **subjective** regime — i.e. *the single biggest design move may be making refeed /
 gating / judging policy regime-aware rather than picking one global point.* This is stated as **one live
 option, not a recommendation.**
+
+---
+
+## Open questions
+
+1. **(Load-bearing, scopes all ⓥ inventions)** On **verifiable** sub-questions, is the council
+   net-positive over a **self-consistency baseline at matched compute**? Until measured, every
+   verifiable-regime invention (Cluster B/C, reputation, Self-MoA) is a bet, not a settled win. This is
+   the prerequisite experiment — closing G5 answers it.
+2. How would the council **measure crux/dissent surfacing** in the subjective regime, where accuracy is
+   undefined? Without a metric here, "the subjective regime is fine" is an assertion, not a finding.
+3. **Anonymization vs. reputation** is a direct conflict (tension-map row 7). Can earned calibration be
+   carried without re-introducing identity-driven sycophancy (e.g. reputation applied *after* blind
+   rounds, at synthesis only)?
+4. Is the right unit of change a **global** redesign or a **regime-aware** policy (refeed / gating /
+   judging that branches on verifiable-vs-subjective)? The audit leans toward the latter as a live
+   option but does not decide it.
+5. Which single invention has the best **effort-to-value** ratio for a first experiment? Recursive
+   crux-zooming + tool adjudication (Cluster C) is the only proposal with no structural conflict and
+   reuses the existing research pool — a candidate, not a conclusion.
+
+---
+
+## Note on next step
+
+This report is **evidence, not a decision.** It validates that `ai-council` is strongly aligned with the
+*subjective-deliberation* half of the MAD research and structurally missing the *verifiable-measurement*
+half — and it deliberately keeps every contested design choice open (see the tension map).
+
+Whether to act, and in which direction, is the operator's call. The natural first move suggested by the
+evidence (not mandated by it) is **Open Question #1** — a baseline experiment — because it gates the
+credibility of every verifiable-regime improvement.
+
+If the operator chooses to act, this audit is the **seed for a future numbered ADR in `docs/decisions/`**
+(no number is assigned here — ADR numbering is the operator's, and this brainstorm has not converged on a
+decision to record). Candidate ADR framing: *"Regime-aware council policy: when to debate, how to refeed,
+how to adjudicate."*
+
+---
+
+## References
+
+- Du et al., *Improving Factuality and Reasoning via Multiagent Debate* — `arXiv:2305.14325`
+- Irving, Christiano, Amodei, *AI Safety via Debate* — `arXiv:1805.00899`
+- Barnes & Christiano, *Obfuscated Arguments* (2020)
+- Khan et al., *Debate with information asymmetry* (2024)
+- Wang et al., *Mixture-of-Agents* — `arXiv:2406.04692`
+- Li et al., *Self-MoA* (2025)
+- Choi et al., *Anonymizing response sources removes identity-sycophancy* (2025)
+- Cui et al., *Free-MAD: score-based aggregation* — `arXiv:2509.11035`
+- Sun et al., *Influence-/trust-gated turns* (2025)
+- Lin et al., *ConfMAD: confidence calibration* (2025)
+- *iMAD: debate-gating* — `arXiv:2511.11306`
+- *Entropy collapse in multi-agent debate* — `arXiv:2406.06461`
+- *Persuasion ≠ truth* — `arXiv:2510.13912`
+- Zhang et al., *Stop Overvaluing MAD* — `arXiv:2502.08788`
+- Huang et al., *Large Language Models Cannot Self-Correct Reasoning Yet* — `arXiv:2310.01798`
+
+---
+
+*Pre-decision brainstorm. Status: Draft. No decision is ratified by this document.*
