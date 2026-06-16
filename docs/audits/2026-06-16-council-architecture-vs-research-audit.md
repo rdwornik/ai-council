@@ -192,3 +192,115 @@ automatically a defect in the subjective regime, where the metric is crux/dissen
   not noise.
 - **Risk:** a decision carrying a strong minority objection looks identical, downstream, to a unanimous
   one — the dissent is recoverable only by re-reading the transcript.
+
+---
+
+## Invention bank (fantasy waters)
+
+Research-grounded proposals. Each is tagged **basis · effect · cost/context · conflicts-with**. These are
+options to weigh, **not** a recommended set — several conflict by design.
+
+> **Contingency flag:** every invention aimed at the **verifiable regime** (marked ⓥ) is contingent on
+> **Open Question #1** — until we know the council beats a self-consistency baseline at matched compute on
+> verifiable sub-questions, these are bets, not settled wins. Subjective-regime inventions (marked ⓢ) are
+> not gated by #1 because their metric is crux-surfacing, not accuracy.
+
+### Cluster A — Fight tunneling / preserve diversity
+- **Entropy injector ⓥⓢ** — each round inject fresh framings / contrarian seeds / temperature bump.
+  *Basis:* entropy collapse `arXiv:2406.06461`. *Effect:* slows imitation-convergence. *Cost:* +tokens
+  per round. *Conflicts-with:* Speak-by-exception, Context-budget market (injecting more vs. speaking
+  less), and the "refeed-as-feature" reading of G1.
+- **False-consensus detector ⓢ** — suspiciously-high agreement given shared lineage → spawn an
+  out-of-family skeptic. *Basis:* echo-chamber literature; upgrades the existing prompt-only groupthink
+  flag (`settings.yaml:356-358`) into a mechanism. *Effect:* catches premature convergence. *Cost:* +1
+  agent when triggered. *Conflicts-with:* Debate-gating (one adds agents, the other removes them).
+- **Cognitive basis-vector panel selection ⓢ** — pick personas to *span* the reasoning-style space,
+  optimizing divergence not agreement. *Basis:* heterogeneity > homogeneity (Du et al.). *Effect:*
+  formalizes the persona set already in `settings.yaml:93-122`. *Cost:* selection overhead.
+  *Conflicts-with:* Self-MoA provocation (diverse panel vs. one model's samples).
+
+### Cluster B — Earn / shrink the debate (verifiable-leaning)
+- **Debate-gating / speak-by-exception ⓥ** — single-agent answers first; debate only triggers if a
+  cheap check flags disagreement; silence is the default turn. *Basis:* iMAD `arXiv:2511.11306`, Sun et
+  al. 2025. *Effect:* large compute cut on easy questions. *Cost:* a gating classifier. *Conflicts-with:*
+  Entropy injector, False-consensus detector (both *add* deliberation).
+- **Context-budget market ⓢ** — agents bid context; surviving an argument refunds budget, being refuted
+  costs it. *Basis:* influence-gating `Sun et al.`; orchestration-cost reality (AutoGen/CrewAI 5–10× token
+  burn). *Effect:* ties airtime to demonstrated value. *Cost:* accounting complexity. *Conflicts-with:*
+  "every voice every round" (current `debate.py:240-244`), Entropy injector.
+
+### Cluster C — Ground the crux (resolve, don't out-argue)
+- **Recursive crux-zooming + tool adjudication ⓥ** — drill to the simplest checkable disputed claim,
+  then **check it with retrieval/code-exec**, not a vote. *Basis:* scalable-oversight debate
+  (`arXiv:1805.00899`); persuasion≠truth (`arXiv:2510.13912`). *Effect:* the most context-economical
+  debate primitive; closes G6 for empirical cruxes. *Cost:* tool wiring; the research pool already exists
+  to borrow. *Conflicts-with:* nothing structurally — strongest standalone candidate.
+- **Obfuscation guard ⓥ** — an argument whose validity can't be cheaply checked loses by default.
+  *Basis:* obfuscated-argument problem (Barnes & Christiano 2020). *Effect:* blocks expensive-to-refute
+  sophistry. *Cost:* needs a checkability heuristic. *Conflicts-with:* subjective-regime decisions, where
+  *nothing* is cheaply checkable — would mis-fire if applied there (scope to ⓥ only).
+- **Asymmetric-information debate ⓥ** — shard context across agents so each knows something the judge
+  doesn't. *Basis:* Khan et al. 2024 (info asymmetry raises judge accuracy). *Effect:* turns the context
+  constraint into a feature. *Cost:* context-sharding plumbing. *Conflicts-with:* Shared retrieval pool
+  (shard vs. pool the same context).
+
+### Cluster D — Anti-sycophancy / decision integrity (subjective-leaning)
+- **"What would change our mind" mandate ⓢ** — no decision without a falsifiable flip-condition per
+  side. *Basis:* persuasion≠truth; core anti-sycophancy. *Effect:* forces real cruxes; extends the
+  existing "Signals to Revisit" (`settings.yaml:296-297`). *Cost:* minimal. *Conflicts-with:* nothing.
+- **Minority report as first-class output ⓢ** — strong unresolved dissent is emitted as its own
+  artifact, never averaged away. *Basis:* design intent; closes G7. *Effect:* downstream sees dissent.
+  *Cost:* output-schema change. *Conflicts-with:* nothing.
+- **Steelman-swap ⓢ** — argue the opponent's case better than its author before defending your own.
+  *Basis:* debate-quality hygiene; upgrades the current steelman-first (`settings.yaml:319`). *Effect:*
+  deeper engagement. *Cost:* +tokens. *Conflicts-with:* Speak-by-exception, Context-budget market.
+
+### Cluster E — Standing institution / memory
+- **Calibrated reputation across sessions ⓥ** — over-confident-and-wrong penalized over time; weight by
+  earned calibration, not eloquence. *Basis:* ConfMAD. *Effect:* closes G4. *Cost:* persistent store +
+  outcome labeling (needs ground truth → ⓥ). *Conflicts-with:* anonymization (reputation needs identity;
+  blind voting hides it) — a **direct** conflict to resolve.
+- **Standing council with institutional memory ⓢ** — learns failure patterns from past ADRs/journal
+  ("last time we converged this fast, we were wrong"). *Basis:* orchestration reality (eval/observability
+  > framework). *Effect:* closes G4 on the subjective side without needing ground truth. *Cost:* retrieval
+  over `docs/decisions/` + `JOURNAL.md`. *Conflicts-with:* anonymization (weakly — pattern memory can be
+  identity-free).
+- **Premortem agent ⓢ** / **Negative-space agent ⓢ** — one narrates the decision's failure before
+  commit; the other asks "what question did none of us ask?". *Basis:* blind-spot guards. *Effect:*
+  cheap insurance on the existing "Blind Spots" synthesis section (`settings.yaml:370-372`). *Cost:* +1
+  agent each. *Conflicts-with:* Debate-gating (adds agents).
+
+### Cluster F — Reframes of "council" itself
+- **Council as context compiler ⓢ** — output is *denser* than input; net-negative entropy on working
+  memory. *Basis:* context-economy goal. *Effect:* the debate pays for itself in compression.
+  *Conflicts-with:* Entropy injector, Steelman-swap (both expand tokens).
+- **Branchable debates ⓢ** — git-for-arguments: pause / rewind / fork alternative-assumption worlds.
+  *Basis:* exploration of the decision space. *Cost:* state model. *Conflicts-with:* single-pass synthesis.
+- **Provocation — Self-MoA ⓥ** — maybe the ideal "council" is sometimes ONE strong model run as an
+  enforced internal dialectic (Self-MoA, Li et al. 2025: aggregating one strong model's samples can beat a
+  heterogeneous mix unless specialties match task heterogeneity). *Effect:* questions multi-provider as the
+  default. *Conflicts-with:* the entire heterogeneous-panel design — kept live deliberately.
+
+---
+
+## Tension map — the design is a choice of a point, not an answer
+
+The "ideal council" is **a point selected on these axes**, not a single answer. Each axis lists ≥2 live
+options; none is pre-resolved here.
+
+| Axis | Pole A | Pole B | What pulls each way |
+|---|---|---|---|
+| **Anti-conformity ↔ Consensus** | Inject entropy, spawn skeptics, reward dissent | Converge fast, reward agreement | Diversity preserves signal (`arXiv:2406.06461`) ↔ decisions must actually land. |
+| **Diversity ↔ Cost** | Full 5-lineage panel + extra skeptic agents | Lean 3-model or Self-MoA | Heterogeneity beats homogeneity (Du) ↔ orchestration 5–10× token burn. |
+| **More rounds ↔ Entropy collapse** | More critique rounds = deeper engagement | Fewer rounds = preserved diversity | Cross-examination value (G1-b) ↔ imitation-convergence (G1-a). |
+| **Full refeed ↔ Score/summary refeed** | Whole-transcript cross-exam (subjective feature) | Numeric trajectory (Free-MAD economy) | Richness for subjective cruxes ↔ token economy + dropout-robustness for verifiable ones. |
+| **Multi-provider ↔ Self-MoA** | Heterogeneous panel (current default) | One strong model, internal dialectic | Lineage-diversity guard ↔ Self-MoA can win when specialties don't match task. |
+| **Always-debate ↔ Debate-gating** | Council always runs (current) | Earn the debate per iMAD | Subjective questions merit debate ↔ verifiable easy ones don't. |
+| **Anonymized ↔ Reputation-weighted** | Blind voting (ADR-03, current) | Calibrated cross-session reputation | Kills identity-sycophancy ↔ can't weight earned calibration without identity. **Direct conflict.** |
+| **Model judge ↔ Tool-grounded judge** | LLM synthesizer (current) | Retrieval/code-exec adjudicates empirical cruxes | Works for value trade-offs ↔ only tools settle facts (`arXiv:2510.13912`). |
+
+**The mode split chooses the point.** A reasonable reading: lean **Pole B** (gate, score, tool-ground,
+maybe Self-MoA) for the **verifiable** regime, and lean **Pole A** (full refeed, dissent-first, blind,
+LLM-judge) for the **subjective** regime — i.e. *the single biggest design move may be making refeed /
+gating / judging policy regime-aware rather than picking one global point.* This is stated as **one live
+option, not a recommendation.**
