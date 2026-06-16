@@ -1,0 +1,80 @@
+# Audit — Does AI Council embody what the multi-agent-debate research shows *works*?
+
+**Date:** 2026-06-16
+**Branch:** `docs/audit-council-vs-research`
+**HEAD (audit-time):** `9eeedfc`
+**Status:** Draft — ADR seed (pre-decision)
+**Mode:** read-only analysis; no council code was modified
+**Scope:** `ai-council` only (`src/ai_council/`, `config/settings.yaml`). External research cited by source.
+
+---
+
+## Purpose and boundaries
+
+This report validates the **live `ai-council` implementation** against the external multi-agent-debate
+(MAD) literature: it inventories what the tool actually does, correlates each research-validated
+mechanism against the code, surfaces gaps, and proposes research-grounded improvements.
+
+**This is a pre-decision brainstorm, not a ratified decision.** It deliberately keeps ≥2 live options on
+every contested point and does **not** converge on a single recommended design. It is an *ADR seed* — the
+input to a future numbered ADR in `docs/decisions/`, not the ADR itself. The operator decides whether,
+and in which direction, to act.
+
+Every "implemented / partial / absent" claim cites a file and symbol read during this audit. Every
+research claim cites its source.
+
+---
+
+## Mode split — verifiable vs subjective (read this before any skeptic critique)
+
+The MAD literature splits cleanly along a fault line that the council straddles, and **the audit scopes
+every finding to the regime where it holds:**
+
+| Regime | Definition | The council's success metric | What the council does here |
+|---|---|---|---|
+| **Verifiable-answer** | A sub-claim has ground truth — math, a fact, a checkable assertion. | **Accuracy** against ground truth. | Mostly in `research` mode and any empirical crux inside a `pick`/`judge` debate. |
+| **Subjective / no-ground-truth** | Architecture decisions, trade-off picks. **No ground truth exists.** | **Crux & dissent surfacing** — naming the real disagreement and its load-bearing assumption. | The `pick`/`judge` debate path — the tool's reason for existing. |
+
+The widely-cited skeptic results — **"Stop Overvaluing MAD"** (Zhang et al., `arXiv:2502.08788`),
+**Huang et al.** (`arXiv:2310.01798`), and the **entropy-collapse** finding (`arXiv:2406.06461`) — all
+measure **accuracy on ground-truth benchmarks** (math, MMLU). Their verdict ("MAD often loses to
+Self-Consistency at matched compute") is imported as **binding only for the verifiable regime.**
+
+For architecture decisions there is no ground truth to be accurate *about*; the council's value is
+surfacing the crux and the minority report, which Self-Consistency cannot produce by construction. So the
+audit does **not** transfer the accuracy-benchmark verdict to the subjective regime. Where a finding
+applies to only one regime, it says so explicitly.
+
+---
+
+## Current state — what the council does today
+
+Capabilities map. Every row cites a file:symbol read this audit.
+
+| Capability | State | Evidence (file:symbol) | How it actually works |
+|---|---|---|---|
+| **Heterogeneous panel** | ✅ | `config/settings.yaml:34-91` (`models:`), `:10-11` (`default_panel`/`full_panel`) | 6 models across 5 lineages (Anthropic, Google, OpenAI, xAI, DeepSeek). Default panel = 3 (claude/gemini/openai); `--full` = 5 (adds deepseek/grok). |
+| **Persona differentiation** | ✅ | `config/settings.yaml:93-122` (`personas:`) | Each provider gets a distinct *lens* (claude=Systems, gemini=Security, deepseek=Performance, openai=Product, grok=Contrarian) — diversity by role, not just by weights. |
+| **Multi-round debate loop** | ✅ | `debate.py:186-295` (`run_debate`) | Default 2 rounds (`settings.yaml:2`, max 3). Round 1 independent answers; round 2+ critique. |
+| **Full prior-round refeed** | ✅ (tension — see below) | `debate.py:227-236`, `_build_round2_prompt` `:146-183`, `settings.yaml:315` (`{previous_responses_anonymized}`) | Round 2+ injects the **whole** prior round verbatim (anonymized), not scores/summaries. |
+| **Blind voting / anonymization** | ✅ | `debate.py:19-34` (`_anonymize_responses`) | Shuffles prior answers, relabels A/B/C, strips provider identity (ADR-03). |
+| **Steelman-first critique** | ✅ | `config/settings.yaml:319` (`critique` prompt) | Each member must state the strongest version of each proposal *before* assessing it, plus surface "hidden assumptions" (`:327`). |
+| **Non-participating synthesizer** | ✅ | `runner.py:59-75` (`pick_synthesizer`), `:44-56` (`exclude_synthesizer_from_panel`) | Synthesizer preferred from outside the panel; default gemini (ADR-01). Falls back to participant only if no outsider exists. |
+| **Quality-weighted synthesis** | ✅ | `synthesis.py:14-22` (`_format_full_transcript`), `settings.yaml:339-384` (`synthesis` prompt) | Judge weighs **argument quality, not vote count**; "minority position backed by strong evidence should outweigh a majority" (`:344-346`). |
+| **Groupthink/false-consensus flag** | ⚠️ Partial | `config/settings.yaml:356-358` (synthesis prompt) | Synthesizer is *prompted* to note when consensus was groupthink vs shared evidence. Delta-to-Full: prompt-only, post-hoc; no mechanical detector, no out-of-family skeptic spawned. |
+| **Dissent / minority handling** | ⚠️ Partial | `synthesis.py:14-22`; `settings.yaml:360-363` ("Unresolved Disagreements" + crux) | Full transcript reaches synthesizer; "Unresolved Disagreements" names the crux. Delta-to-Full: dissent is preserved *inside* the synthesis narrative, not emitted as a first-class minority-report artifact that survives averaging. |
+| **Confidence / calibration** | ⚠️ Partial | `config/settings.yaml:234-235` (judge `round1_structure`), `:246-247` (judge synthesis) | Confidence (high/med/low + "what would change it") exists in **judge mode only**. Delta-to-Full: no cross-session calibration tracking, no accuracy scoring, no reputation weighting. |
+| **Cost / token tracking** | ✅ | `metrics.py:7-67` (`compute_call_cost`, `build_debate_metrics`), `models.py` (`ProviderCallMetrics`) | Per-call USD + token totals across rounds + synthesis. |
+| **Context-budget enforcement** | ❌ | `settings.yaml:151` (`token_budget: 1500`) | `token_budget` is declared per mode but **informational only** — no code reads it to gate or truncate. |
+| **Debate-gating ("earn the debate")** | ❌ | `debate.py:269-280` (warn-only quality gate), `policy.py:23-33` (`should_abort`) | No trigger decides *whether* to debate. Only a low-participation warning and an all-fail abort. |
+| **Influence/trust-gated turns** | ❌ | `debate.py:240-244` (all providers called every round) | Every panelist speaks every round; equal weight; no speak-by-exception. |
+| **Shared retrieval pool** | ⚠️ Partial | `research/runner.py:24-65` (`build_research_providers`), `research/merger.py` (`make_cache_key`) | A shared research pool + file cache exists — but **only in `research` mode**. Delta-to-Full: the `pick`/`judge` debate panel has **no** retrieval; debaters reason from parametric memory only. |
+| **Institutional / cross-session memory** | ❌ | (no symbol — debate path is request→panel→synthesis) | No lookup of past debates/ADRs at debate time; each run is independent. |
+| **Single-model baseline comparison** | ❌ | (no symbol in `debate.py` / `orchestrator.py`) | The council never checks its synthesis against one strong model or a self-consistency run. |
+| **Output routing** | ✅ | `routing.py:21-70` (`TargetResolver`) | Per-invocation transcript mirroring to named target projects (ADR-43). |
+| **Tests (anonymization, rounds, synthesis)** | ✅ | `tests/test_debate.py`, `tests/test_synthesis.py` | Cover anonymization stripping, round flow, retry, quality-gate warning, synthesis metrics. No test asserts diversity preservation or baseline-beat. |
+
+**Reading of the map:** the council strongly implements the *diversity + blind + quality-weighted-judge*
+half of the research (heterogeneity, anonymization, steelman, non-participating synthesizer, minority
+protection in synthesis). It largely lacks the *measurement + control* half (baseline comparison,
+calibration, debate-gating, influence-gating, retrieval-for-debate, context-budget enforcement).
