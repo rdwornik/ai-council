@@ -78,3 +78,40 @@ Capabilities map. Every row cites a file:symbol read this audit.
 half of the research (heterogeneity, anonymization, steelman, non-participating synthesizer, minority
 protection in synthesis). It largely lacks the *measurement + control* half (baseline comparison,
 calibration, debate-gating, influence-gating, retrieval-for-debate, context-budget enforcement).
+
+---
+
+## Correlation — research mechanism × implemented?
+
+Each research-validated mechanism (and each failure-mode guard) scored against the code. **Every
+`Partial` carries an explicit delta-to-`Full` with file:symbol evidence.** Regime column marks where the
+mechanism's evidence applies (V = verifiable, S = subjective, both = applies in either).
+
+### What research says *works*
+
+| Mechanism (source) | Regime | State | Evidence + delta-to-Full |
+|---|---|---|---|
+| **Model heterogeneity / lineage diversity** (Du et al. `arXiv:2305.14325`) | both | ✅ Implemented | 5 lineages, 5 distinct personas — `settings.yaml:34-122`. Correlated-blind-spot risk is structurally mitigated. |
+| **Anonymizing response sources** (Choi et al. 2025) | both | ✅ Implemented | `debate.py:19-34` strips identity, shuffles, relabels A/B/C; tests assert no provider/model string leaks (`tests/test_debate.py`). |
+| **Score-based aggregation over the trajectory** (Free-MAD, Cui et al. `arXiv:2509.11035`) | V | ❌ Absent | No per-turn scoring. Aggregation is a single qualitative judge pass — `synthesis.py:_format_full_transcript` + `settings.yaml:339-384`. There is no numeric trajectory score, so no token savings / dropout-robustness Free-MAD reports. |
+| **Influence-/trust-gated turns** (Sun et al. 2025) | both | ❌ Absent | All providers speak every round at equal weight — `debate.py:240-244`. No ~70% input-length cut available. |
+| **Shared retrieval pool** (cognitive-islands escape) | both | ⚠️ Partial | Pool + cache exist in `research/runner.py:24-65` / `merger.py make_cache_key`. **Delta:** debate panel (`pick`/`judge`) has **zero** retrieval — debaters cannot ground a crux, only assert. |
+| **Confidence calibration as first-class signal** (ConfMAD, Lin et al. 2025) | both | ⚠️ Partial | Confidence field in **judge mode only** — `settings.yaml:234-235,246-247`. **Delta:** no `pick`-mode confidence, no cross-session calibration curve, no accuracy back-test. |
+| **Debate-gating — earn the debate** (iMAD `arXiv:2511.11306`) | V | ❌ Absent | No single-agent-first check; the council always runs the full panel — `debate.py:219-244`. iMAD's warning (debate can *override a correct single answer*) is unguarded in the verifiable regime. |
+| **Quality-weighted (not majority) adjudication** | S | ✅ Implemented | `settings.yaml:344-346` — minority-with-evidence outweighs majority-by-assertion. This is the council's strongest alignment with subjective-regime best practice. |
+| **Steelman before critique** (debate-quality hygiene) | both | ✅ Implemented | `settings.yaml:319` forces strongest-version restatement; `:327` forces hidden-assumption surfacing. |
+
+### Failure-mode guards
+
+| Failure mode (source) | Regime | Guarded? | Evidence + delta-to-Full |
+|---|---|---|---|
+| **Entropy collapse / tunneling** via dependent re-sampling (`arXiv:2406.06461`) | V | ⚠️ Partial (and contested) | Full prior-round refeed — `debate.py:227-236`. Anonymization + steelman + the Contrarian persona (`settings.yaml:117-122`) push back on imitation; but no temperature/framing re-injection, no diversity metric. **In the subjective regime the same full refeed is a *feature*, not a failure — see Gap analysis.** |
+| **Echo chambers** (shared lineage → confirmation) | both | ✅ Guarded | Cross-lineage panel + Contrarian persona — `settings.yaml:34-91,117-122`. |
+| **Persuasion ≠ truth** (`arXiv:2510.13912`) | V | ⚠️ Partial | Anonymization removes identity-persuasion; quality-weighted judge resists style. **Delta:** no *hard adjudicator* — the judge is itself an LLM (`synthesis.py:95-98`), so a confident-but-wrong argument on an empirical crux is not tool-checked. |
+| **Does it beat the baseline at all?** (`arXiv:2502.08788`, `arXiv:2310.01798`) | V | ❌ Absent | No baseline comparison anywhere — see Current State. Cannot answer the skeptics on its own data in the verifiable regime. |
+| **Security / Sybil conformity** (compromised agents propagate falsehood) | both | ⚠️ Partial | Heterogeneity + no trust-weighting means no single agent dominates; but no anomaly detection and no influence cap — `debate.py` treats every response equally. |
+
+**Validation verdict (held in tension, not converged):** on the **subjective** axis the council is well
+aligned with the literature (diversity, blind, steelman, quality-weighted judge, minority protection). On
+the **verifiable** axis it is missing exactly the mechanisms the skeptic papers say matter — baseline
+comparison, score-based aggregation, debate-gating, and a hard (tool-grounded) adjudicator.
