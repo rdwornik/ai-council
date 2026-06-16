@@ -115,3 +115,80 @@ mechanism's evidence applies (V = verifiable, S = subjective, both = applies in 
 aligned with the literature (diversity, blind, steelman, quality-weighted judge, minority protection). On
 the **verifiable** axis it is missing exactly the mechanisms the skeptic papers say matter — baseline
 comparison, score-based aggregation, debate-gating, and a hard (tool-grounded) adjudicator.
+
+---
+
+## Gap analysis
+
+**Lens (restated):** each gap is scoped to the regime where its supporting research holds. A skeptic
+finding measured on math/MMLU accuracy is a real gap **in the verifiable regime** and is *not*
+automatically a defect in the subjective regime, where the metric is crux/dissent surfacing.
+
+### G1 — Full prior-round refeed: a trade-off, not a defect
+
+- **Now:** round 2+ injects the entire prior round verbatim (`debate.py:227-236`; `_build_round2_prompt`
+  `:146-183`).
+- **Reading (a) — verifiable regime:** dependent re-sampling reduces answer diversity each round
+  (`arXiv:2406.06461`); full-text exposure lets a weaker model converge by imitation onto a confident
+  wrong answer. Here the refeed is a **risk**.
+- **Reading (b) — subjective regime:** full-transcript cross-examination is the **point** of
+  deliberation — a member must steelman (`settings.yaml:319`) and attack the *actual* argument, which
+  scores/summaries would strip. Here the refeed is a **feature**, and richer than Free-MAD's numeric
+  trajectory.
+- **Both readings stay live.** The gap is not "remove the refeed" — it is "the implementation applies one
+  refeed policy to both regimes." Partial mitigations already present: anonymization, steelman mandate,
+  Contrarian persona. Absent: entropy/diversity instrumentation, per-regime refeed policy.
+
+### G2 — No score-based aggregation (verifiable regime)
+
+- **Now:** one qualitative judge pass over the full transcript (`synthesis.py`, `settings.yaml:339-384`).
+- **Research:** Free-MAD (`arXiv:2509.11035`) scores the whole trajectory — ~half the tokens, robust to
+  agent dropout, anti-conformity.
+- **Risk:** on verifiable cruxes the council pays full-transcript token cost and inherits single-judge
+  fragility; a judge outage loses the whole aggregation. *In the subjective regime the qualitative pass
+  is defensible — there is no score to compute.*
+
+### G3 — No debate-gating (verifiable regime)
+
+- **Now:** the full panel always runs (`debate.py:219-244`); only a low-participation warning exists
+  (`:269-280`).
+- **Research:** iMAD (`arXiv:2511.11306`) — single-agent is often already right; triggering debate can
+  *override a correct answer*.
+- **Risk:** on easy verifiable questions the council spends 3–5× compute and can talk itself out of a
+  correct first answer. *Subjective questions arguably always merit the debate — gating matters far less
+  there.*
+
+### G4 — No calibration / cross-session memory (both regimes, asymmetric value)
+
+- **Now:** confidence only in judge mode (`settings.yaml:234-235`); no history (`debate.py` is
+  stateless run-to-run).
+- **Research:** ConfMAD (Lin et al. 2025) treats calibrated confidence as a first-class signal;
+  standing-council designs learn their own failure patterns.
+- **Risk:** the tool cannot say "last time we converged this fast on this class of question we were
+  wrong," and cannot weight an over-confident-and-wrong model down over time.
+
+### G5 — No baseline comparison (verifiable regime — the load-bearing gap)
+
+- **Now:** absent everywhere.
+- **Research:** the entire skeptic line (`arXiv:2502.08788`, `arXiv:2310.01798`) is an argument that MAD
+  must be measured against Self-Consistency at matched compute.
+- **Risk:** in the verifiable regime the council **cannot demonstrate it is net-positive** on its own
+  outputs. This is the precondition for trusting (or discounting) every other verifiable-regime
+  improvement — see Open Question #1.
+
+### G6 — No retrieval for the debate panel (both regimes)
+
+- **Now:** retrieval exists only in `research` mode (`research/runner.py:24-65`); debaters reason from
+  parametric memory.
+- **Research:** shared retrieval pools let agents escape "cognitive islands" / private-context bias.
+- **Risk:** an empirical crux inside a `pick`/`judge` debate is resolved by the most persuasive assertion
+  (`arXiv:2510.13912`), not by evidence — because no debater (and no judge) can look anything up.
+
+### G7 — Minority report is not a first-class output (subjective regime)
+
+- **Now:** dissent is preserved inside the synthesis narrative ("Unresolved Disagreements",
+  `settings.yaml:360-363`) but the final artifact is a single decision summary.
+- **Research / design intent:** strong unresolved dissent should never be averaged away; it is signal,
+  not noise.
+- **Risk:** a decision carrying a strong minority objection looks identical, downstream, to a unanimous
+  one — the dissent is recoverable only by re-reading the transcript.
