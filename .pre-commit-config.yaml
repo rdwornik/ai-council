@@ -1,19 +1,24 @@
-default_stages: [pre-commit]
-
+default_stages:
+- pre-commit
 repos:
-  - repo: local
-    hooks:
-      - id: normalize-headers
-        name: Normalize dated-log entry headers
-        language: python
-        entry: python scripts/normalize_headers.py
-        files: ^(LESSONS|JOURNAL)\.md$
-        pass_filenames: true
-
-  - repo: ../.dev-knowledge
-    rev: 69558c7
-    hooks:
-      - id: toc-freshness
-        files: '^docs/council-question-guide\.md$'
-      - id: toc-generate
-        files: '^docs/council-question-guide\.md$'
+- repo: local
+  hooks:
+  - id: normalize-headers
+    name: Normalize dated-log entry headers
+    language: python
+    entry: python scripts/normalize_headers.py
+    files: ^(LESSONS|JOURNAL)\.md$
+    pass_filenames: true
+- repo: ../.dev-knowledge
+  rev: v1.0.0
+  hooks:
+  - id: toc-freshness
+    files: ^docs/council-question-guide\.md$
+  - id: toc-generate
+    files: ^docs/council-question-guide\.md$
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.5
+  hooks:
+  - id: ruff
+    name: Ruff lint gate (Tier-1, pinned rev; blocks on violations)
+    args: []
