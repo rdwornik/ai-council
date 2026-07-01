@@ -10,5 +10,24 @@
       }
     }
   },
-  "//": "Tier-1 lifecycle plugin (ADR-70 #73 Unit-5a/5b). Marketplace = .dev-knowledge hub. Closure loop: Stop -> propose_closures, SessionStart -> surface, /review-closures. Ruff gate: install via assets/ruff-pre-commit.yaml (see INSTALL.md). Force-added (repo gitignores .claude/) so the install is tracked/reproducible. Operator: `claude plugin install tier1-lifecycle@dev-knowledge-methodology --scope project` then /reload-plugins."
+  "//": "Tier-1 lifecycle plugin (ADR-70 #73 Unit-5a/5b). Marketplace = .dev-knowledge hub. Closure loop: Stop -> propose_closures, SessionStart -> surface, /review-closures. Ruff gate: install via assets/ruff-pre-commit.yaml (see INSTALL.md). Force-added (repo gitignores .claude/) so the install is tracked/reproducible. Operator: `claude plugin install tier1-lifecycle@dev-knowledge-methodology --scope project` then /reload-plugins.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/check_floor_hash.py --require-present",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python -m pre_commit install",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
 }
