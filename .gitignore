@@ -25,7 +25,10 @@ Thumbs.db
 .env
 
 # Claude
-.claude/
+.claude/*
+!.claude/CLAUDE-FLOOR.md
+!.claude/CLAUDE-FLOOR.md.sha256
+!.claude/check_floor_hash.py
 
 # Project-specific
 output/

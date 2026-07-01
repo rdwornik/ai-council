@@ -4,6 +4,8 @@ status: active
 owner: Rob
 ---
 
+@.claude/CLAUDE-FLOOR.md
+
 # CLAUDE.md — AI Council
 > **Session contract for Claude Code in this repo.** Read on every session start (auto). Single canonical agent-instruction file (≤200 lines). Per ADR-53.
 >
