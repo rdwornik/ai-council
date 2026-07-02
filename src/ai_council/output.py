@@ -316,6 +316,137 @@ def save_to_file(
     return saved
 
 
+# Headings whose section carries dissent in the synthesizer's structured verdict.
+# "Unresolved Disagreements" (pick), "Contested Points" (judge), or explicit dissent.
+_DISSENT_HEADING_MARKERS = (
+    "unresolved disagreement",
+    "contested point",
+    "dissent",
+    "minority",
+)
+
+# A dissent section body is treated as "no genuine dissent" when it opens with one of
+# these negations (the synthesizer reported consensus rather than a split).
+_NO_DISSENT_PREFIXES = (
+    "none",
+    "n/a",
+    "no disagreement",
+    "no unresolved",
+    "no contested",
+    "no dissent",
+    "no minority",
+    "there were no",
+    "there was no",
+    "the panel reached consensus",
+    "the panel agreed",
+    "consensus",
+    "unanimous",
+)
+
+
+def _split_sections(markdown: str) -> list[tuple[str, str]]:
+    """Split markdown into (heading, body) pairs on level-2 ('## ') headings."""
+    sections: list[tuple[str, str]] = []
+    heading: str | None = None
+    body: list[str] = []
+    for line in markdown.splitlines():
+        if line.startswith("## "):
+            if heading is not None:
+                sections.append((heading, "\n".join(body)))
+            heading = line[3:].strip()
+            body = []
+        elif heading is not None:
+            body.append(line)
+    if heading is not None:
+        sections.append((heading, "\n".join(body)))
+    return sections
+
+
+def _is_genuine_dissent(body: str) -> bool:
+    """True when a dissent section body has real content (not a 'none/consensus' note)."""
+    stripped = body.strip()
+    if not stripped:
+        return False
+    first_line = ""
+    for ln in stripped.splitlines():
+        t = ln.strip().lstrip("-*# ").strip()
+        if t:
+            first_line = t.lower()
+            break
+    if not first_line or any(first_line.startswith(p) for p in _NO_DISSENT_PREFIXES):
+        return False
+    return len(stripped) >= 12
+
+
+def extract_dissent(synthesis: str) -> str | None:
+    """Return formatted dissent markdown when the verdict is non-unanimous, else None.
+
+    ai-council has no structured vote tally — ADR-03 blind voting is free-text critique
+    and the verdict is the synthesizer's narrative. The machine-available signal of a
+    non-unanimous outcome is therefore a *substantive* disagreement/dissent section in
+    that verdict. This surfaces exactly what Rama 4 / audit G7 flag (dissent buried in
+    the synthesis) without changing any Council runtime behavior.
+    """
+    kept: list[tuple[str, str]] = []
+    for heading, body in _split_sections(synthesis):
+        h = heading.lower()
+        if any(marker in h for marker in _DISSENT_HEADING_MARKERS) and _is_genuine_dissent(body):
+            kept.append((heading, body.strip()))
+    if not kept:
+        return None
+    parts: list[str] = []
+    for heading, body in kept:
+        parts.extend([f"## {heading}", "", body, ""])
+    return "\n".join(parts).strip()
+
+
+def save_minority_report(
+    result: DebateResult,
+    output_dir: Path,
+    slug_override: str | None = None,
+    secondary_dir: Path | None = None,
+    target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
+) -> list[Path]:
+    """Emit the minority/dissent report as a discrete, durable artifact (Rama 4, #15).
+
+    Fires only when the verdict is non-unanimous (see extract_dissent). Routed to the
+    same destinations as the verdict via _write_routed (canonical + secondary + return +
+    targets), so a --return-dir also receives it. Returns [] when there is no dissent.
+    """
+    body = extract_dissent(result.synthesis)
+    if body is None:
+        return []
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    slug = slug_override if slug_override is not None else _slug(result.question.text)
+    filename = f"council-minority-{timestamp}-{result.mode}-{slug}.md"
+
+    synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
+    lines = [
+        f"# AI Council Minority Report: {result.question.text[:80]}",
+        "",
+        f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**Debate Mode:** {result.mode}",
+        f"**Synthesizer:** {result.synthesizer} ({synth_is_label})",
+        f"**Source:** {result.question.source}",
+        "",
+        "> First-class dissent artifact (Rama 4). The verdict was NOT unanimous: the",
+        "> synthesizer recorded unresolved disagreement. The dissenting positions are",
+        "> preserved below so they are not lost inside the synthesized verdict.",
+        "",
+        "---",
+        "",
+        body,
+        "",
+    ]
+    saved = _write_routed(
+        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+    )
+    logger.info("Minority report saved to: %s", saved[0])
+    return saved
+
+
 def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
     """Save detailed metrics as a JSON file alongside the transcript."""
     assert result.metrics is not None
