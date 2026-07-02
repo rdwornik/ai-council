@@ -118,7 +118,7 @@ Do NOT:
 - Recreate `CHANGELOG.md` or `BACKLOG_ARCHIVE.md` — removed per ADR-49
 - Edit existing `LESSONS.md` entries — append-only per ADR-29
 - Add API keys to a repo-local `.env` — global secrets only
-- Change Council runtime behavior to fix question-quality problems — fix in `docs/council-question-guide.md`
+- Change Council runtime behavior to fix question-quality problems — fix in `protocols/COUNCIL_QUESTION_GUIDE.md`
 
 ## 11. Recent ADRs binding here
 
