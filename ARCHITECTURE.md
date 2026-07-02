@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-02
+last_reviewed: 2026-07-02
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-06-02` (`universalization conformance audit: fix post-ADR-38 namespace path; align Folder Governance to ADR-60 child-repo taxonomy`)
+> Last updated: `2026-07-02` (`Epic A output subsystem: ADR-10 return_dir routing + first-class minority-report artifact (#13/#15); reviewed Folder Governance end-to-end`)
 
 ## Purpose [CORE]
 
@@ -252,7 +252,7 @@ Missing API keys are silently skipped — remaining providers still run.
 | `scripts/` | `check.ps1` and utility scripts |
 | `protocols/` | Outward-facing invocation specs (SCREAMING_SNAKE): `COUNCIL_QUESTION_GUIDE.md`, `SYNTHESIS_QUALITY_RUBRIC.md` — ai-council's delegation surface, mirroring the hub's `protocols/` (ADR-09, local) |
 | `docs/` | `decisions/` (ADRs + `transcripts/`), `audits/` (reports; pre-ADR-34 in `audits/archive/legacy/`), `archive/` — ADR-60 child-repo taxonomy (no `handoffs/`; those centralize in `.dev-knowledge`). Invocation specs live in `protocols/`, not here (ADR-09) |
-| `output/` | Gitignored; debate transcripts and research reports |
+| `output/` | Gitignored; debate transcripts, research reports, and `council-minority-*` dissent artifacts (#15). Canonical write; `--return-dir` additionally routes a copy (ADR-10, #13) |
 | `council_inbox/` | Gitignored; drop `.md` files for batch processing |
 | `LESSONS.md` | Repo-local lessons (append-only; at repo root) |
 

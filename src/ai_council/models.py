@@ -83,6 +83,7 @@ class RunRequest:
     slug_override: str | None = None  # inbox file stem → deterministic output filename
     mode: str = "pick"  # "pick", "ideas", "judge"
     target_paths: list[Path] = field(default_factory=list)  # resolved transcript mirror dirs
+    return_dir: Path | None = None  # ADR-10 deterministic return dir; None → canonical ./output/ only
 
 
 @dataclass

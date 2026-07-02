@@ -5,7 +5,110 @@ from pathlib import Path
 import pytest
 
 from ai_council.models import DebateResult, ModelResponse, Round
-from ai_council.output import _slug, save_to_file
+from ai_council.output import _slug, extract_dissent, save_minority_report, save_to_file
+
+
+def _result_with_synthesis(synthesis: str, sample_question, sample_round, mode: str = "pick") -> DebateResult:
+    return DebateResult(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesis=synthesis,
+        synthesizer="openai",
+        total_duration_sec=5.0,
+        panel_mode="default",
+        synthesizer_is_participant=False,
+        mode=mode,
+    )
+
+
+_DISSENT_SYNTHESIS = (
+    "## Consensus\nBoth options are viable.\n\n"
+    "## Unresolved Disagreements\n"
+    "The crux: Claude argued Postgres is sufficient at this scale, while Grok held that "
+    "Cassandra is required for the projected write volume. Grok's write-amplification "
+    "estimate was the stronger argument.\n\n"
+    "## Recommended Decision\nStart with Postgres.\n"
+)
+
+_CONSENSUS_SYNTHESIS = (
+    "## Consensus\nEveryone agreed.\n\n"
+    "## Unresolved Disagreements\nNone - the panel reached consensus.\n\n"
+    "## Recommended Decision\nProceed.\n"
+)
+
+
+# ---------------------------------------------------------------------------
+# Minority report (Rama 4, #15)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_dissent_returns_body_on_genuine_dissent() -> None:
+    body = extract_dissent(_DISSENT_SYNTHESIS)
+    assert body is not None
+    assert "Unresolved Disagreements" in body
+    assert "Cassandra" in body
+    assert "Recommended Decision" not in body  # only the dissent section is extracted
+
+
+def test_extract_dissent_none_on_consensus() -> None:
+    assert extract_dissent(_CONSENSUS_SYNTHESIS) is None
+
+
+def test_extract_dissent_none_when_no_dissent_section() -> None:
+    assert extract_dissent("## Consensus\nAll agreed.\n\n## Recommended Decision\nDo it.") is None
+
+
+def test_extract_dissent_judge_contested_points() -> None:
+    synthesis = (
+        "## Overall Verdict\nSolid.\n\n"
+        "## Contested Points\nThe reviewers split on whether the retry logic is safe "
+        "under partition; one flagged a data-loss window.\n"
+    )
+    body = extract_dissent(synthesis)
+    assert body is not None
+    assert "Contested Points" in body
+
+
+def test_save_minority_report_writes_artifact(tmp_path: Path, sample_question, sample_round) -> None:
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    saved = save_minority_report(result, tmp_path / "output")
+    assert len(saved) == 1
+    assert saved[0].exists()
+    assert saved[0].name.startswith("council-minority-")
+    content = saved[0].read_text(encoding="utf-8")
+    assert "Minority Report" in content
+    assert "Cassandra" in content
+    assert "NOT unanimous" in content
+
+
+def test_save_minority_report_empty_on_consensus(tmp_path: Path, sample_question, sample_round) -> None:
+    result = _result_with_synthesis(_CONSENSUS_SYNTHESIS, sample_question, sample_round)
+    out_dir = tmp_path / "output"
+    saved = save_minority_report(result, out_dir)
+    assert saved == []
+    # no council-minority file was created
+    assert not (out_dir.exists() and list(out_dir.glob("council-minority-*.md")))
+
+
+def test_save_minority_report_routes_to_return_dir(tmp_path: Path, sample_question, sample_round) -> None:
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    ret = tmp_path / "commissioned"
+    saved = save_minority_report(result, tmp_path / "output", return_dir=ret)
+    assert len(saved) == 2
+    assert saved[0].parent == tmp_path / "output"  # canonical first
+    assert saved[1].parent == ret
+    assert saved[0].name == saved[1].name
+
+
+def test_minority_and_verdict_share_slug(tmp_path: Path, sample_question, sample_round) -> None:
+    """The minority artifact sits alongside the verdict with the matching slug."""
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    verdict = save_to_file(result, tmp_path / "output", slug_override="my-question")
+    minority = save_minority_report(result, tmp_path / "output", slug_override="my-question")
+    assert verdict[0].name.startswith("council-out-")
+    assert minority[0].name.startswith("council-minority-")
+    assert verdict[0].name.endswith("-pick-my-question.md")
+    assert minority[0].name.endswith("-pick-my-question.md")
 
 
 def test_slug_basic():
@@ -280,3 +383,60 @@ def test_target_paths_mirror_failure_canonical_still_written(tmp_path: Path, sam
     monkeypatch.setattr(Path, "mkdir", _selective_fail)
     saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
     assert saved[0].exists()  # canonical always written
+
+
+# ---------------------------------------------------------------------------
+# return_dir routing (ADR-10, #13)
+# ---------------------------------------------------------------------------
+
+
+def test_return_dir_unset_canonical_only(tmp_path: Path, sample_debate_result) -> None:
+    """Unset return_dir → output lands in the canonical dir only."""
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=None)
+    assert len(saved) == 1
+    assert saved[0].parent == tmp_path / "output"
+
+
+def test_return_dir_routes_and_keeps_canonical(tmp_path: Path, sample_debate_result) -> None:
+    """--return-dir routes a copy while the canonical ./output write still fires."""
+    canonical = tmp_path / "output"
+    ret = tmp_path / "commissioned" / "return"
+    saved = save_to_file(sample_debate_result, canonical, return_dir=ret)
+    assert len(saved) == 2
+    assert saved[0].parent == canonical  # canonical always first
+    assert saved[1].parent == ret
+    assert saved[0].exists() and saved[1].exists()
+
+
+def test_return_dir_auto_mkdir(tmp_path: Path, sample_debate_result) -> None:
+    ret = tmp_path / "does" / "not" / "exist" / "yet"
+    assert not ret.exists()
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert ret.exists()
+    assert len(saved) == 2
+
+
+def test_return_dir_content_identical_to_canonical(tmp_path: Path, sample_debate_result) -> None:
+    ret = tmp_path / "return"
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert saved[0].read_text(encoding="utf-8") == saved[1].read_text(encoding="utf-8")
+    assert saved[0].name == saved[1].name
+
+
+def test_return_dir_failure_canonical_still_written(tmp_path: Path, sample_debate_result, monkeypatch, caplog) -> None:
+    """A return_dir write failure is best-effort: canonical is still written, warning logged."""
+    import logging
+    ret = tmp_path / "return"
+    original_mkdir = Path.mkdir
+
+    def _selective_fail(self: Path, *args, **kwargs):
+        if self == ret:
+            raise PermissionError("blocked")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _selective_fail)
+    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
+        saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert len(saved) == 1
+    assert saved[0].exists()
+    assert any("Return-dir write failed" in r.message for r in caplog.records)

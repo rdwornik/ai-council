@@ -90,13 +90,15 @@ def test_scan_inbox_empty(tmp_path: Path) -> None:
 
 
 def test_clean_slug_strips_failed_and_timestamp() -> None:
+    # #14: a leading "council" token is also stripped so the emitted filename
+    # (council-out-...-<slug>) carries "council" only once.
     stem = "FAILED_2026-03-26T1200_council_mode_system_design"
-    assert clean_slug(stem) == "council_mode_system_design"
+    assert clean_slug(stem) == "mode_system_design"
 
 
 def test_clean_slug_strips_timestamp_only() -> None:
     stem = "2026-03-26T1200_council_mode_system_design"
-    assert clean_slug(stem) == "council_mode_system_design"
+    assert clean_slug(stem) == "mode_system_design"
 
 
 def test_clean_slug_plain_filename() -> None:
@@ -111,6 +113,52 @@ def test_clean_slug_does_not_strip_failed_mid_filename() -> None:
 def test_clean_slug_failed_without_timestamp() -> None:
     """FAILED_ prefix alone (no timestamp) is stripped."""
     assert clean_slug("FAILED_my_question") == "my_question"
+
+
+def test_clean_slug_strips_leading_council_hyphen() -> None:
+    """#14: a leading 'council' token (hyphen-separated) is stripped."""
+    assert clean_slug("council-question-foo") == "question-foo"
+
+
+def test_clean_slug_strips_leading_council_underscore() -> None:
+    assert clean_slug("council_question_foo") == "question_foo"
+
+
+def test_clean_slug_strips_leading_council_case_insensitive() -> None:
+    assert clean_slug("Council-Question") == "Question"
+
+
+def test_clean_slug_bare_council_preserved() -> None:
+    """A bare 'council' stem has no trailing content, so it is preserved."""
+    assert clean_slug("council") == "council"
+
+
+def test_clean_slug_councillor_not_a_token() -> None:
+    """'councillor' is not a 'council' token (no separator) and is preserved."""
+    assert clean_slug("councillor_notes") == "councillor_notes"
+
+
+def test_clean_slug_emitted_filename_single_council(sample_question) -> None:
+    """End-to-end: an inbox stem starting with 'council' yields a single-'council' filename."""
+    from ai_council.models import DebateResult, ModelResponse, Round
+    from ai_council.output import save_to_file
+
+    result = DebateResult(
+        question=sample_question,
+        rounds=[Round(number=1, responses=[
+            ModelResponse(provider="claude", model="m", round_number=1,
+                          content="x", latency_sec=1.0, token_count=1),
+        ])],
+        synthesis="## Decision\nUse YAML.",
+        synthesizer="openai",
+        total_duration_sec=1.0,
+        mode="pick",
+    )
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        saved = save_to_file(result, Path(d), slug_override=clean_slug("council-question-foo"))
+        assert saved[0].name.lower().count("council") == 1
+        assert "question-foo" in saved[0].name
 
 
 # ---------------------------------------------------------------------------

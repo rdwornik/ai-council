@@ -18,11 +18,7 @@ F Council process & epistemic quality
 > delegation-ready surface, so an external agent/operator can commission the Council without
 > ambiguity about where specs live or where results land.
 
-### Give the invocation specs and outputs a first-class home
-So that the tool is commissionable and its outputs are predictable and durable.
-- [#13] [P2][M] Output routing: default output to local `./output/` when `return_dir` is unset; `--return-dir <path>` CLI override; **never** the hub as default; update all docs · Done when: unset → `./output/`, `--return-dir` routes to the given path, hub never a silent default · refs ADR-10 · (= the `return_dir` I/O piece split out of #9; baseline-INDEPENDENT)
-- [#14] [P3][S] Fix the double-"council" output filename: `clean_slug()` strips `FAILED_`/timestamp prefixes but not a leading "council", yielding `council-out-…-council-…` · Done when: emitted filenames carry a single "council" token · refs `clean_slug()` in `src/ai_council/inbox.py`; adjacent to #8 (same emitter)
-- [#15] [P3][M] Minority report as a first-class output [Rama 4]: emit dissent as a discrete, durable artifact alongside the verdict (same output subsystem as #13) · Done when: a run with genuine dissent produces a separate durable minority-report artifact · refs Rama 4
+_All stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and git. Epic backbone retained per the story-map (epics are the stable backbone; delivered stories/tasks leave per ADR-65)._
 
 ---
 
@@ -98,4 +94,4 @@ repos). Stories are human (goal + `So that`); tasks carry `[#id] [P][size] · Do
 Done tasks **leave** (ADR-65); git is the implementation record. Conformance is checked
 read-only by `.dev-knowledge/scripts/audit.py`.
 
-**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-epic reorganization: 4 themes → 6 epics A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under Epic C — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record). Next quarterly: 2026-10-01.
+**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-epic reorganization: 4 themes → 6 epics A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under Epic C — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (Epic A output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; Epic A story fully delivered, backbone header retained). Next quarterly: 2026-10-01.

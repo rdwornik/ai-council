@@ -1,5 +1,15 @@
 # Journal — ai-council
 
+### 2026-07-02 — Epic A output subsystem: return_dir routing (#13) + double-council fix (#14) + minority report (#15)
+
+**Did:** Implemented the three Epic A output-subsystem items on `feat/output-subsystem`, per-item commits. **#13 (`bfc268f`):** ADR-10 deterministic-return routing — `--return-dir <path>` CLI flag + `RunRequest.return_dir`, threaded through both interactive and inbox paths; new `output._write_routed()` centralizes canonical + secondary + return + target writes (canonical `./output/` always fires first, return_dir auto-mkdir + best-effort); reserved seam left for the `~/.claude` `council.return_dir` reader (deferred per ADR-10). **#14 (`53ad525`):** `clean_slug()` now strips one leading "council" token so inbox files no longer emit `council-out-…-council-…` (bare `council`/`councillor` preserved). **#15 (`f1a4b74`):** `extract_dissent()` + `save_minority_report()` emit a discrete `council-minority-<ts>-<mode>-<slug>.md` artifact on a non-unanimous verdict, routed to the same destinations as the verdict (Rama 4).
+**Result:** `.\scripts\check.ps1` — 426 unit tests pass, ruff clean; mypy shows exactly the 6 pre-existing #20 provider errors (zero new; touched files mypy-clean) → diff-scoped gate satisfied. Empirical done-contract driven through the real CouncilRunner→synthesis→output path with mocked providers (no API spend): #13a no-flags → `./output/` only, not `.dev-knowledge/`; #13b `--return-dir` → routed copy + canonical both written, same filename; #14 `council-question-x.md` → single-"council" filename; #15 dissent → separate durable minority artifact alongside the verdict.
+**#15 trigger (architect-approved):** "non-unanimous final vote" operationalized as a substantive dissent section in the synthesizer's verdict (Unresolved Disagreements / Contested Points / explicit dissent), since ai-council has no structured vote tally (ADR-03 voting is free-text) — no Council runtime behavior changed.
+**Changes:** `src/ai_council/{output.py,inbox.py,cli.py,orchestrator.py,models.py}`, `tests/{test_output.py,test_inbox.py}`; commits `bfc268f`, `53ad525`, `f1a4b74` on `feat/output-subsystem`. Refs ADR-10, BACKLOG #13/#14/#15.
+**Next:** Merge `feat/output-subsystem` → `main` (`--no-ff`). Deferred (unchanged): the `~/.claude` `council.return_dir` reader (ADR-10 reserved seam), BACKLOG #9 ADR-67 question-quality pieces.
+
+---
+
 ### 2026-06-03 — ADR-71 rollout: consume hub TOC hook + add TOC to council-question-guide
 
 **Did:** Wired ai-council as the second consumer of the `.dev-knowledge` hub TOC hook (ADR-71 pinned-pull, rev `69558c7`) — added `repo: ../.dev-knowledge` stanza scoped to `docs/council-question-guide.md` with `toc-freshness` (gate, pre-commit) + `toc-generate` (manual); ran `toc-generate` to produce a 29-entry TOC in the guide; confirmed gate passes-fresh / fails-stale.

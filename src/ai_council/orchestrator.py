@@ -9,7 +9,13 @@ from pathlib import Path
 
 from ai_council.debate import run_debate
 from ai_council.models import DebateOutcome, DebateResult, RunRequest
-from ai_council.output import print_cost_summary, print_round_summary, print_synthesis, save_to_file
+from ai_council.output import (
+    print_cost_summary,
+    print_round_summary,
+    print_synthesis,
+    save_minority_report,
+    save_to_file,
+)
 from ai_council.providers.base import AIProvider
 from ai_council.runner import exclude_synthesizer_from_panel, pick_synthesizer
 from ai_council.synthesis import synthesize
@@ -155,6 +161,7 @@ class CouncilRunner:
             slug_override=request.slug_override,
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
+            return_dir=request.return_dir,
         )
         console.print(f"\n[dim]Saved: {saved_paths[0]}[/dim]")
         if len(saved_paths) > 1:
@@ -164,6 +171,23 @@ class CouncilRunner:
             console.print(
                 f"[dim yellow]Secondary output dir not found: {secondary_dir}[/dim yellow]"
             )
+
+        # Rama 4 (#15): emit dissent as a first-class artifact on a non-unanimous verdict,
+        # routed to the same destinations as the verdict (incl. any --return-dir).
+        minority_paths = save_minority_report(
+            result,
+            output_dir,
+            slug_override=request.slug_override,
+            secondary_dir=secondary_dir,
+            target_paths=request.target_paths,
+            return_dir=request.return_dir,
+        )
+        if minority_paths:
+            console.print(
+                f"[yellow]Minority report (non-unanimous verdict):[/yellow] {minority_paths[0]}"
+            )
+            for p in minority_paths[1:]:
+                console.print(f"[dim]Minority copied: {p}[/dim]")
 
         if output_format == "json":
             import dataclasses

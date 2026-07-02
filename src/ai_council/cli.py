@@ -308,6 +308,13 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     help="Output directory for saved transcripts (default: ./output).",
 )
 @click.option(
+    "--return-dir", "return_dir",
+    default=None,
+    help="ADR-10 deterministic return: also route the verdict (and any minority report) "
+         "to this directory, in addition to the canonical ./output/ write. When unset, "
+         "output goes to ./output/ only (the hub is never a default).",
+)
+@click.option(
     "--synthesizer", default=None,
     help="Model that writes the final verdict: claude, openai, gemini, grok, deepseek. "
          "Defaults to gemini. Automatically excluded from the debate panel.",
@@ -357,6 +364,7 @@ def main(
     use_full_panel: bool,
     lite: bool,
     output_path: str | None,
+    return_dir: str | None,
     synthesizer: str | None,
     mode_arg: str | None,
     verbose: bool,
@@ -389,6 +397,14 @@ def main(
 
     effective_output = Path(output_path) if output_path else config.defaults.output_dir
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
+
+    # ADR-10 deterministic return directory. Precedence (highest first):
+    #   1. --return-dir CLI flag (implemented here)
+    #   2. RESERVED: ~/.claude global config `council.return_dir` (per ADR-67) — a legal
+    #      future setter, deliberately NOT read this pass (ADR-10 defers the reader).
+    #      When built, resolve it here as the fallback when --return-dir is unset.
+    # Unset → None → canonical ./output/ only; the methodology hub is never a default.
+    effective_return_dir = Path(return_dir).expanduser() if return_dir else None
 
     # Build resolver and validate --target-project args early (before health checks)
     resolver = TargetResolver(config.dev_root or Path("."), config.target_projects)
@@ -529,6 +545,7 @@ def main(
                 slug_override=clean_slug(file_path.stem),
                 mode=fm_mode,
                 target_paths=fm_target_paths,
+                return_dir=effective_return_dir,
             )
             try:
                 asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
@@ -613,6 +630,7 @@ def main(
         synthesizer_specified=synthesizer is not None,
         mode=effective_mode,
         target_paths=cli_target_paths,
+        return_dir=effective_return_dir,
     )
     asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
 
