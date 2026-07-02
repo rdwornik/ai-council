@@ -20,21 +20,34 @@ logger = logging.getLogger(__name__)
 # Group 1 captures everything after those prefixes.
 _SLUG_PREFIX_RE = re.compile(r"^(?:FAILED_)?(?:\d{4}-\d{2}-\d{2}T\d{4}_)?(.+)$")
 
+# Matches a leading "council" token followed by a separator and remaining content.
+# Case-insensitive; only fires when real content follows so a bare "council" stem survives.
+_LEADING_COUNCIL_RE = re.compile(r"^council[-_ ]+(.+)$", re.IGNORECASE)
+
 
 def clean_slug(filename_stem: str) -> str:
-    """Strip FAILED_ and timestamp prefixes from a filename stem.
+    """Strip FAILED_/timestamp prefixes AND a leading "council" token from a filename stem.
 
     Only strips FAILED_ when it is a leading prefix (not mid-filename).
     Only strips a timestamp when it directly follows the FAILED_ prefix or starts the name.
+    A leading "council" token is stripped last (after the prefixes) so the emitted
+    `council-out-...-<slug>.md` filename never carries "council" twice (#14). The strip
+    fires only when a separator + content follow, so "council" alone and words like
+    "councillor" are preserved.
 
     Examples:
-        FAILED_2026-03-26T1200_question  -> question
-        2026-03-26T1200_question         -> question
-        question                         -> question
-        failure_analysis                 -> failure_analysis  (not stripped)
+        FAILED_2026-03-26T1200_council_mode_design -> mode_design
+        2026-03-26T1200_council-question-foo       -> question-foo
+        council_mode_system_design                 -> mode_system_design
+        question                                   -> question
+        council                                    -> council  (no trailing content)
+        councillor_notes                           -> councillor_notes  (not a token)
+        failure_analysis                           -> failure_analysis  (not stripped)
     """
     m = _SLUG_PREFIX_RE.match(filename_stem)
-    return m.group(1) if m else filename_stem
+    slug = m.group(1) if m else filename_stem
+    council_m = _LEADING_COUNCIL_RE.match(slug)
+    return council_m.group(1) if council_m else slug
 
 
 def ensure_dirs(inbox_dir: Path, archive_dir: Path) -> None:
