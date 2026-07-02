@@ -15,6 +15,8 @@ Cross-repo ADRs affecting routing semantics live in `.dev-knowledge/docs/decisio
 | [ADR-05](ADR-05-research-integration.md) | Research Mode Integration | Accepted |
 | [ADR-06](ADR-06-cost-optimization.md) | Cost Optimization Strategy | Revised 2026-05-11 (Qwen trial deferred/abandoned) |
 | [ADR-07](ADR-07-dual-output-paths.md) | Dual Output Paths | Superseded by ADR-43 (opt-in `target-project` routing replaces always-on secondary write) |
+| [ADR-08](ADR-08-research-degradation-alarm.md) | Research-panel degradation alarm | Accepted |
+| [ADR-10](ADR-10-output-routing.md) | Output routing — local default + return-dir override | Proposed |
 
 ## Cross-repo references
 
