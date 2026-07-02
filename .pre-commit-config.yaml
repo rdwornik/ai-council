@@ -19,9 +19,9 @@ repos:
   rev: v1.0.0
   hooks:
   - id: toc-freshness
-    files: ^docs/council-question-guide\.md$
+    files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
   - id: toc-generate
-    files: ^docs/council-question-guide\.md$
+    files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: v0.15.5
   hooks:
