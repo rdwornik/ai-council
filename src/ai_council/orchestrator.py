@@ -155,6 +155,7 @@ class CouncilRunner:
             slug_override=request.slug_override,
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
+            return_dir=request.return_dir,
         )
         console.print(f"\n[dim]Saved: {saved_paths[0]}[/dim]")
         if len(saved_paths) > 1:

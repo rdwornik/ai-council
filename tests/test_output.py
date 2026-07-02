@@ -280,3 +280,60 @@ def test_target_paths_mirror_failure_canonical_still_written(tmp_path: Path, sam
     monkeypatch.setattr(Path, "mkdir", _selective_fail)
     saved = save_to_file(sample_debate_result, tmp_path / "primary", target_paths=[target])
     assert saved[0].exists()  # canonical always written
+
+
+# ---------------------------------------------------------------------------
+# return_dir routing (ADR-10, #13)
+# ---------------------------------------------------------------------------
+
+
+def test_return_dir_unset_canonical_only(tmp_path: Path, sample_debate_result) -> None:
+    """Unset return_dir → output lands in the canonical dir only."""
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=None)
+    assert len(saved) == 1
+    assert saved[0].parent == tmp_path / "output"
+
+
+def test_return_dir_routes_and_keeps_canonical(tmp_path: Path, sample_debate_result) -> None:
+    """--return-dir routes a copy while the canonical ./output write still fires."""
+    canonical = tmp_path / "output"
+    ret = tmp_path / "commissioned" / "return"
+    saved = save_to_file(sample_debate_result, canonical, return_dir=ret)
+    assert len(saved) == 2
+    assert saved[0].parent == canonical  # canonical always first
+    assert saved[1].parent == ret
+    assert saved[0].exists() and saved[1].exists()
+
+
+def test_return_dir_auto_mkdir(tmp_path: Path, sample_debate_result) -> None:
+    ret = tmp_path / "does" / "not" / "exist" / "yet"
+    assert not ret.exists()
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert ret.exists()
+    assert len(saved) == 2
+
+
+def test_return_dir_content_identical_to_canonical(tmp_path: Path, sample_debate_result) -> None:
+    ret = tmp_path / "return"
+    saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert saved[0].read_text(encoding="utf-8") == saved[1].read_text(encoding="utf-8")
+    assert saved[0].name == saved[1].name
+
+
+def test_return_dir_failure_canonical_still_written(tmp_path: Path, sample_debate_result, monkeypatch, caplog) -> None:
+    """A return_dir write failure is best-effort: canonical is still written, warning logged."""
+    import logging
+    ret = tmp_path / "return"
+    original_mkdir = Path.mkdir
+
+    def _selective_fail(self: Path, *args, **kwargs):
+        if self == ret:
+            raise PermissionError("blocked")
+        return original_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", _selective_fail)
+    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
+        saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
+    assert len(saved) == 1
+    assert saved[0].exists()
+    assert any("Return-dir write failed" in r.message for r in caplog.records)

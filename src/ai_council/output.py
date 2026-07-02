@@ -118,27 +118,84 @@ def print_cost_summary(metrics: DebateMetrics) -> None:
     console.print(Panel(tree, border_style="dim"))
 
 
+def _write_routed(
+    content: str,
+    filename: str,
+    output_dir: Path,
+    secondary_dir: Path | None,
+    target_paths: list[Path] | None,
+    return_dir: Path | None,
+) -> list[Path]:
+    """Write `content` as `filename` to the canonical dir plus any optional routes.
+
+    The canonical `output_dir` is ALWAYS written first (ADR-10 / ADR-43: the return
+    is a copy/route, never a replacement). Then, in order:
+      - `secondary_dir`: legacy mirror, written only if it already exists on disk;
+      - `return_dir`: ADR-10 deterministic return (auto-mkdir, best-effort);
+      - each `target_paths` dir: ADR-43 per-invocation mirror (auto-mkdir, best-effort).
+
+    Returns the list of paths written, canonical first.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    primary = output_dir / filename
+    primary.write_text(content, encoding="utf-8")
+    saved = [primary]
+
+    if secondary_dir is not None:
+        if secondary_dir.exists():
+            secondary_path = secondary_dir / filename
+            secondary_path.write_text(content, encoding="utf-8")
+            logger.info("Copied to: %s", secondary_path)
+            saved.append(secondary_path)
+        else:
+            logger.warning(
+                "Secondary output dir not found: %s — saved to primary only.",
+                secondary_dir,
+            )
+
+    if return_dir is not None:
+        try:
+            return_dir.mkdir(parents=True, exist_ok=True)
+            return_path = return_dir / filename
+            return_path.write_text(content, encoding="utf-8")
+            logger.info("Deterministic return written to: %s", return_path)
+            saved.append(return_path)
+        except Exception as exc:
+            logger.warning("Return-dir write failed for %s: %s", return_dir, exc)
+
+    for target_dir in target_paths or []:
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / filename
+            target_path.write_text(content, encoding="utf-8")
+            logger.info("Mirrored to: %s", target_path)
+            saved.append(target_path)
+        except Exception as exc:
+            logger.warning("Mirror write failed for %s: %s", target_dir, exc)
+
+    return saved
+
+
 def save_to_file(
     result: DebateResult,
     output_dir: Path,
     slug_override: str | None = None,
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
 ) -> list[Path]:
     """Save the full debate transcript as a markdown file.
 
-    Writes to output_dir (always), secondary_dir (if it exists on disk),
-    and each path in target_paths (auto-mkdir, best-effort).
+    Writes to output_dir (always, canonical), secondary_dir (if it exists on disk),
+    return_dir (ADR-10 deterministic return; auto-mkdir, best-effort), and each path
+    in target_paths (auto-mkdir, best-effort).
 
     Returns:
         List of paths written. First entry is always the primary path.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = slug_override if slug_override is not None else _slug(result.question.text)
     filename = f"council-out-{timestamp}-{result.mode}-{slug}.md"
-    filepath = output_dir / filename
 
     # Derive panel info from first round responses
     panel_providers = sorted({r.provider for r in result.rounds[0].responses})
@@ -248,34 +305,13 @@ def save_to_file(
         "",
     ]
 
-    filepath.write_text("\n".join(lines), encoding="utf-8")
-    logger.info("Debate saved to: %s", filepath)
-    saved = [filepath]
+    saved = _write_routed(
+        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+    )
+    logger.info("Debate saved to: %s", saved[0])
 
     if result.metrics:
-        _save_metrics_json(result, filepath)
-
-    if secondary_dir is not None:
-        if secondary_dir.exists():
-            secondary_path = secondary_dir / filename
-            secondary_path.write_text("\n".join(lines), encoding="utf-8")
-            logger.info("Transcript copied to: %s", secondary_path)
-            saved.append(secondary_path)
-        else:
-            logger.warning(
-                "Secondary output dir not found: %s — transcript saved to primary only.",
-                secondary_dir,
-            )
-
-    for target_dir in target_paths or []:
-        try:
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_path = target_dir / filename
-            target_path.write_text("\n".join(lines), encoding="utf-8")
-            logger.info("Transcript mirrored to: %s", target_path)
-            saved.append(target_path)
-        except Exception as exc:
-            logger.warning("Mirror write failed for %s: %s", target_dir, exc)
+        _save_metrics_json(result, saved[0])
 
     return saved
 
