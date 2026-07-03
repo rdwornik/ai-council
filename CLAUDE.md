@@ -59,31 +59,28 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 
 ## 6. Session start protocol
 
-1. `/boot` (loads skills, memory, recent commits)
-2. `git status` — clean working tree?
-3. `git log --oneline -5` — recent context
-4. Read most recent handoff under `.dev-knowledge/docs/handoffs/` if continuing
-5. `pytest --collect-only -q` — test discovery sanity check
-6. Run `.\scripts\check.ps1` when ready to merge
-7. Wait for Rob's prompt — never improvise
+1. `git status` — clean working tree?
+2. `git log --oneline -5` — recent context
+3. Read most recent handoff under `.dev-knowledge/docs/handoffs/` if continuing
+4. `pytest --collect-only -q` — test discovery sanity check
+5. Run `.\scripts\check.ps1` when ready to merge
+6. Wait for Rob's prompt — never improvise
 
 ## 7. Slash commands available
 
 User-level (`~/.claude/commands/`):
-- `/boot` — load context (skills, memory, recent commits)
 - `/session-summary` — generate token-efficient session summary
-- `/evolve` — evolution audit: promote/prune/graduate learned rules
 - `/codex-review` — invoke Codex review on a staged code diff
 
-Repo-level: none — this repo has no `./.claude/commands/` directory (`.claude/` holds `rules/` only).
+Repo-level (`./.claude/commands/`):
+- `/override` — bypass the ADR-85 session-end gate for this HEAD (logged, HEAD-bound)
 
 ## 8. Skills active
 
 User-level (`~/.claude/skills/`):
 - `gotchas` — universal dev gotchas (encoding, shell safety, test pitfalls)
-- `verify` — domain verification scripts for the ecosystem (run after pytest)
 
-(`boot`/`session-summary`/`evolve`/`codex-review` are **commands**, not skills — see §7.)
+(`session-summary`/`codex-review` are **commands**, not skills — see §7.)
 
 Repo-level (`./.claude/rules/`):
 - `code-standards.md` — ecosystem code standards
@@ -95,7 +92,16 @@ Code review: Codex via `/codex-review`; threshold 3+ files for a full review.
 ## 9. Hooks active
 
 Pre-commit (`.pre-commit-config.yaml`):
-- `normalize-headers` — `scripts/normalize_headers.py`; normalizes dated-log headers in `LESSONS.md`/`JOURNAL.md`
+- `normalize-headers` — normalizes dated-log headers in `LESSONS.md`/`JOURNAL.md`
+- `floor-hash-verify` — verifies `.claude/CLAUDE-FLOOR.md` matches its `.sha256` sidecar
+- `canonical_freshness` — `last_reviewed` A2 gate; FAIL blocks the commit on a canonical doc edited since its last review
+- `toc-freshness` / `toc-generate` — TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md`
+- `ruff` — lint gate; blocks on violations
+
+Session hooks (`.claude/settings.json`):
+- SessionStart: `check_floor_hash.py --require-present` (floor guard) + `python -m pre_commit install` (arms the commit hooks)
+- Stop: `session_end_backpressure.py` — deterministic session-end gate (JOURNAL SHA-anchor hard block)
+- The enabled `tier1-lifecycle` plugin also fires a Stop (`propose_closures`) + a SessionStart surface hook
 
 Manual pre-merge gate:
 - `.\scripts\check.ps1` — pytest + mypy + ruff (run before every merge; not wired to pre-commit)
@@ -151,5 +157,5 @@ Do NOT:
 
 ---
 
-**Last updated:** 2026-06-02
+**Last updated:** 2026-07-03
 **Maintained by:** Rob

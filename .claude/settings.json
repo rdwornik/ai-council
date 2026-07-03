@@ -28,6 +28,18 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/session_end_backpressure.py\"",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

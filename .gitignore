@@ -41,3 +41,10 @@ council_inbox/*.md
 
 # Ephemeral Tier-1 closure output
 logs/
+
+# >>> enforcement-mesh (ADR-85 /override) >>>
+logs/.session-override-token
+logs/OVERRIDES.md
+!.claude/commands/
+!.claude/commands/override.md
+# <<< enforcement-mesh <<<

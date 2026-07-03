@@ -15,8 +15,14 @@ repos:
     language: system
     files: ^\.claude/CLAUDE-FLOOR\.md(\.sha256)?$
     pass_filenames: false
+  - id: canonical_freshness
+    name: canonical_freshness last_reviewed gate (A2 FAIL blocks the commit)
+    entry: python scripts/canonical_freshness_gate.py
+    language: system
+    always_run: true
+    pass_filenames: false
 - repo: ../.dev-knowledge
-  rev: v1.0.0
+  rev: v1.1.0
   hooks:
   - id: toc-freshness
     files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
