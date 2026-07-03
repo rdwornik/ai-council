@@ -22,15 +22,9 @@ repos:
     always_run: true
     pass_filenames: false
 - repo: ../.dev-knowledge
-  rev: v1.1.0
+  rev: v1.2.0
   hooks:
   - id: toc-freshness
     files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
   - id: toc-generate
     files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.5
-  hooks:
-  - id: ruff
-    name: Ruff lint gate (Tier-1, pinned rev; blocks on violations)
-    args: []
