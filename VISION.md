@@ -1,7 +1,7 @@
 ---
 version: "1.0"
 owner: rob
-last_reviewed: "2026-06-02"
+last_reviewed: "2026-07-05"
 status: active
 ---
 
@@ -18,7 +18,7 @@ consumed by other repos via the `council` entry point.
 ## Scope
 
 - **5 debate providers**: Claude Opus, Gemini, GPT, Grok, DeepSeek
-- **5 research providers**: Perplexity, Gemini Deep Research, OpenAI o4-mini deep research, Grok x_search, OpenAI o3 deep research
+- **5 research providers**: Perplexity, Gemini Deep Research, OpenAI gpt-5.4-mini web search, Grok x_search, OpenAI gpt-5.5 deep research
 - **4 modes**: pick / ideas / judge / research
 - **CLI entry point**: `council`
 - **Synthesizer**: Gemini (deliberate selection, ADR-01)
@@ -50,6 +50,6 @@ consumed by other repos via the `council` entry point.
 ## References
 
 - `ARCHITECTURE.md` — structural model, layers, invariants
-- `docs/decisions/` — local tool-design ADRs (ADR-01…ADR-08)
+- `docs/decisions/` — local tool-design ADRs (ADR-01 onward; index in `docs/decisions/README.md`)
 - `.dev-knowledge/protocols/AI_COUNCIL_PROCESS.md` — the end-to-end Council process this tool implements
 - `BACKLOG.md` — the story-map of pending work
