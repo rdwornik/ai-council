@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-07-06 — Technical-architect intake document assembled (`docs/audits/2026-07-06-technical-architect-intake.md`)
+
+**Did:** Assembled the architect entry-point document on `docs/architect-intake` (`1ca5466`): embedded the functional architect's content block verbatim, verified every Reading-Map path against live `main` (FR-master marked `[pending: never committed]`; one historical-audits row added), corrected the Topic Router against real lane-doc headings (9 pointer refinements, `seats[]` → §3(Q5) the substantive one), added Evidence: lines to all 5 FR clusters and all 16 draft ADRs, and verified register statuses live — corrected "ADR-01..10 Proposed" to the true spread (only 09/10 Proposed), flagged the hub-carrier R1–R8 count and the CLI-4 label collision. Housekeeping: stale `docs/adr-11-12-ratification` branch deleted (`-d`, merged).
+**Result:** Docs-only; pytest 426 passed (unchanged count), pre-commit gates green incl. canonical_freshness; tree clean. Merged `--no-ff` as `3dea2d4`, branch deleted, pushed at close-out.
+**Changes:** `docs/audits/2026-07-06-technical-architect-intake.md` (new), `JOURNAL.md` (this). Commit `1ca5466`, merge `3dea2d4` + this close-out commit on `main`. Pushed.
+
+---
+
 ### 2026-07-06 — Five parallel lane-design worktrees integrated to main (`--no-ff` × 5)
 
 **Did:** Integration pass in the primary checkout for the five parallel lane functional-design worktree sessions. Verified state (five branches, each exactly one commit on `5c81e71` adding one disjoint `docs/audits/2026-07-06-lane-*-functional-design.md`; tree clean), then merged each serially `--no-ff`, no conflicts: L-EPI `d4a5fb7`→`81f60ec`, L-CLI `9b8bfa4`→`5bdd439`, L-DOC `617483a`→`b45084f`, L-INT `22ae4d6`→`5ccb9b0`, L-GOV `5576cae`→`e4485e1`. This entry retroactively anchors the five logged ADR-85 session-end overrides from those worktree sessions. Torn down all five worktrees + branches (`worktree remove` / `prune` / `branch -d`).
