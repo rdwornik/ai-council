@@ -43,8 +43,6 @@ Every debate question is a markdown file with three parts:
 
 ```markdown
 ---
-models: claude,gemini,deepseek,grok
-synthesizer: openai
 rounds: 2
 ---
 
@@ -73,6 +71,11 @@ rounds: 2
 
 That's it. Nothing else.
 
+> The frontmatter above carries only `rounds:` because the defaults do the rest: the
+> full 5-model panel runs, with gemini evicted from it to synthesize. **Explicit-override
+> example** — to force a specific synthesizer, add e.g. `synthesizer: openai` (the
+> chosen model is then evicted from the panel instead). This is the only reason to set it.
+
 ---
 
 ## YAML Frontmatter — the config
@@ -80,7 +83,7 @@ That's it. Nothing else.
 | Field | Options | When to change from default |
 |-------|---------|---------------------------|
 | models | `claude,gemini,openai,deepseek,grok` | Default = all 5. Use `--lite` for 3-model (claude, gemini, openai) on simple questions |
-| synthesizer | `gemini` | Default = gemini ($0.04). Use `openai` if gemini is already on the panel |
+| synthesizer | `gemini` | Usually omit — the default (gemini) is evicted from the panel and synthesizes as a non-participant. Set only to force a different synthesizer (see the explicit-override example above) |
 | rounds | `2` | Default = 2. Use `1` for simple pick decisions. Never more than 2. |
 | mode | `pick` / `ideas` / `judge` / `research` | Usually omit — auto-detected. Force `ideas` for brainstorming, `judge` for evaluating a proposal |
 | target-project | project name string or list | Omit for local-only output. Set to mirror transcript to a project's `docs/decisions/transcripts/` dir. |
@@ -380,8 +383,6 @@ frontmatter, but its body sections are different:
 
 ````markdown
 ---
-models: claude,gemini,deepseek,grok
-synthesizer: openai
 mode: research
 rounds: 2
 ---
@@ -438,8 +439,6 @@ Copy this, fill in, save as `.md` in `council_inbox/`:
 
 ````markdown
 ---
-models: claude,gemini,deepseek,grok
-synthesizer: openai
 mode: research
 rounds: 2
 ---
@@ -473,12 +472,12 @@ rounds: 2
 
 | Situation | Panel |
 |-----------|-------|
-| Important / standard decision | Default: all 5 models |
+| Important / standard decision | Default: all 5 models (the synthesizer — gemini — is evicted, so 4 debate) |
 | Quick opinion | 3 models via `--lite` (claude, gemini, openai) |
 | Cost-sensitive | `--lite` + `--rounds 1` |
 | Custom selection | `--models claude,openai,grok` |
 
-**Synthesizer rule:** The synthesizer must NOT be on the panel. Default: gemini (cheapest at $0.04/debate). Gemini is always on the full default panel, so the default synthesizer already satisfies this — it picks a non-participant automatically.
+**Synthesizer rule:** The synthesizer must NOT debate. Default: gemini (cheapest at $0.04/debate). The runner enforces this by **evicting the preferred synthesizer from the panel first**, then having it synthesize — it does not pick a different non-participant. **Effective default: 4 debaters + gemini as the non-participating synthesizer** (the full 5-model panel shrinks by design).
 
 ---
 
@@ -509,8 +508,6 @@ Copy this, fill in, save as `.md` in `council_inbox/`:
 
 ```markdown
 ---
-models: claude,gemini,deepseek,grok
-synthesizer: openai
 rounds: 2
 ---
 
