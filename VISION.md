@@ -50,6 +50,6 @@ consumed by other repos via the `council` entry point.
 ## References
 
 - `ARCHITECTURE.md` — structural model, layers, invariants
-- `docs/decisions/` — local tool-design ADRs (ADR-01…ADR-08)
+- `docs/decisions/` — local tool-design ADRs (ADR-01 onward; index in `docs/decisions/README.md`)
 - `.dev-knowledge/protocols/AI_COUNCIL_PROCESS.md` — the end-to-end Council process this tool implements
 - `BACKLOG.md` — the story-map of pending work

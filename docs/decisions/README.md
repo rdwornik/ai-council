@@ -18,6 +18,8 @@ Cross-repo ADRs affecting routing semantics live in `.dev-knowledge/docs/decisio
 | [ADR-08](ADR-08-research-degradation-alarm.md) | Research-panel degradation alarm | Accepted |
 | [ADR-09](ADR-09-protocols-invocation-surface.md) | protocols/ as the invocation surface | Proposed |
 | [ADR-10](ADR-10-output-routing.md) | Output routing — local default + return-dir override | Proposed |
+| [ADR-11](ADR-11-delegated-invocation-contract.md) | Delegated Invocation Contract — two lanes, one machine-readable surface | Accepted (2026-07-05) |
+| [ADR-12](ADR-12-provider-backend-engine-and-cost-lanes.md) | Provider Backend Engine — CLI-subscription seats and two-lane cost policy | Accepted (2026-07-05; §5 default-flip evidence-gated) |
 
 ## Cross-repo references
 
