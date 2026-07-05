@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-02
+last_reviewed: 2026-07-05
 status: active
 owner: Rob
 ---
@@ -75,6 +75,10 @@ User-level (`~/.claude/commands/`):
 Repo-level (`./.claude/commands/`):
 - `/override` — bypass the ADR-85 session-end gate for this HEAD (logged, HEAD-bound)
 
+Plugin (`tier1-lifecycle@dev-knowledge-methodology`, enabled in `.claude/settings.json`):
+- `/review-closures` — review + execute ONLY operator-approved closures (ADR-70 Tier-1)
+- `/ship` — merge the current branch to main via `--no-ff`, push, delete the branch
+
 ## 8. Skills active
 
 User-level (`~/.claude/skills/`):
@@ -96,7 +100,7 @@ Pre-commit (`.pre-commit-config.yaml`):
 - `floor-hash-verify` — verifies `.claude/CLAUDE-FLOOR.md` matches its `.sha256` sidecar
 - `canonical_freshness` — `last_reviewed` A2 gate; FAIL blocks the commit on a canonical doc edited since its last review
 - `toc-freshness` / `toc-generate` — TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md`
-- `ruff` — lint gate; blocks on violations
+- (the `ruff` pre-commit gate was PRUNED 2026-07-04 — [#244] P2 n=1 remove-leg, deploy `31e785d`; lint stays manual via §4 `ruff check` / `.\scripts\check.ps1`)
 
 Session hooks (`.claude/settings.json`):
 - SessionStart: `check_floor_hash.py --require-present` (floor guard) + `python -m pre_commit install` (arms the commit hooks)
@@ -154,8 +158,9 @@ Do NOT:
 - v2.1 (2026-05-19) — ADR-53: retire AGENTS.md; CLAUDE.md becomes substantive single canonical agent-instruction file; technical depth moved to ARCHITECTURE.md
 - v2.2 (2026-06-02) — universalization conformance audit: add `last_reviewed` frontmatter (resolves audit.py check #10 WARN); fix §header PLAYBOOK path; reconcile §7/§8 to actual `~/.claude/` + `.claude/` state (`/save` repo-command and `handoff`/`save` skills do not exist; +`/evolve`/`/codex-review`; +`verify` skill; `/review`→`/codex-review`); §10 namespace path `src/research/`→`src/ai_council/research/`; §11 +local ADR-08, +ecosystem ADR-59/60/67, note unresolved backlog-schema scope
 - v2.3 (2026-06-02) — ecosystem-unify to the canonical standard (ADR-38 A6): added `CONTRIBUTING.md`; normalized VISION (Mission→Vision, +Values/References) and ARCHITECTURE (+Key conventions/Authority/Validators/Governing ADRs) to the canonical spine; migrated `BACKLOG.md` to the ADR-66 story-map (11 items preserved); `LESSONS.md` H1 → canonical title; §11 backlog-schema note resolved (#20 closed)
+- v2.4 (2026-07-05) — currency re-review (first consumer-measurement session; hub [#252] Phase 0.5): §9's `ruff` pre-commit bullet reconciled to the v1.2.0 prune (`31e785d` updated the config but not this file — the exact A2 staleness `canonical_freshness` had flagged since 2026-07-03); §7 gains the two enabled-plugin commands (`/review-closures`/`/ship`). Genuine end-to-end re-read verified §1–§11 against live state (commands dir, pre-commit config, session hooks); `last_reviewed` re-stamped 2026-07-05.
 
 ---
 
-**Last updated:** 2026-07-03
+**Last updated:** 2026-07-05
 **Maintained by:** Rob
