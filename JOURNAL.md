@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-07-05 — Fleet recon, liveness & process design persisted to docs/audits (operator close-out `2593075`)
+
+**Did:** Ran the consolidated fleet-recon session (operator-approved probe matrix + 4 amendments): live-probed all 5 agentic CLIs from a scratch cwd (claude 2.1.200, codex 0.141.0, agy 1.0.16, grok 0.2.82, deepcode 0.1.33, + legacy gemini 0.49.0 as Step-4 evidence), ran Step-2 liveness via the council's own `run_health_checks` on verbatim `settings.yaml` pins, swept model currency against live provider lists, reconciled the 2026-07-04 Fable audit and the architect's browser research against witnessed state, and delivered 4 functional process specs (doctor / lane routing / delegation lifecycle / debate lifecycle) + ADR-12 markup + 12-fork list. Report committed as `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` (SHA `2593075`).
+**Result:** Witnessed 5-CLI recon: v1 CLI adapters = claude+codex; agy excluded by identity roulette (silent model-pin swap, no identity channel); deepcode non-headless (TTY-required); grok seat-capable but API-billed (no OAuth configured); legacy gemini auth-dead (consumer shutdown). Liveness 9/9 PASS (Anthropic credits healthy) + one stale research pin (`grok-4.20-reasoning` → `grok-4.20-0309-reasoning`; NOT changed — operator decides). Fable-audit D1–D14 + corrections #1–#5 all HOLD (one embedded ADR-12 premise invalidated: grok/deepseek CLIs DO exist). Safety facts witnessed: `claude -p --tools ""` still ingests cwd CLAUDE.md; `codex exec` hangs on open stdin. Zero secrets in captures (scanned).
+**Changes:** `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` (new, `2593075`), `JOURNAL.md` (this). Direct-to-main close-out commits per explicit operator instruction (supersedes the branch→merge rule for this wrap only); no push; no config edits.
+
+---
+
 ### 2026-07-04 — Fable architecture audit persisted to docs/audits (operator instruction)
 
 **Did:** Persisted the 2026-07-04 Fable architecture audit as `docs/audits/2026-07-04-fable-architecture-audit.md` — current-state vs consolidation-brief gap analysis across 5 areas (invocation surface, backend/cost model, epistemic mechanics, process ownership, end-to-end pipeline), draft ADR-11 (delegated invocation contract) / ADR-12 (provider backend engine + cost lanes) / ADR-13 (bounded crux-check, baseline-gated), and tagged decision list D1–D14. The audit itself ran earlier the same day in the `fable-audit` worktree under MODE PLAN (zero repo changes; deliverable emitted to the session plan file); the operator ordered persistence after review. Added a Status/provenance header on the copy; ADR texts remain drafts — `docs/decisions/` unchanged.
