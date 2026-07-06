@@ -5,26 +5,26 @@
 `ai-council` is the ecosystem's multi-model deliberation engine: it runs structured
 debate/research across a configurable AI panel and produces the verdicts that become
 binding ADRs. The backlog advances the tool toward a delegation-ready, evidence-based,
-reliable, and self-enforcing state across six epics.
+reliable, and self-enforcing state across six tracks.
 
-**Epics (backbone):** A Invocation surface & delegation-readiness · B Synthesizer refresh ·
+**Tracks (backbone):** A Invocation surface & delegation-readiness · B Synthesizer refresh ·
 C Provider reliability & CLI engine · D Model currency · E Naming & quality automation ·
 F Council process & epistemic quality
 
 ---
 
-## Epic A — Invocation surface & delegation-readiness
+## Track A — Invocation surface & delegation-readiness
 > As the tool owner, I want ai-council's invocation specs and outputs to live in a clean,
 > delegation-ready surface, so an external agent/operator can commission the Council without
 > ambiguity about where specs live or where results land.
 
-_All stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and git. Epic backbone retained per the story-map (epics are the stable backbone; delivered stories/tasks leave per ADR-65)._
+_All stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and git. Track backbone retained per the story-map (tracks are the stable backbone; delivered stories/tasks leave per ADR-65)._
 
 ---
 
-## Epic B — Synthesizer refresh
+## Track B — Synthesizer refresh
 > As the tool owner, I want the default synthesizer chosen on real scoring data and the choice codified, so the verdict author is evidence-based and cost-aware.
-> **Note:** this epic is the baseline gate for Epic F's baseline-gated items.
+> **Note:** this track is the baseline gate for Track F's baseline-gated items.
 
 ### Decide the synthesizer on real data, then codify it
 So that the ADR-01 default rests on measured synthesis quality, not assumption.
@@ -38,7 +38,7 @@ So that overlap rules are explicit if the synthesizer ever joins the panel.
 
 ---
 
-## Epic C — Provider reliability & CLI engine
+## Track C — Provider reliability & CLI engine
 > As the tool owner, I want every wired provider to have a known-good, tested path and a route to CLI-subscription backends, so reliability is measured and cost is controllable.
 
 ### Close the untested and unreliable provider paths
@@ -53,7 +53,7 @@ So that subscription CLIs can serve debate turns and API spend is reserved for C
 
 ---
 
-## Epic D — Model currency
+## Track D — Model currency
 > As the tool owner, I want to know when the configured panel models fall behind the latest releases, so the Council never silently debates on stale models.
 
 ### Detect stale model configuration
@@ -62,7 +62,7 @@ So that a superseded model in settings.yaml is surfaced, not silently used.
 
 ---
 
-## Epic E — Naming & quality automation
+## Track E — Naming & quality automation
 > As the tool owner, I want the ADR-34 naming convention enforced mechanically and its edge cases resolved, so violations are caught by CI, not reviewer luck.
 
 ### Enforce hyphen-only naming and resolve its timestamp edge case
@@ -72,7 +72,7 @@ So that new files cannot drift from ADR-34 and the ISO-timestamp ambiguity is se
 
 ---
 
-## Epic F — Council process & epistemic quality
+## Track F — Council process & epistemic quality
 > As the tool owner, I want the ADR-67 gated loop implemented, the synthesis rubric sharpened, and the panel's epistemics defended, so the Council runs deterministically and resists framing bias and false consensus.
 
 ### Build the ADR-67 downstream pieces and sharpen the rubric
@@ -83,15 +83,15 @@ So that `/council-question` generates + self-gates questions and synthesis quali
 
 ### Defend the panel's epistemics
 So that deadlocks resolve on evidence and consensus is genuine, not a framing artifact.
-- [#18] [P3][M] Tool-grounded crux resolution [Rama 1, baseline-gated]: when the panel deadlocks on a factual crux, resolve it by grounding in a tool/evidence lookup rather than more debate · Done when: a factual crux triggers a grounded lookup that feeds the next round · refs Rama 1 · baseline-gated (Epic B)
-- [#19] [P3][L] Active framing defense + false-consensus alarm [Rama 3, runtime-coupled, baseline-gated]: detect and counter leading/asker-leaked framing at runtime and alarm when apparent consensus is an artifact of framing rather than genuine agreement · Done when: a framing-biased question is flagged + a false-consensus run raises an alarm · refs Rama 3 · runtime-coupled; baseline-gated (Epic B)
+- [#18] [P3][M] Tool-grounded crux resolution [Rama 1, baseline-gated]: when the panel deadlocks on a factual crux, resolve it by grounding in a tool/evidence lookup rather than more debate · Done when: a factual crux triggers a grounded lookup that feeds the next round · refs Rama 1 · baseline-gated (Track B)
+- [#19] [P3][L] Active framing defense + false-consensus alarm [Rama 3, runtime-coupled, baseline-gated]: detect and counter leading/asker-leaked framing at runtime and alarm when apparent consensus is an artifact of framing rather than genuine agreement · Done when: a framing-biased question is flagged + a false-consensus run raises an alarm · refs Rama 3 · runtime-coupled; baseline-gated (Track B)
 
 ---
 
-**About this file** — ADR-66 story-map (Big Picture → Epic → User Story → Task), migrated
+**About this file** — ADR-66 story-map (Big Picture → Track → User Story → Task), migrated
 2026-06-02 from the ADR-41/47 stream schema per ADR-38 A6 (canonical backlog form, all
 repos). Stories are human (goal + `So that`); tasks carry `[#id] [P][size] · Done when · refs`.
 Done tasks **leave** (ADR-65); git is the implementation record. Conformance is checked
 read-only by `.dev-knowledge/scripts/audit.py`.
 
-**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-epic reorganization: 4 themes → 6 epics A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under Epic C — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (Epic A output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; Epic A story fully delivered, backbone header retained). Next quarterly: 2026-10-01.
+**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-track reorganization: 4 themes → 6 tracks A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under Track C — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (Track A output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; Track A story fully delivered, backbone header retained). Next quarterly: 2026-10-01.

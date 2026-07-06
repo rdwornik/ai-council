@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-02` (`Epic A output subsystem: ADR-10 return_dir routing + first-class minority-report artifact (#13/#15); reviewed Folder Governance end-to-end`)
+> Last updated: `2026-07-02` (`Track A output subsystem: ADR-10 return_dir routing + first-class minority-report artifact (#13/#15); reviewed Folder Governance end-to-end`)
 
 ## Purpose [CORE]
 
