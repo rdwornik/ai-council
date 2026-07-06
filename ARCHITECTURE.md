@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-02
+last_reviewed: 2026-07-06
 status: active
 owner: Rob
 ---
@@ -303,7 +303,7 @@ Do not create files outside these directories without updating this section.
 
 - **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit.
 - **`tests/`** — pytest unit + integration suites. Unit suite (no API keys): `pytest tests/ -m "not integration and not envcheck"`.
-- **Pre-commit:** `normalize-headers` (`scripts/normalize_headers.py`) — dated-log header normalization in `LESSONS.md` / `JOURNAL.md`.
+- **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`) and `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed).
 - **External conformance (read-only):** `.dev-knowledge/scripts/audit.py` — seven-file canonical baseline + structural spine (ADR-38 A6); manual `run`, no commit gating here.
 
 ---

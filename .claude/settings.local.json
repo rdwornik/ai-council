@@ -4,16 +4,7 @@
       "Bash(git:*)",
       "WebSearch",
       "Bash(tail:*)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && python -m pytest tests/ -m \"not integration\" -v 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && python -m pytest tests/test_integration.py -v 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && python -m src.cli \"Should we use YAML or JSON for config?\" --rounds 1 --models claude,openai 2>&1)",
       "Bash(head:*)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && python -m pytest tests/ -m \"not integration\" -q 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && python -m venv venv 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && venv/Scripts/pip install -r requirements.txt 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && venv/Scripts/python -m pytest tests/ -m \"not integration\" -q 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && venv/Scripts/python -m pytest tests/ -v 2>&1)",
-      "Bash(cd /c/Users/1028120/Documents/Scripts/ai-council && venv/Scripts/python -m src.cli \"Should a knowledge graph for corporate documents use a graph database like Neo4j or a relational DB with JSON columns?\" --rounds 2 2>&1)",
       "Bash(grep:*)",
       "Bash(cd:*)"
     ]
