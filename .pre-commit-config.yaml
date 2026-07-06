@@ -28,3 +28,4 @@ repos:
     files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
   - id: toc-generate
     files: ^protocols/COUNCIL_QUESTION_GUIDE\.md$
+  - id: backlog-id-on-close
