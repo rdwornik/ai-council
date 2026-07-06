@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-05
+last_reviewed: 2026-07-06
 status: active
 owner: Rob
 ---
@@ -100,6 +100,7 @@ Pre-commit (`.pre-commit-config.yaml`):
 - `floor-hash-verify` — verifies `.claude/CLAUDE-FLOOR.md` matches its `.sha256` sidecar
 - `canonical_freshness` — `last_reviewed` A2 gate; FAIL blocks the commit on a canonical doc edited since its last review
 - `toc-freshness` / `toc-generate` — TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md`
+- `backlog-id-on-close` (hub-sourced) — requires `[#id]` in the commit message when a `BACKLOG.md` task line is removed
 - (the `ruff` pre-commit gate was PRUNED 2026-07-04 — [#244] P2 n=1 remove-leg, deploy `31e785d`; lint stays manual via §4 `ruff check` / `.\scripts\check.ps1`)
 
 Session hooks (`.claude/settings.json`):
@@ -159,8 +160,9 @@ Do NOT:
 - v2.2 (2026-06-02) — universalization conformance audit: add `last_reviewed` frontmatter (resolves audit.py check #10 WARN); fix §header PLAYBOOK path; reconcile §7/§8 to actual `~/.claude/` + `.claude/` state (`/save` repo-command and `handoff`/`save` skills do not exist; +`/evolve`/`/codex-review`; +`verify` skill; `/review`→`/codex-review`); §10 namespace path `src/research/`→`src/ai_council/research/`; §11 +local ADR-08, +ecosystem ADR-59/60/67, note unresolved backlog-schema scope
 - v2.3 (2026-06-02) — ecosystem-unify to the canonical standard (ADR-38 A6): added `CONTRIBUTING.md`; normalized VISION (Mission→Vision, +Values/References) and ARCHITECTURE (+Key conventions/Authority/Validators/Governing ADRs) to the canonical spine; migrated `BACKLOG.md` to the ADR-66 story-map (11 items preserved); `LESSONS.md` H1 → canonical title; §11 backlog-schema note resolved (#20 closed)
 - v2.4 (2026-07-05) — currency re-review (first consumer-measurement session; hub [#252] Phase 0.5): §9's `ruff` pre-commit bullet reconciled to the v1.2.0 prune (`31e785d` updated the config but not this file — the exact A2 staleness `canonical_freshness` had flagged since 2026-07-03); §7 gains the two enabled-plugin commands (`/review-closures`/`/ship`). Genuine end-to-end re-read verified §1–§11 against live state (commands dir, pre-commit config, session hooks); `last_reviewed` re-stamped 2026-07-05.
+- v2.5 (2026-07-06) — Arc 3 conformance residuals (Track rename + hygiene sweep): §9 gains the `backlog-id-on-close` hub hook (closes the v1.2.0 manifest gap — `.pre-commit-config.yaml` was missing it alongside the existing `toc-freshness`/`toc-generate` pull from `../.dev-knowledge`); `last_reviewed` re-stamped 2026-07-06.
 
 ---
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-06
 **Maintained by:** Rob

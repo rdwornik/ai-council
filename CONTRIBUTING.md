@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-02
+last_reviewed: 2026-07-06
 status: active
 owner: Rob
 ---
@@ -33,10 +33,15 @@ done tasks leave the file.
 
 ## Pre-commit setup
 
-`pip install pre-commit && pre-commit install`. Active hook:
+`pip install pre-commit && pre-commit install`. Active hooks (`.pre-commit-config.yaml`):
 
-- `normalize-headers` — `scripts/normalize_headers.py`; normalizes dated-log headers in
-  `LESSONS.md` / `JOURNAL.md`.
+- `normalize-headers` — normalizes dated-log headers in `LESSONS.md` / `JOURNAL.md`.
+- `floor-hash-verify` — `.claude/CLAUDE-FLOOR.md` vs its `.sha256` sidecar.
+- `canonical_freshness` — `last_reviewed` A2 gate; FAIL blocks the commit on a canonical
+  doc edited since its last review.
+- `toc-freshness` / `toc-generate`, `backlog-id-on-close` — hub-sourced (`repo:
+  ../.dev-knowledge`, pinned `rev`); the latter requires `[#id]` in the commit message
+  when a `BACKLOG.md` task line is removed.
 
 ## Validators
 
