@@ -1,5 +1,13 @@
 # Journal — ai-council
 
+### 2026-07-06 — Technical refactoring guide persisted to docs/audits (`docs/audits/2026-07-06-code-refactoring-guide.md`)
+
+**Did:** On operator request (the code-quality audit read too verdict-level/functional — wanted the code-level "how"): authored the technical companion on `docs/code-refactoring-guide` (`dad4a31`). Twelve concrete refactorings — **A1-A5 structural** + **B1-B7 mechanical** — each with exact `file:line`, faithful before/after code re-read from live `main` (`anthropic`/`openai`/`grok_research`/`openai_mini_research` re-read to ground the snippets), steps, and a testable done-when. Document only — nothing applied; each `R#` is its own future branch session.
+**Result:** Docs-only; pytest unit suite **426 passed** (unchanged), pre-commit green incl. canonical_freshness; tree clean. Part A unblocks Wave-C: A1 provider template base (→ CliProvider #16, ADR-gated), A2 `cli.main` decomposition (→ D2 parity + doctor; the `--file` gap falls out), A3 unify the two error classifiers + wire the dead policy trio + kill the `_config.timeout_sec` reach-through, A4 `save_to_file` split (→ verdict package), A5 break the `runner`↔`orchestrator` re-export. Part B = fast hygiene: research-helper hoist, `utcnow`×5, naive `datetime`×7, dead code, mypy type-args, W1 flake isolation (the real-`~/Downloads` scan), `RunPolicy`-from-config.
+**Changes:** `docs/audits/2026-07-06-code-refactoring-guide.md` (new), `JOURNAL.md` (this). Commit `dad4a31`, merge `55f9b8c` + this close-out commit on `main`. Pushed. Zero source/config/test changes.
+
+---
+
 ### 2026-07-06 — Code-quality audit of `src/` persisted to docs/audits (`docs/audits/2026-07-06-code-quality-audit.md`)
 
 **Did:** Ran the read-only implementation-quality audit of `src/ai_council/` on `docs/code-quality-audit` (`e1f178a`), companion to the same-day architect intake. Phase-1 mechanical evidence (radon cc/mi, vulture cross-checked against real callers, mypy --strict, an ast function-length pass, the internal import graph, and consistency/config/efficiency censuses) + Phase-2 first-hand reads of all five load-bearing surfaces + two scoped subagents (provider-family duplication; test-suite quality). Installed radon+vulture into `.venv` (analysis-only). Report = grade **B+ (engineered, not patched — duplication is the debt, not accretion)**, five refactor seeds each with a testable done-when, and a §6 not-findings list referencing the known items without refiling.
