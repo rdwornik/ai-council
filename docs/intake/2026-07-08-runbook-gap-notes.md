@@ -87,6 +87,53 @@ specific n-of-6 number is env-constrained.
 - **Candidate hub enhancement:** a lightweight/dry `observe-arc` coverage mode that reports per-organ
   FIRED/ARMED/SILENT **without** a live billed child (static inspection of armed hooks + config).
 
+### G8 — Layer-6 verify doesn't exercise the hook's actual runtime interpreter
+Runbook layer-6 verify (`INSTALL_PYTHON resolves` + a bare-`python -c "import pre_commit"` shim
+import check) does **not** exercise the SessionStart hook's actual runtime interpreter — **the
+verify passed while the SessionStart hook later failed** (`.venv\Scripts\python.exe: No module named
+pre_commit`, non-blocking, on `SessionStart:resume`). Root cause: both the layer-6 verify and the
+hook (`python -m pre_commit install`, `settings.json`) use **bare `python`**, which is
+context-dependent — Python312 (has `pre_commit`) in the original session, the repo `.venv` (lacked
+it) under an active venv on resume. The shim's hardcoded `INSTALL_PYTHON` (the only deterministic
+path) was exercised by neither the verify nor the hook.
+- **Runbook fix (the deliverable):** the layer-6 verify must **invoke the hook's own command line
+  verbatim** (`python -m pre_commit install`) under the same shell the hook runs in — not a proxy
+  `import` check that can pass on a different interpreter than the hook uses.
+- **Fleet note:** corp-monorepo shares the latent fragility — `pre_commit` is present in its `.venv`
+  but **undeclared in pyproject**, so a fresh re-clone would not repopulate it (same failure would
+  surface there once the venv is rebuilt).
+- **Fix applied here:** `pre-commit>=4.5` added to `pyproject.toml [dev]` (matches the hub floor) —
+  durable: a fresh clone's `pip install -e ".[dev]"` populates the `.venv`. The immediate `.venv`
+  population was **reverted** after it surfaced **G9** (a deeper WMI CLI hang), so daily SessionStart
+  stays a fast non-blocking fail, not a 30s hang. Runtime verify is **BLOCKED-by-WMI** — see G9.
+
+### G9 — pre_commit CLI import hang: `platform._wmi_query()` at golang import (MACHINE-level, NOT ai-council)
+Discovered while verifying the G8 fix: with `pre_commit` importable, `python -m pre_commit install`
+(and even `pre_commit --version`) **hangs**. faulthandler pinpoints it — `pre_commit/languages/golang.py:42`
+calls `platform.machine()` at import → Python 3.12 `platform.uname()/_win32_ver()/_wmi_query()`, which
+**stalls on this machine's WMI service**. pre_commit imports all languages eagerly (`all_languages.py:11`
+→ `golang`), so every `pre_commit` CLI invocation trips it.
+- **SCOPE — machine-level, not ai-council:** the stall is in **Python312's `platform.py`** (the `.venv`
+  shares that stdlib), so it hits **any repo on this machine** intermittently — nothing in ai-council's
+  code causes or can fix it. **Intermittency evidence:** this same session landed **6 ai-council commits
+  + multiple hub merges today** with the **commit-time** pre-commit/commit-msg hooks firing normally
+  (and it worked 2026-07-07) — the WMI stall is transient/state-dependent, not a hard break.
+- **REMEDIATION CANDIDATES (to verify, not asserted):** (a) **CPython 3.12.x point-release upgrade** —
+  `platform.machine()`/`_wmi_query()` hangs are a known fixed class in later 3.12 patch releases;
+  verify against the CPython changelog before acting. (b) **Windows WMI service repair** (`winmgmt` /
+  WMI repository rebuild). Route to the hub as an **ENVIRONMENT gotcha (machine-scoped)** — a candidate
+  for the hub gotcha registry, not an ai-council BACKLOG item.
+- **RETRY PATH (step-3 runtime verify = BLOCKED-by-WMI):** the G8 fix is import-verified only
+  (`import pre_commit` succeeds in the `.venv`). To close the runtime verify once WMI clears, install
+  pre-commit into the `.venv` (`pip install -e ".[dev]"`) then re-run **verbatim** from the consumer root:
+  `python -m pre_commit install` → expect exit 0 (no ModuleNotFoundError, no WMI hang). One paste, not an
+  archaeology dig.
+- **ATTESTATION INTEGRITY (scopes G8 + the 2026-07-08 #215 attestation):** today's #215 attestation
+  covered the **commit-time** armed mesh — demonstrably **FIRED** (6 commits landed today through the
+  armed hooks; `enforcement_coverage --fire` + `floor_conformance` 9/9). The **SessionStart:resume**
+  `pre_commit install` auto-arm leg is the degraded one (WMI). The attestation **stands with that stated
+  scope**: commit-time enforcement proven; the SessionStart auto-arm convenience is WMI-blocked.
+
 ---
 
 ## Honest-scope closures recorded (not silent passes)
