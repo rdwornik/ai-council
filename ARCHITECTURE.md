@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-06
+last_reviewed: 2026-07-08
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-02` (`Track A output subsystem: ADR-10 return_dir routing + first-class minority-report artifact (#13/#15); reviewed Folder Governance end-to-end`)
+> Last updated: `2026-07-08` (`Wave-1 onboarding: codemap + layer-boundary diagrams converted from Mermaid to hand-authored compact-text (#262)`)
 
 ## Purpose [CORE]
 
@@ -17,64 +17,51 @@ owner: Rob
 
 ## Codemap [CORE]
 
-> **Codemap form.** The codemap generator shipped 2026-05-22 (ADR-51 amendment); generator adoption is **opt-in** and ai-council maintains this block by hand. The Mermaid graph shows the module dependency structure; per-module responsibilities follow in the table below.
+> **Codemap form.** ai-council maintains this block **by hand** in the codemap tool's compact-text shape (ADR-51). The hub codemap CLI cannot generate it: ai-council has a flat single-package layout with no `tach.toml`, so `codemap generate` degenerates to a 2-orphan-module stub (#262 gap-note). The tables below show the module dependency structure; per-module responsibilities follow further down.
 
 <!-- CODEMAP:START -->
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'darkMode':true,'background':'#1a1a1a','primaryColor':'#2d2d3d','primaryTextColor':'#f0f0f0','primaryBorderColor':'#8a86ff','lineColor':'#a0a0ff','textColor':'#f0f0f0','mainBkg':'#2d2d3d','secondaryColor':'#3d2d3d','tertiaryColor':'#22323a','clusterBkg':'#222232','clusterBorder':'#555577','edgeLabelBackground':'#1a1a1a','titleColor':'#f0f0f0','nodeBorder':'#8a86ff'}}}%%
-flowchart TD
-    cli[cli.py]:::interface
-    inbox[inbox.py]:::interface
-    orchestrator[orchestrator.py]:::orchestration
-    runner[runner.py]:::orchestration
-    debate[debate.py]:::core
-    synthesis[synthesis.py]:::core
-    mode_detector[mode_detector.py]:::core
-    providers[providers/]:::core
-    research[research/]:::core
-    output[output.py]:::output
-    routing[routing.py]:::output
-    models[models.py]:::foundation
-    metrics[metrics.py]:::foundation
-    healthcheck[healthcheck.py]:::foundation
-    policy[policy.py]:::foundation
-    config[config/]:::foundation
+<!-- HAND-AUTHORED compact-text codemap (ADR-25-style manual block, ADR-51 form); NOT generator-managed.
+     The hub codemap CLI cannot regenerate this: ai-council is a flat single-package layout with no
+     tach.toml, so `codemap generate` yields a degenerate 2-orphan stub (providers, research). Edit by
+     hand when modules/edges change; `codemap check` will always report a diff here — that is expected
+     and is not wired into any gate (#262 gap-note). -->
 
-    cli --> orchestrator
-    inbox --> orchestrator
-    orchestrator --> runner
-    runner --> mode_detector
-    runner --> healthcheck
-    runner --> debate
-    runner --> config
-    debate --> providers
-    debate --> synthesis
-    debate --> models
-    synthesis --> models
-    synthesis --> output
-    output --> routing
-    research --> providers
+Modules (source root: `src/ai_council/`; layer per the layer model below):
 
-    classDef foundation fill:#e8e8e8,stroke:#888,color:#222
-    classDef core fill:#bde0fe,stroke:#1971c2,color:#000
-    classDef orchestration fill:#a5d8ff,stroke:#1971c2,color:#000
-    classDef interface fill:#74c0fc,stroke:#1864ab,color:#000
-    classDef output fill:#ffd8a8,stroke:#e8590c,color:#222
+| module | layer | path |
+|---|---|---|
+| cli | interface | src/ai_council/cli.py |
+| inbox | interface | src/ai_council/inbox.py |
+| orchestrator | orchestration | src/ai_council/orchestrator.py |
+| runner | orchestration | src/ai_council/runner.py |
+| debate | core | src/ai_council/debate.py |
+| synthesis | core | src/ai_council/synthesis.py |
+| mode_detector | core | src/ai_council/mode_detector.py |
+| providers | core | src/ai_council/providers/ |
+| research | core | src/ai_council/research/ |
+| output | output | src/ai_council/output.py |
+| routing | output | src/ai_council/routing.py |
+| models | foundation | src/ai_council/models.py |
+| metrics | foundation | src/ai_council/metrics.py |
+| healthcheck | foundation | src/ai_council/healthcheck.py |
+| policy | foundation | src/ai_council/policy.py |
+| config | foundation | src/ai_council/config/ |
 
-    click cli href "src/ai_council/cli.py" "Open cli.py"
-    click inbox href "src/ai_council/inbox.py" "Open inbox.py"
-    click orchestrator href "src/ai_council/orchestrator.py" "Open orchestrator.py"
-    click runner href "src/ai_council/runner.py" "Open runner.py"
-    click debate href "src/ai_council/debate.py" "Open debate.py"
-    click synthesis href "src/ai_council/synthesis.py" "Open synthesis.py"
-    click mode_detector href "src/ai_council/mode_detector.py" "Open mode_detector.py"
-    click providers href "src/ai_council/providers/" "Open providers"
-    click research href "src/ai_council/research/" "Open research"
-    click output href "src/ai_council/output.py" "Open output.py"
-    click routing href "src/ai_council/routing.py" "Open routing.py"
-    click models href "src/ai_council/models.py" "Open models.py"
-```
-<!-- hand-authored Mermaid codemap per ADR-51 amendment 2026-05-22; not generator-managed -->
+Dependencies (`from -> to`):
+- cli -> orchestrator
+- inbox -> orchestrator
+- orchestrator -> runner
+- runner -> mode_detector
+- runner -> healthcheck
+- runner -> debate
+- runner -> config
+- debate -> providers
+- debate -> synthesis
+- debate -> models
+- synthesis -> models
+- synthesis -> output
+- output -> routing
+- research -> providers
 <!-- CODEMAP:END -->
 
 **Module responsibilities** (semantic complement to the structural graph):
@@ -106,26 +93,24 @@ flowchart TD
 
 Four layers in dependency order (interface → orchestration → core → foundation). `output` is a cross-cutting concern that writes results produced by `core`.
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'darkMode':true,'background':'#1a1a1a','primaryColor':'#2d2d3d','primaryTextColor':'#f0f0f0','primaryBorderColor':'#8a86ff','lineColor':'#a0a0ff','textColor':'#f0f0f0','mainBkg':'#2d2d3d','secondaryColor':'#3d2d3d','tertiaryColor':'#22323a','clusterBkg':'#222232','clusterBorder':'#555577','edgeLabelBackground':'#1a1a1a','titleColor':'#f0f0f0','nodeBorder':'#8a86ff'}}}%%
-flowchart TD
-    interface["interface<br/>cli, inbox"]:::interface
-    orchestration["orchestration<br/>orchestrator, runner"]:::orchestration
-    core["core<br/>debate, synthesis, mode_detector, providers, research"]:::core
-    foundation["foundation<br/>models, metrics, healthcheck, policy, config"]:::foundation
-    output["output (cross-cutting)<br/>output, routing"]:::output
+<!-- HAND-AUTHORED compact-text layer-boundary map (ADR-25-style manual block); NOT generator-managed.
+     No CODEMAP markers -> the codemap CLI never reached this block even before the flat-layout issue. -->
 
-    interface --> orchestration
-    orchestration --> core
-    core --> foundation
-    core -.writes via.-> output
+Layers (dependency order; `output` is cross-cutting, written by `core`):
 
-    classDef foundation fill:#e8e8e8,stroke:#888,color:#222
-    classDef core fill:#bde0fe,stroke:#1971c2,color:#000
-    classDef orchestration fill:#a5d8ff,stroke:#1971c2,color:#000
-    classDef interface fill:#74c0fc,stroke:#1864ab,color:#000
-    classDef output fill:#ffd8a8,stroke:#e8590c,color:#222
-```
+| layer | modules |
+|---|---|
+| interface | cli, inbox |
+| orchestration | orchestrator, runner |
+| core | debate, synthesis, mode_detector, providers, research |
+| foundation | models, metrics, healthcheck, policy, config |
+| output (cross-cutting) | output, routing |
+
+Layer edges (`from -> to`):
+- interface -> orchestration
+- orchestration -> core
+- core -> foundation
+- core -> output (writes via)
 
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).  
 **Config file:** N/A  
