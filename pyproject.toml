@@ -25,6 +25,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.9",
     "mypy>=1.10",
+    "pre-commit>=4.5",  # in-venv so the SessionStart `python -m pre_commit install` hook resolves under an active .venv (G8); matches hub [dev] floor
 ]
 
 [project.scripts]
