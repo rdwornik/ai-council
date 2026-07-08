@@ -301,3 +301,5 @@ Do not create files outside these directories without updating this section.
 ---
 
 **Maintained by:** Rob
+
+<!-- qa-n3 scratch probe line; reverted at end of exercise -->
