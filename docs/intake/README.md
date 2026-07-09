@@ -19,3 +19,4 @@ runbook gap-notes), not created here.
 ## Contents
 - `YYYY-MM-DD-technical-architect-intake.md` — technical-architect entry-point document
 - `YYYY-MM-DD-lane-*-functional-design.md` — per-lane (ADR-98) functional designs
+- `YYYY-MM-DD-runbook-gap-notes.md` — Wave-1 onboarding runbook gap-notes / NEEDS-RULING items

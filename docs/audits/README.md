@@ -4,7 +4,7 @@ Archive of audit artifacts produced for ai-council — Codex reviews, code revie
 
 ## Convention
 
-- Naming: `YYYY-MM-DD_<topic>.md` (date prefix enables chronological sort by filename)
+- Naming: `YYYY-MM-DD-<topic>.md` (date prefix enables chronological sort by filename)
 - One file per audit cycle
 - Earlier `docs/archive/` consolidated here as of 2026-05-11 (commit history preserved via `git mv`)
 
