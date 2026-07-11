@@ -1,0 +1,17 @@
+# Consumer conformance metadata read by the hub Informant
+# (.dev-knowledge scripts/enforcement_coverage.py, [#244] P4 / D2).
+# Each entry: component id + MANDATORY reason + time-box (expiry or review_date).
+sanctioned_divergences:
+  - component: hub-codemap-hooks
+    reason: >-
+      ai-council does NOT consume the codemap-freshness hub hook. Its codemap is
+      hand-authored (ARCHITECTURE.md Codemap block, ADR-51): ai-council is a flat
+      single-package layout (src/ai_council/) with no tach.toml, so the hub codemap
+      generator degenerates to a 2-orphan stub (#262) and `codemap check` ALWAYS
+      reports a diff -- adding it as an active pre-commit gate would block every
+      commit touching src/*.py / ARCHITECTURE.md / pyproject.toml. Identical
+      exclusion to corp-monorepo (also hand-authored, single-package). hub-codemap-hooks
+      is waivable:true in manifest-v1.3.x. NOTE: the deploy tool does not yet read this
+      waiver (hub #276 design-deferred) -- a real `deploy/tool.py --execute` would
+      re-append codemap-freshness on a rev bump; re-remove until #276 lands.
+    review_date: 2026-10-11

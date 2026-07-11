@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-06
+last_reviewed: 2026-07-11
 status: active
 owner: Rob
 ---
@@ -12,6 +12,7 @@ owner: Rob
 > **For universal rules:** read `../.dev-knowledge/protocols/ESSENTIALS.md` and `../.dev-knowledge/protocols/PLAYBOOK.md`.
 
 ## 1. First read (session start)
+<!-- methodology:start id=first-read owner=hub -->
 
 In order, read:
 1. This file (you're here)
@@ -21,24 +22,31 @@ In order, read:
 5. Last 5 entries of `JOURNAL.md`
 
 If ESSENTIALS or PLAYBOOK are unavailable, proceed with this file alone but flag it.
+<!-- methodology:end id=first-read -->
 
 ## 2. Repo identity
+<!-- methodology:start id=repo-identity owner=repo -->
 
 - **Name:** `ai-council`
 - **Status:** `active`
 - **Purpose:** Multi-model AI debate and research CLI tool; produces binding ADRs governing the `Dev/` ecosystem.
 - **Owner:** Rob
 - **Critical paths:** `src/ai_council/`, `tests/`, `docs/decisions/`, `config/settings.yaml`
+<!-- methodology:end id=repo-identity -->
 
 ## 3. Architecture
+<!-- methodology:start id=repo-architecture owner=repo -->
 
 See `ARCHITECTURE.md` for the structural model; read it before structural changes (required per ADR-51 — mandatory for every repo).
+<!-- methodology:end id=repo-architecture -->
 
 ## 4. Conventions
 
 - **Naming:** snake_case Python; kebab-case markdown; `ADR-NN-topic.md` future ADRs (existing ADRs hyphen-named per ADR-34)
+<!-- methodology:start id=conventions-commit-branch owner=hub -->
 - **Commits:** Conventional Commits — `type(scope): summary` (imperative; body for non-trivial changes)
 - **Branches:** `feat/<topic>`, `fix/<topic>`, `docs/<topic>`, `chore/<scope>`
+<!-- methodology:end id=conventions-commit-branch -->
 - **Testing:** `pytest tests/ -m "not integration and not envcheck" -v` (unit suite, no API keys); `pytest -x --tb=short` (quick); `asyncio_mode = auto` in `pyproject.toml`
 - **Linting:** `ruff check src/ tests/ --fix`; pre-merge: `.\scripts\check.ps1` (pytest + mypy + ruff)
 
@@ -52,12 +60,15 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 1. Read `.claude/rules/` before making code changes: `code-standards.md`, `python-env.md`, `testing.md`
 2. API keys (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `DEEPSEEK_API_KEY`, `PERPLEXITY_API_KEY`) live in `C:\Users\1028120\Documents\.secrets\.env` — never add keys to a repo-local `.env`
 3. Run `.\scripts\check.ps1` (pytest + mypy + ruff) before every merge
+<!-- methodology:start id=critical-rules-records owner=hub -->
 4. `LESSONS.md` is append-only — never edit old entries (ADR-29)
 5. ADRs are immutable — supersede with a new ADR; never edit in place
+<!-- methodology:end id=critical-rules-records -->
 6. Config strings (models, prompts, personas, timeouts) live in `config/settings.yaml` — never hardcode
 7. Do NOT merge `xai.py` and `deepseek.py` into a single provider — keep separate
 
 ## 6. Session start protocol
+<!-- methodology:start id=session-start-protocol owner=hub -->
 
 1. `git status` — clean working tree?
 2. `git log --oneline -5` — recent context
@@ -65,8 +76,10 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 4. `pytest --collect-only -q` — test discovery sanity check
 5. Run `.\scripts\check.ps1` when ready to merge
 6. Wait for Rob's prompt — never improvise
+<!-- methodology:end id=session-start-protocol -->
 
 ## 7. Slash commands available
+<!-- methodology:start id=commands-repo-roster owner=repo -->
 
 User-level (`~/.claude/commands/`):
 - `/session-summary` — generate token-efficient session summary
@@ -78,8 +91,10 @@ Repo-level (`./.claude/commands/`):
 Plugin (`tier1-lifecycle@dev-knowledge-methodology`, enabled in `.claude/settings.json`):
 - `/review-closures` — review + execute ONLY operator-approved closures (ADR-70 Tier-1)
 - `/ship` — merge the current branch to main via `--no-ff`, push, delete the branch
+<!-- methodology:end id=commands-repo-roster -->
 
 ## 8. Skills active
+<!-- methodology:start id=skills-repo-roster owner=repo -->
 
 User-level (`~/.claude/skills/`):
 - `gotchas` — universal dev gotchas (encoding, shell safety, test pitfalls)
@@ -92,15 +107,19 @@ Repo-level (`./.claude/rules/`):
 - `testing.md` — pytest + pytest-asyncio standards
 
 Code review: Codex via `/codex-review`; threshold 3+ files for a full review.
+<!-- methodology:end id=skills-repo-roster -->
 
 ## 9. Hooks active
+<!-- methodology:start id=hooks-repo-roster owner=repo -->
 
-Pre-commit (`.pre-commit-config.yaml`):
+Pre-commit (`.pre-commit-config.yaml`) — hub hook-source pinned `rev: v1.3.1` (methodology corpus v1.3.1):
 - `normalize-headers` — normalizes dated-log headers in `LESSONS.md`/`JOURNAL.md`
 - `floor-hash-verify` — verifies `.claude/CLAUDE-FLOOR.md` matches its `.sha256` sidecar
 - `canonical_freshness` — `last_reviewed` A2 gate; FAIL blocks the commit on a canonical doc edited since its last review
-- `toc-freshness` / `toc-generate` — TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md`
-- `backlog-id-on-close` (hub-sourced) — requires `[#id]` in the commit message when a `BACKLOG.md` task line is removed
+- `toc-freshness` / `toc-generate` (hub-sourced) — TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md`
+- `backlog-id-on-close` (hub-sourced, commit-msg) — requires `[#id]` in the commit message when a `BACKLOG.md` task line is removed
+- `block-ff-push` (hub-sourced, pre-push) — refuses a direct-to-main / FF push to `main` (core-invariant #5 prevent organ, #302); a `--no-ff` merge passes. Added at the v1.3.1 carrier bump
+- (`codemap-freshness` from the hub set is intentionally NOT consumed — ai-council's codemap is hand-authored, so `codemap check` always diffs; sanctioned in `.methodology.yaml`, `hub-codemap-hooks` is waivable per manifest-v1.3.x; same exclusion as corp-monorepo)
 - (the `ruff` pre-commit gate was PRUNED 2026-07-04 — [#244] P2 n=1 remove-leg, deploy `31e785d`; lint stays manual via §4 `ruff check` / `.\scripts\check.ps1`)
 
 Session hooks (`.claude/settings.json`):
@@ -110,8 +129,10 @@ Session hooks (`.claude/settings.json`):
 
 Manual pre-merge gate:
 - `.\scripts\check.ps1` — pytest + mypy + ruff (run before every merge; not wired to pre-commit)
+<!-- methodology:end id=hooks-repo-roster -->
 
 ## 10. Anti-patterns specific to Claude Code in this repo
+<!-- methodology:start id=antipatterns-repo owner=repo -->
 
 - **Windows cp1252**: Do not print Unicode chars in Rich progress callbacks — ASCII only
 - **google-genai event loop**: `genai.Client(api_key=...)` must be created INSIDE the async method, NOT in `__init__`
@@ -130,8 +151,10 @@ Do NOT:
 - Edit existing `LESSONS.md` entries — append-only per ADR-29
 - Add API keys to a repo-local `.env` — global secrets only
 - Change Council runtime behavior to fix question-quality problems — fix in `protocols/COUNCIL_QUESTION_GUIDE.md`
+<!-- methodology:end id=antipatterns-repo -->
 
 ## 11. Recent ADRs binding here
+<!-- methodology:start id=recent-adrs-roster owner=repo -->
 
 **Local (`docs/decisions/`):**
 - ADR-01: Synthesizer Selection — non-participating model synthesizes; default gemini (Revised 2026-04-30)
@@ -152,8 +175,10 @@ Do NOT:
 - ADR-67: AI-Council process operationalization — six-step gated loop; downstream `/council-question` template + gate + `council.return_dir` are ai-council's to implement (not yet built)
 
 > **BACKLOG form (resolved 2026-06-02):** the ADR-66 story-map binds all repos with **proportional depth** (`.dev-knowledge` ADR-38 A6; BACKLOG #20 closed). This repo's `BACKLOG.md` was migrated from the ADR-41/47 stream schema to the story-map on 2026-06-02 (all items preserved).
+<!-- methodology:end id=recent-adrs-roster -->
 
 ## 12. Section history
+<!-- methodology:start id=section-history owner=repo -->
 
 - v1.0 (pre-ADR-53) — technical reference document (architecture, commands, design decisions)
 - v2.1 (2026-05-19) — ADR-53: retire AGENTS.md; CLAUDE.md becomes substantive single canonical agent-instruction file; technical depth moved to ARCHITECTURE.md
@@ -161,8 +186,10 @@ Do NOT:
 - v2.3 (2026-06-02) — ecosystem-unify to the canonical standard (ADR-38 A6): added `CONTRIBUTING.md`; normalized VISION (Mission→Vision, +Values/References) and ARCHITECTURE (+Key conventions/Authority/Validators/Governing ADRs) to the canonical spine; migrated `BACKLOG.md` to the ADR-66 story-map (11 items preserved); `LESSONS.md` H1 → canonical title; §11 backlog-schema note resolved (#20 closed)
 - v2.4 (2026-07-05) — currency re-review (first consumer-measurement session; hub [#252] Phase 0.5): §9's `ruff` pre-commit bullet reconciled to the v1.2.0 prune (`31e785d` updated the config but not this file — the exact A2 staleness `canonical_freshness` had flagged since 2026-07-03); §7 gains the two enabled-plugin commands (`/review-closures`/`/ship`). Genuine end-to-end re-read verified §1–§11 against live state (commands dir, pre-commit config, session hooks); `last_reviewed` re-stamped 2026-07-05.
 - v2.5 (2026-07-06) — Arc 3 conformance residuals (Track rename + hygiene sweep): §9 gains the `backlog-id-on-close` hub hook (closes the v1.2.0 manifest gap — `.pre-commit-config.yaml` was missing it alongside the existing `toc-freshness`/`toc-generate` pull from `../.dev-knowledge`); `last_reviewed` re-stamped 2026-07-06.
+- v2.6 (2026-07-11) — methodology **v1.3.1** rollout (Wave-1 first fleet consumer, hub ADR-101 hermetization): the precommit carrier's hub hook-source rev bumped `v1.2.0 → v1.3.1` and the **`block-ff-push`** pre-push gate added (core-invariant #5 prevent organ, #302) — §9 reconciled to state the rev and the new gate. `codemap-freshness` from the fleet-generic install set is intentionally NOT consumed (hand-authored codemap ⇒ `codemap check` always diffs; same exclusion as corp-monorepo), recorded machine-readably in the new root `.methodology.yaml` waiver (`hub-codemap-hooks` waivable). v1.3.1 (not v1.3.0) was armed because the v1.3.0 tag predated the #318/#319 block-ff-push range-reconstruction fix. **Form-A boundary markers** (hub #312 / ADR-101; design `.dev-knowledge/docs/audits/2026-07-11-technical-fleet-boundary-marker-design.md`) grandfathered onto §1–§12 as additive `<!-- methodology:start/end id=… owner=hub|repo -->` HTML comments — **body prose byte-identical** (marker-only; divergent/gap owner=hub regions left for the read-only boundary reporter to surface, reconciled in a later pass). `owner=hub` = `first-read` (§1), `conventions-commit-branch` (§4 sub-span), `critical-rules-records` (§5 items 4–5), `session-start-protocol` (§6); the rest `owner=repo`. Genuine end-to-end re-read to place every region + reconcile §9; `last_reviewed` re-stamped 2026-07-11.
+<!-- methodology:end id=section-history -->
 
 ---
 
-**Last updated:** 2026-07-06
+**Last updated:** 2026-07-11
 **Maintained by:** Rob
