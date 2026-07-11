@@ -25,6 +25,12 @@ repos:
     language: system
     always_run: true
     pass_filenames: false
+  - id: validate-audit-casing
+    name: ADR-101 R4 audit-filename casing gate (fleet d1; casing-only carry)
+    entry: python scripts/validate_audit_casing.py
+    language: system
+    always_run: true
+    pass_filenames: false
 - repo: https://github.com/rdwornik/dev-knowledge
   rev: v1.3.1
   hooks:

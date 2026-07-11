@@ -15,3 +15,29 @@ sanctioned_divergences:
       waiver (hub #276 design-deferred) -- a real `deploy/tool.py --execute` would
       re-append codemap-freshness on a rev bump; re-remove until #276 lands.
     review_date: 2026-10-11
+
+  # --- fleet ruling d1: ADR-101 R4 casing gate is carried CASING-ONLY -----------------
+  # ai-council carries only the R4 casing branch of the hub gate
+  # (.dev-knowledge/scripts/validate_hermetization.py) as the local hook
+  # scripts/validate_audit_casing.py. The two hub-local branches below are NOT carried;
+  # they are recorded here so the full divergence surface stays machine-readable for the
+  # hub Informant / A1 fleet_parity checker. Neither component is a v1.3.1 consumer-manifest
+  # id (the full gate is HUB-ONLY), so both are inert-but-recorded divergence-surface entries.
+  - component: hub-hermetization-rule-a
+    reason: >-
+      Hub Rule A (ADR-101 top-level tree seal) is HUB-LOCAL and deliberately NOT carried.
+      It is keyed to the HUB tree (its SANCTIONED_TIER1_DIRS omit `src/`), so carrying it
+      verbatim into ai-council would BLOCK every new file added under `src/ai_council/` --
+      it would brick normal development. ai-council carries only the R4 casing branch
+      (scripts/validate_audit_casing.py). Authority: hub ADR-101 R4 / fleet ruling d1.
+    review_date: 2026-10-12
+  - component: hub-hermetization-rule-b-grammar
+    reason: >-
+      Hub Rule B's date-shape grammar + the CLOSED 11-class audit-class enum are HUB-LOCAL
+      and deliberately NOT carried. ai-council audits use free-form leading tokens
+      (code-quality, fable-*, council-*, research-*, fleet-recon, methodology-adoption):
+      already casing-conformant, not enum-conformant. This repo enforces the R4 casing
+      branch ONLY (scripts/validate_audit_casing.py). The enum and date-shape grammar remain
+      hub-local per fleet ruling d1; any future carry of the full gate requires a new operator
+      ruling. Authority: hub ADR-101 R4 / fleet ruling d1.
+    review_date: 2026-10-12
