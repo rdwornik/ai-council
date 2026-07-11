@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-08
+last_reviewed: 2026-07-11
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-08` (`Wave-1 onboarding: codemap + layer-boundary diagrams converted from Mermaid to hand-authored compact-text (#262)`)
+> Last updated: `2026-07-11` (`#326 consumer leg verified no-op — already converted under #262 (2026-07-08); ASCII Data-Flow block retained (out of ruled scope)`)
 
 ## Purpose [CORE]
 
