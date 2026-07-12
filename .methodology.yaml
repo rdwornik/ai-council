@@ -2,6 +2,20 @@
 # (.dev-knowledge scripts/enforcement_coverage.py, [#244] P4 / D2).
 # Each entry: component id + MANDATORY reason + time-box (expiry or review_date).
 sanctioned_divergences:
+  - component: ruff-gate
+    reason: >-
+      ai-council runs its OWN consumer-owned ruff gate (astral-sh/ruff-pre-commit
+      mirror pinned v0.15.5, gate mode `args: []` = check-only no --fix; lint config
+      E/F/I/W in pyproject.toml). The fleet-generic managed hook set carries NO ruff
+      ([#244] dropped it from the manifest), so ANY consumer running a ruff gate is
+      divergent-by-definition and must declare it here. Re-activated by fleet ruling
+      2026-07-12, overriding this repo's own [#244] prune (2026-07-04, deploy 31e785d).
+      PRUNE-SAFE SHAPE: the stanza uses a bare `id: ruff` (no `name:`) so a future hub
+      remove-leg targeting the canonical-named tombstone shape cannot silently delete
+      this consumer-owned gate -- identical prune-safety rationale to corp-monorepo's
+      ruff-gate entry. Durable per-consumer prune scoping is hub #276.
+    review_date: 2026-10-12
+
   - component: hub-codemap-hooks
     reason: >-
       ai-council does NOT consume the codemap-freshness hub hook. Its codemap is
