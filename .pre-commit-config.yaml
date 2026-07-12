@@ -31,6 +31,16 @@ repos:
     language: system
     always_run: true
     pass_filenames: false
+  # validate-backlog: ADR-66 story-map structural gate (content-parity D1). Carried as the
+  # ADR-78 floor twin of the hub validator (plugins/tier1-lifecycle/scripts/validate_backlog.py)
+  # -- NO automated carrier yet (intake G1/G2), so re-sync scripts/validate_backlog.py by hand
+  # on hub changes. Floor twin deliberately omits [S<n>] story-id enforcement (Wave-1 doctrine).
+  - id: validate-backlog
+    name: Validate BACKLOG.md story-map (ADR-66)
+    entry: python scripts/validate_backlog.py
+    language: system
+    files: '^BACKLOG\.md$'
+    pass_filenames: false
 - repo: https://github.com/rdwornik/dev-knowledge
   rev: v1.3.1
   hooks:
