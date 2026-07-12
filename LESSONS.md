@@ -1,10 +1,10 @@
-# Lessons Learned — ai-council
-
+# Lessons Learned — Append-Only Log
 <!-- scope: hybrid -->
 
-> **Format (entries from 2026-06-02):** `### YYYY-MM-DD | source | lesson | category | [scope: X] | action taken`
-> Earlier entries below use a `CONTEXT / MISTAKE / RULE` body under a `### YYYY-MM-DD | title` header (grandfathered per ADR-29).
-> New entries go at the top. Never edit old entries. Never delete.
+> **Format:** `### YYYY-MM-DD | source | lesson | category | [scope: X] | action taken`
+> New entries go at the top of the Entries section. Never edit old entries. Never delete.
+> Grandfathered: earlier entries below use a `### YYYY-MM-DD | title` header + `CONTEXT / MISTAKE / RULE` body (never rewritten to the newer schema — append-only per ADR-29).
+> Last updated: 2026-07-13
 
 ---
 

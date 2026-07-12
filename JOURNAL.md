@@ -1,5 +1,24 @@
 # Journal — ai-council
 
+<!-- scope: meta -->
+
+> Per-session tactical log of `ai-council` Claude Code work. Entry shape
+> as of 2026-05-16 (Council Simplification): `Did / Result / Changes /
+> Abandoned / Next`. Newest-first prepend ordering.
+>
+> Distinct from LESSONS (per-learning generalized rules, newest-first per
+> ADR-29) and handoffs (per-session boundary artifacts for browser-chat
+> resumption). JOURNAL is the within-Claude-Code-sessions tactical log
+> enabling context recovery across sessions in same repo. The `Changes:`
+> line records what files / areas moved — replacing the deleted CHANGELOG.md.
+>
+> Update protocol: prepend new session entry at top of entry list (under this
+> intro blockquote, before existing entries). One entry per Claude Code session
+> OR per workday for heavy days. Each entry cites commit hashes, handoff doc,
+> or ADR for deeper detail. JOURNAL summarizes, doesn't duplicate.
+
+---
+
 ### 2026-07-12 — Fleet ruling: ruff-gate RE-ACTIVATION + hub `.vscode/settings.json` carry (commit-and-STOP; push HELD)
 
 **Did:** Executed two fleet rulings. **(1) Ruff pre-commit gate RE-ACTIVATED** — wired the `astral-sh/ruff-pre-commit` mirror into `.pre-commit-config.yaml`, pinned **`v0.15.5`** (fleet floor/majority: asset template + life-architect + local ruff; corp is the lone outlier at v0.15.8), gate mode `args: []` (check-only, no `--fix`). **Deliberate bare `id: ruff` (no `name:`) for prune-safety** — matches corp so a future hub remove-leg targeting the canonical-named tombstone shape cannot silently delete this consumer gate. **Premise correction (surfaced to operator, ruled on):** the triggering prompt justified activation via "divergence-register item 9 UNRESOLVED" — recon found **no such item in ai-council's `.methodology.yaml`**, and CLAUDE.md §9 recorded the gate as **deliberately PRUNED 2026-07-04** ([#244] deploy `31e785d`). So activation **REVERSES a documented prune**; operator ruled *re-activate knowingly*. Per operator correction, the record states the item-9 pointer was **hub-side (the hub's divergence register), mis-addressed as local** — NOT "did not exist" (a canonical doc must not assert a false fact). Because the fleet-generic manifest carries **no** ruff ([#244] dropped it), a consumer ruff gate is divergent-by-definition → added a `ruff-gate` `sanctioned_divergences` entry (mirrors corp's shape). **(2) `.vscode/settings.json` carried** byte-identical from the hub (77-byte disk / sha `01b923…`, LF blob `697e12…` identical to the hub's committed blob; `.gitignore` narrowed `.vscode/` → `.vscode/*` + `!.vscode/settings.json`, mirroring the `.claude/*` un-ignore precedent). **Witnessed installed-and-firing:** probe `tests/_ruff_gate_probe.py` with an unused `import os` → `pre-commit run ruff` **Failed** (F401, exit 1); clean repo **Passed**. Probe deleted, tree clean.
