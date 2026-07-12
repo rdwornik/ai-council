@@ -55,3 +55,16 @@ sanctioned_divergences:
       hub-local per fleet ruling d1; any future carry of the full gate requires a new operator
       ruling. Authority: hub ADR-101 R4 / fleet ruling d1.
     review_date: 2026-10-12
+
+  # --- content-parity B1: CLAUDE.md §11 title kept without the hub "(last 5)" suffix --------
+  - component: claude-md-section-11-title
+    reason: >-
+      ai-council's CLAUDE.md §11 keeps the title "Recent ADRs binding here" WITHOUT the hub
+      shell's "(last 5)" suffix (content-parity inventory B1 §11-title element). §11 here is a
+      hand-curated list of local + ecosystem binding ADRs (~20 items), NOT a generated last-5
+      roster; a "(last 5)" label would be a false claim -- same defect class as the JOURNAL
+      "oldest-top" mislabel corrected hub-side (content-parity C2). Operator ruling 2026-07-13:
+      label accuracy over cosmetic shell parity. Review when/if a recent-ADR roster generator
+      (hub gen_claude_rosters.py, @.claude/generated/recent-adrs.md) is carried to this repo,
+      at which point the generated last-5 form makes the suffix truthful.
+    review_date: 2026-10-13

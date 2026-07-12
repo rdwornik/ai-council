@@ -7,13 +7,13 @@ debate/research across a configurable AI panel and produces the verdicts that be
 binding ADRs. The backlog advances the tool toward a delegation-ready, evidence-based,
 reliable, and self-enforcing state across six themes.
 
-**Themes (backbone):** Invocation surface & delegation-readiness · Synthesizer refresh ·
-Provider reliability & CLI engine · Model currency · Naming & quality automation ·
-Council process & epistemic quality
+**Themes (backbone) — epic ids:** [E1] Invocation surface & delegation-readiness · [E2] Synthesizer refresh ·
+[E3] Provider reliability & CLI engine · [E4] Model currency · [E5] Naming & quality automation ·
+[E6] Council process & epistemic quality
 
 ---
 
-## Invocation surface & delegation-readiness
+## [E1] Invocation surface & delegation-readiness
 > As the tool owner, I want ai-council's invocation specs and outputs to live in a clean,
 > delegation-ready surface, so an external agent/operator can commission the Council without
 > ambiguity about where specs live or where results land.
@@ -22,7 +22,7 @@ _All stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and 
 
 ---
 
-## Synthesizer refresh
+## [E2] Synthesizer refresh
 > As the tool owner, I want the default synthesizer chosen on real scoring data and the choice codified, so the verdict author is evidence-based and cost-aware.
 > **Note:** this theme is the baseline gate for the Council-process theme's baseline-gated items.
 
@@ -38,7 +38,7 @@ So that overlap rules are explicit if the synthesizer ever joins the panel.
 
 ---
 
-## Provider reliability & CLI engine
+## [E3] Provider reliability & CLI engine
 > As the tool owner, I want every wired provider to have a known-good, tested path and a route to CLI-subscription backends, so reliability is measured and cost is controllable.
 
 ### [S3] Close the untested and unreliable provider paths
@@ -58,7 +58,7 @@ So that repeated brief/persona blocks don't re-bill on every provider call and d
 
 ---
 
-## Model currency
+## [E4] Model currency
 > As the tool owner, I want to know when the configured panel models fall behind the latest releases, so the Council never silently debates on stale models.
 
 ### [S6] Detect stale model configuration
@@ -67,7 +67,7 @@ So that a superseded model in settings.yaml is surfaced, not silently used.
 
 ---
 
-## Naming & quality automation
+## [E5] Naming & quality automation
 > As the tool owner, I want the ADR-34 naming convention enforced mechanically and its edge cases resolved, so violations are caught by CI, not reviewer luck.
 
 ### [S7] Enforce hyphen-only naming and resolve its timestamp edge case
@@ -77,7 +77,7 @@ So that new files cannot drift from ADR-34 and the ISO-timestamp ambiguity is se
 
 ---
 
-## Council process & epistemic quality
+## [E6] Council process & epistemic quality
 > As the tool owner, I want the ADR-67 gated loop implemented, the synthesis rubric sharpened, and the panel's epistemics defended, so the Council runs deterministically and resists framing bias and false consensus.
 
 ### [S8] Build the ADR-67 downstream pieces and sharpen the rubric
@@ -96,8 +96,9 @@ So that deadlocks resolve on evidence and consensus is genuine, not a framing ar
 
 **About this file** — ADR-66 story-map (Big Picture → Theme → User Story → Task), migrated
 2026-06-02 from the ADR-41/47 stream schema per ADR-38 A6 (canonical backlog form, all
-repos). Stories are human (goal + `So that`) and carry a stable `[S<n>]` id (#281/#286);
-tasks carry `[#id] [P][size] · Done when · refs`. Done tasks **leave** (ADR-65); git is the
+repos). Themes carry a stable `[E<n>]` epic id; stories are human (goal + `So that`) and
+carry a stable `[S<n>]` id (#281/#286); tasks carry `[#id] [P][size] · Done when · refs`.
+Structure is checked by the `validate-backlog` pre-commit gate (ADR-66). Done tasks **leave** (ADR-65); git is the
 implementation record. Conformance is checked read-only by `.dev-knowledge/scripts/audit.py`.
 
-**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-segment backbone reorganization: 4 themes → 6 lettered segments A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under the provider-reliability segment (C) — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (invocation-surface segment (A) output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; that segment's story fully delivered, backbone header retained) · 2026-07-08 (Wave-1 onboarding: renamed the thematic backbone from the retired lettered scheme to named themes per ADR-99 clause A; adopted stable `[S<n>]` story ids per #281/#286; re-filed #110 + #128 from the hub backlog per the ADR-41 move (hub commit ea6217a); all task ids preserved) · 2026-07-11 (filed #21 under S3 — stale `test_full_debate_pipeline` integration test surfaced during the #326 arc; next-free local id after #20). Next quarterly: 2026-10-01.
+**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-segment backbone reorganization: 4 themes → 6 lettered segments A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under the provider-reliability segment (C) — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (invocation-surface segment (A) output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; that segment's story fully delivered, backbone header retained) · 2026-07-08 (Wave-1 onboarding: renamed the thematic backbone from the retired lettered scheme to named themes per ADR-99 clause A; adopted stable `[S<n>]` story ids per #281/#286; re-filed #110 + #128 from the hub backlog per the ADR-41 move (hub commit ea6217a); all task ids preserved) · 2026-07-11 (filed #21 under S3 — stale `test_full_debate_pipeline` integration test surfaced during the #326 arc; next-free local id after #20) · 2026-07-13 (content-parity D1: added `[E1]`–`[E6]` epic ids to the 6 theme headers + the epic-ids backbone line, and wired the ADR-66 `validate-backlog` gate — ADR-78 floor twin, hub audit `2026-07-13-technical-content-parity-inventory.md`; stories/tasks unchanged, all ids preserved). Next quarterly: 2026-10-01.
