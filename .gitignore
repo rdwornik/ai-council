@@ -26,10 +26,11 @@ Thumbs.db
 .env
 
 # Claude
-.claude/*
-!.claude/CLAUDE-FLOOR.md
-!.claude/CLAUDE-FLOOR.md.sha256
-!.claude/check_floor_hash.py
+.claude/settings.local.json
+# Native parallel-session worktrees live in-repo here (ADR-61/#107); ignore so they don't
+# show as untracked AND so gitignore-respecting walkers (ruff) don't descend into the full
+# checkout. pytest is already safe via its default `.*` norecursedirs (dot-dir skip).
+.claude/worktrees/
 
 # Project-specific
 output/
