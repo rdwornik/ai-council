@@ -25,7 +25,7 @@
 
 **Result:** Gates green — `ruff check src/ tests/ scripts/` **All checks passed**; unit suite **444 passed** (6 deselected). Zero `.py` / config changes in-arc (only this markdown entry + an untracked-file deletion), so mypy is byte-identical to `main` — the 6 pre-existing BACKLOG #20 Responses-API stub-drift errors are unchanged, not a regression. **Merge HELD** — commit-and-STOP; the merge is the operator's from this repo (do not `/ship`).
 
-**Changes:** deleted untracked `./.env` (not a tracked-file change — no diff); `JOURNAL.md` (this entry). Branch `chore/w3-ai-legs`; single JOURNAL commit. `.gitattributes` **inspected, unchanged** (parity confirmed).
+**Changes:** deleted untracked `./.env` (not a tracked-file change — no diff); `JOURNAL.md` (this entry). Branch `chore/w3-ai-legs`; work commit `5e7ff1a` (this entry is the arc's **only tracked artifact** — `.gitattributes` verified-unchanged, `.env` untracked so no diff) + this anchor follow-up. `.gitattributes` **inspected, unchanged** (parity confirmed).
 
 **Abandoned:** nothing.
 
@@ -46,7 +46,7 @@ PENDING:
   - Operator to merge chore/w3-ai-legs (--no-ff); merge HELD this session.
   - Pre-existing (not this arc): BACKLOG #20/#21 — 6 mypy Responses-API stub-drift errors.
 CONTEXT:
-  - Branch chore/w3-ai-legs off main. Gates: ruff clean, pytest 444 passed.
+  - Branch chore/w3-ai-legs off main; work commit 5e7ff1a. Gates: ruff clean, pytest 444 passed.
   - No tracked-file content changed except JOURNAL.md; .env removal is untracked → tree clean.
 ```
 
