@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-11
+last_reviewed: 2026-07-12
 status: active
 owner: Rob
 ---
@@ -122,7 +122,7 @@ Pre-commit (`.pre-commit-config.yaml`) — hub hook-source pinned `rev: v1.3.1` 
 - `backlog-id-on-close` (hub-sourced, commit-msg) — requires `[#id]` in the commit message when a `BACKLOG.md` task line is removed
 - `block-ff-push` (hub-sourced, pre-push) — refuses a direct-to-main / FF push to `main` (core-invariant #5 prevent organ, #302); a `--no-ff` merge passes. Added at the v1.3.1 carrier bump
 - (`codemap-freshness` from the hub set is intentionally NOT consumed — ai-council's codemap is hand-authored, so `codemap check` always diffs; sanctioned in `.methodology.yaml`, `hub-codemap-hooks` is waivable per manifest-v1.3.x; same exclusion as corp-monorepo)
-- (the `ruff` pre-commit gate was PRUNED 2026-07-04 — [#244] P2 n=1 remove-leg, deploy `31e785d`; lint stays manual via §4 `ruff check` / `.\scripts\check.ps1`)
+- `ruff` (consumer-owned, `astral-sh/ruff-pre-commit` mirror pinned `v0.15.5`, gate mode `args: []`; NOT from the hub hook-source above) — blocks a commit on any E/F/I/W lint violation (config in `pyproject.toml`). Deliberate bare `id: ruff` (no `name:`) for prune-safety, so a future hub remove-leg targeting the canonical-named stanza cannot silently delete this consumer gate. Pruned 2026-07-04 ([#244] deploy `31e785d`), then **RE-ACTIVATED 2026-07-12** by fleet ruling overriding that prune; declared in `.methodology.yaml` (`ruff-gate`). Authority = the fleet ruling; the prompt's cited "divergence-register item 9" pointer was hub-side (the hub's divergence register), mis-addressed as local. `.\scripts\check.ps1` still runs the full pytest+mypy+ruff trio pre-merge
 
 Session hooks (`.claude/settings.json`):
 - SessionStart: `check_floor_hash.py --require-present` (floor guard) + `python -m pre_commit install` (arms the commit hooks)
@@ -190,9 +190,10 @@ Do NOT:
 - v2.5 (2026-07-06) — Arc 3 conformance residuals (Track rename + hygiene sweep): §9 gains the `backlog-id-on-close` hub hook (closes the v1.2.0 manifest gap — `.pre-commit-config.yaml` was missing it alongside the existing `toc-freshness`/`toc-generate` pull from `../.dev-knowledge`); `last_reviewed` re-stamped 2026-07-06.
 - v2.6 (2026-07-11) — methodology **v1.3.1** rollout (Wave-1 first fleet consumer, hub ADR-101 hermetization): the precommit carrier's hub hook-source rev bumped `v1.2.0 → v1.3.1` and the **`block-ff-push`** pre-push gate added (core-invariant #5 prevent organ, #302) — §9 reconciled to state the rev and the new gate. `codemap-freshness` from the fleet-generic install set is intentionally NOT consumed (hand-authored codemap ⇒ `codemap check` always diffs; same exclusion as corp-monorepo), recorded machine-readably in the new root `.methodology.yaml` waiver (`hub-codemap-hooks` waivable). v1.3.1 (not v1.3.0) was armed because the v1.3.0 tag predated the #318/#319 block-ff-push range-reconstruction fix. **Form-A boundary markers** (hub #312 / ADR-101; design `.dev-knowledge/docs/audits/2026-07-11-technical-fleet-boundary-marker-design.md`) grandfathered onto §1–§12 as additive `<!-- methodology:start/end id=… owner=hub|repo -->` HTML comments — **body prose byte-identical** (marker-only; divergent/gap owner=hub regions left for the read-only boundary reporter to surface, reconciled in a later pass). `owner=hub` = `first-read` (§1), `conventions-commit-branch` (§4 sub-span), `critical-rules-records` (§5 items 4–5), `session-start-protocol` (§6); the rest `owner=repo`. Genuine end-to-end re-read to place every region + reconcile §9; `last_reviewed` re-stamped 2026-07-11.
 - v2.7 (2026-07-11) — ADR-101 root-parity backfill (parity with corp-monorepo's 2026-07-11 rollout): added the **human-visible methodology-boundary note** above §1 (owner=hub = fleet methodology tracked from `.dev-knowledge`; owner=repo = project-local; the `<!-- methodology:… owner=… -->` markers ARE the machine map; sanctioned divergences in `.methodology.yaml`) — corp carried it, ai-council did not. **Marker regions untouched; body prose otherwise byte-identical.** Same arc: the **#326 consumer leg** was verified a no-op (ARCHITECTURE.md already ToC/Mermaid-free since #262; ASCII Data-Flow retained, out of ruled scope) and re-review-stamped; and a new `docs/audits/2026-07-11-technical-root-parity-disposition.md` disposition table (ai-council root surface vs hub + corp) was committed. `last_reviewed` stays 2026-07-11 (same-day re-review).
+- v2.8 (2026-07-12) — ruff-gate re-activation (fleet ruling) + hub `.vscode/settings.json` carry: §9's `ruff` bullet flipped from PRUNED to a live consumer-owned gate (`astral-sh/ruff-pre-commit` mirror `v0.15.5`, gate mode `args: []`, prune-safe bare `id: ruff`), re-activated 2026-07-12 overriding the [#244] 2026-07-04 prune; declared in `.methodology.yaml` (`ruff-gate` divergence, since the fleet-generic manifest carries no ruff). **Wording correction:** the triggering prompt's "divergence-register item 9" authority was a hub-side pointer (the hub's divergence register), mis-addressed as local — recorded truthfully here rather than as "item 9 did not exist." Also carried `.vscode/settings.json` byte-identical to the hub (77-byte `files.watcherExclude` for `.claude/worktrees/**`; `.gitignore` narrowed `.vscode/` → `.vscode/*` + `!.vscode/settings.json`). `last_reviewed` re-stamped 2026-07-12.
 <!-- methodology:end id=section-history -->
 
 ---
 
-**Last updated:** 2026-07-11
+**Last updated:** 2026-07-12
 **Maintained by:** Rob
