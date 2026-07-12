@@ -73,7 +73,7 @@ This indexes commits **going forward only.** Git history is immutable — **hist
 pre-commit install --hook-type commit-msg
 ```
 
-In this repo the commit-msg gate is the **hub-sourced** `backlog-id-on-close` hook (`repo: ../.dev-knowledge`, pinned `rev`) — not a repo-local script.
+In this repo the commit-msg gate is the **hub-sourced** `backlog-id-on-close` hook (`repo: https://github.com/rdwornik/dev-knowledge`, pinned `rev`) — not a repo-local script.
 
 **"What's been implemented" query.** Because done tasks **leave** `BACKLOG.md` (ADR-65) and git is the implementation record, the list of completed tasks with their implementing commits is:
 
@@ -113,7 +113,7 @@ Pre-commit hooks (`.pre-commit-config.yaml`) — the roster is repo-local; hub-o
 | `canonical_freshness` | pre-commit | `last_reviewed` A2 gate; FAIL blocks a commit on a canonical doc edited since its last review. |
 | `validate-audit-casing` | pre-commit | ADR-101 R4 audit-filename casing gate (fleet ruling d1; casing-only carry). |
 | `validate-backlog` | pre-commit | Validates the `BACKLOG.md` story-map structure (ADR-66); ADR-78 floor twin of the hub validator. |
-| `toc-freshness` / `toc-generate` | pre-commit | TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md` (hub-sourced, `repo: ../.dev-knowledge`, pinned `rev`). |
+| `toc-freshness` / `toc-generate` | pre-commit | TOC freshness for `protocols/COUNCIL_QUESTION_GUIDE.md` (hub-sourced, `repo: https://github.com/rdwornik/dev-knowledge`, pinned `rev v1.3.1`). |
 | `ruff` | pre-commit | Lint gate — `ruff check` E/F/I/W (consumer-owned, `astral-sh/ruff-pre-commit` pinned; config in `pyproject.toml`). Blocks on violations. |
 | `backlog-id-on-close` | commit-msg | Requires `[#id]` / `closes [#id]` when a commit removes a `- [#id]` task (hub-sourced). |
 | `block-ff-push` | pre-push | Refuses a direct-to-`main` / true-FF push; a `--no-ff` merge passes (hub-sourced). Activate once: `pre-commit install --hook-type pre-push`. |
