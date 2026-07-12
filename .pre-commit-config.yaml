@@ -44,3 +44,12 @@ repos:
   # diffs. Same exclusion as corp-monorepo; recorded in .methodology.yaml. (hub-codemap-hooks
   # is waivable:true)
   - id: block-ff-push
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.5
+  hooks:
+  # Bare id (no name:) is DELIBERATE prune-safety -- matches corp-monorepo's shape so a
+  # future hub remove-leg targeting the canonical-named stanza cannot silently delete this
+  # consumer-owned gate. See .methodology.yaml (consumer-ruff-gate waiver). Re-activated by
+  # fleet ruling 2026-07-12 (overriding the [#244] prune). Gate mode: `ruff check` (no --fix).
+  - id: ruff
+    args: []
