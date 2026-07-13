@@ -19,6 +19,39 @@
 
 ---
 
+### 2026-07-13 — W3 AI legs micro-arc: .gitattributes parity verify + root .env deletion (commit-and-STOP)
+
+**Did:** Three bounded legs on `chore/w3-ai-legs`. **(1) `.gitattributes` byte-parity** with the ruled fleet baseline (`* text=auto eol=lf` + `*.ps1 text eol=crlf`; ai-council is the **source form**): verified **no deviation** — both ruled directives present verbatim (file is 196 bytes, LF, UTF-8 for the `#282` em-dash comment), so **no adjustment made**. `git add --renormalize --dry-run .` listed all **146** tracked files, but that is dry-run *processing* noise, not blob churn — measured **real** churn non-destructively via a throwaway `GIT_INDEX_FILE` temp-index copy: `git diff --cached --numstat HEAD` on the renormalized temp index = **0 files changed**. Tree already fully LF-normalized per #282. Real index **never touched**; did **NOT** renormalize. **(2) Root `.env` DELETED** (operator verb-ruling): confirmed it was **two comment lines, no values** (`# API keys loaded from Documents/.secrets/.env via PowerShell profile` / `# No local overrides needed`; 100 bytes, CRLF) and **untracked + ignored** (`git check-ignore .env` exit 0, `git ls-files .env` empty) → plain `rm`, verified absent. Real key source is the global `~/Documents/.secrets/.env` per the file's own comment; deleting the empty CWD-fallback stub changes no runtime behavior (`cli.py` `load_dotenv(override=False)` — global wins regardless). Being untracked+ignored, deletion leaves the working tree **clean** (no git surface). **(3)** This JOURNAL entry with the embedded session-summary block below.
+
+**Result:** Gates green — `ruff check src/ tests/ scripts/` **All checks passed**; unit suite **444 passed** (6 deselected). Zero `.py` / config changes in-arc (only this markdown entry + an untracked-file deletion), so mypy is byte-identical to `main` — the 6 pre-existing BACKLOG #20 Responses-API stub-drift errors are unchanged, not a regression. **Merge HELD** — commit-and-STOP; the merge is the operator's from this repo (do not `/ship`).
+
+**Changes:** deleted untracked `./.env` (not a tracked-file change — no diff); `JOURNAL.md` (this entry). Branch `chore/w3-ai-legs`; work commit `5e7ff1a` (this entry is the arc's **only tracked artifact** — `.gitattributes` verified-unchanged, `.env` untracked so no diff) + this anchor follow-up. `.gitattributes` **inspected, unchanged** (parity confirmed).
+
+**Abandoned:** nothing.
+
+**Next:** operator merges `chore/w3-ai-legs` at will.
+
+<!-- session-summary (hub handoff generator reads this) -->
+```
+DECISIONS:
+  - .gitattributes matches the ruled fleet baseline byte-for-byte (source form) — no edit.
+  - Renormalize NOT run: real blob churn = 0 (temp-index measurement); the 146-file
+    dry-run listing is processing noise, not churn. Do-not-renormalize instruction honored.
+  - Root .env deleted per operator verb-ruling (empty stub, untracked+ignored, safe plain rm).
+CHANGES:
+  - deleted: ./.env (untracked+ignored; 2 comment lines, 0 values; global secrets unaffected)
+  - JOURNAL.md: this entry
+  - .gitattributes: verified, UNCHANGED
+PENDING:
+  - Operator to merge chore/w3-ai-legs (--no-ff); merge HELD this session.
+  - Pre-existing (not this arc): BACKLOG #20/#21 — 6 mypy Responses-API stub-drift errors.
+CONTEXT:
+  - Branch chore/w3-ai-legs off main; work commit 5e7ff1a. Gates: ruff clean, pytest 444 passed.
+  - No tracked-file content changed except JOURNAL.md; .env removal is untracked → tree clean.
+```
+
+---
+
 ### 2026-07-12 — Witnessed operational-minimum verification (A0 exit leg b, intake #13 v4; report-only, commit-and-STOP)
 
 **Did:** Read-mostly witnessed verification of every organ class against the `f8f9e58` content-parity baseline (the only mutations permitted were throwaway probes, all created+deleted in-arc, and this JOURNAL entry). For each organ, produced EXECUTED evidence, not a listing. **HOOKS** — pre-commit: `ruff` (probe with unused `import os` → Failed exit 1 F401/I001; clean probe → Passed exit 0), `validate-audit-casing` (staged `docs/audits/BADCASE-Probe.md` → refused exit 1 ADR-101 R4; staged lowercase-kebab → exit 0), `validate-backlog` (clean → OK exit 0, 6 themes/9 stories/19 tasks; appended task missing "Done when:" → FAIL exit 1; BACKLOG.md restored). commit-msg: `backlog-id-on-close` (staged removal of task `[#4]`, message without id → exit 1; message with `[#4]` → exit 0; restored). pre-push: `block-ff-push` verified armed (`.git/hooks/pre-push` installed+wired, config-listed; `pre-commit run --hook-stage pre-push` Passed on empty real range; synthetic native-stdin push-to-main with all-zeros remote → REFUSED exit 1 naming 11 non-merge first-parent commits — NO push). SessionStart: `check_floor_hash.py --require-present` exit 0 + `pre-commit install` exit 0. Stop: `session_end_backpressure.py` fired its advisory dirty-tree leg while probes were on disk (fire-once mechanism witnessed) then went SILENT exit 0 on a clean tree — the hard leg is a no-op at `base..HEAD = 0` and clean-tree silence is DESIGNED (2026-07-12 diagnosis). **SKILLS** — `gotchas` (user) launched + loaded; no repo `.claude/skills/` (correctly absent per CLAUDE §8). **COMMANDS** — `/override` dry reject-on-empty-reason ("Nothing armed"; no token/log written); `/session-summary` preflight side-effect-free (TOKEN-LOG last entry 2026-07-09, 3d ≤ 7 → skips ccusage/staging); `/ship` intentionally not run. **HANDOFF** — ADR-36/42 posture matches CLAUDE §1 verbatim (no local `docs/handoffs/`; hub `../.dev-knowledge/docs/handoffs/` present); no generation attempted.
