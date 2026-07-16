@@ -19,6 +19,20 @@
 
 ---
 
+### 2026-07-16 — fleet_parity ARC-B legs 1+2: DECLARE dep-pytest-xdist + .vscode (fleet #328)
+
+**Did:** Machine-declared ai-council's two known-good divergences in `.methodology.yaml` (branch `chore/methodology-declares-arcb`, work commit `f62cd80`) — **(1)** `dep-pytest-xdist` (pytest-xdist 3.8.0 in `.venv`, unpinned in pyproject → the #328 dep leg read "installed but UNDECLARED"; DECLARED not pinned per operator ruling; shelf-life 2026-08-16 to revisit pin-vs-ambient); **(2)** `.vscode` (shared editor settings, register-e1 short shelf-life 2026-08-13). **Declarations ONLY** — no pyproject/behavioral change. Terra reviewed clean. Merged by CC-primary on the operator's GO (`--no-ff`).
+
+**Result:** both ai rows now **PASS-declared** in `fleet_parity` (were WARN-undeclared). Canonical unit gate GREEN — `pytest -m "not integration and not envcheck"` = 444 passed, 6 deselected (the #21 integration failure is unchanged/deselected).
+
+**Changes:** `.methodology.yaml` (+2 declares), `JOURNAL.md` (this entry). Work commit `f62cd80`.
+
+**Abandoned:** none (ARC-A leg-1 hub-block split untouched — hub `[#336]`).
+
+**Next:** ARC-B completes after the corp `.vscode` declare (leg 3).
+
+---
+
 ### 2026-07-16 — fleet_parity ARC-A leg 3b: .gitignore .hypothesis/ parity (fleet #328)
 
 **Did:** Added `.hypothesis/` to root `.gitignore` (branch `chore/gitignore-hypothesis-parity`, work commit `03886c0`), bringing ai-council to fleet IGNORE-tier parity — the #328 `fleet_parity` checker's `ignore-hypothesis` row was WARN-undeclared (ai lacked the line; `*.egg-info/` was already ignored). Effect probe verified: `git check-ignore -q .hypothesis/x` now exits 0 → AT-PARITY (no `.methodology.yaml` declaration needed). Terra (gpt-5.6-terra) reviewed clean. Merged to main by CC-primary on the operator's GO (merge `5eb15b9`, `--no-ff`; merge execution delegated, operator = authorization gate).
