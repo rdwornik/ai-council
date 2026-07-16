@@ -25,7 +25,7 @@
 
 **Result:** Pack self-sufficient at `output/epi1-archaeology/` (OPERATOR-SCORING-README · CORPUS-MANIFEST · scoring-sheet · items/ITEM-01..40). Identity key **SEALED OUTSIDE** the pack at `output/epi1-archaeology-KEY-SEALED.json`. LLM-judge report (labeled `second-opinion`, **segregated**) at `output/epi1-archaeology-SECOND-OPINION-judge.md`. All pack artifacts are **gitignored** under `output/` (anonymized transcripts + sealed key + judge scores must not be committed) — this JOURNAL entry is the sole tracked artifact. Hub dedupe: **37 of 41** timestamped hub files are confirmed local mirrors (deduped); 4 hub-only (2 research + 2 pick 2026-05-15) excluded per r5. Judge second-opinion: **gemini ≈ openai** (95% overall each; C1–C3/C5 perfect, one C4/faithfulness slip apiece: ITEM-39/gemini, ITEM-33/openai) — explicitly NON-verdict. `output/` corpus **byte-untouched** (read-only reads only; working tree clean; top-level `output/*.md` count 168 unchanged); zero `src/` edits.
 
-**Changes:** `JOURNAL.md` (this entry). Gitignored (NOT tracked): `output/epi1-archaeology/**`, `output/epi1-archaeology-KEY-SEALED.json`, `output/epi1-archaeology-SECOND-OPINION-judge.md`. Branch `docs/epi1-archaeology-prep`; work commit `__ANCHOR_SHA__`.
+**Changes:** `JOURNAL.md` (this entry). Gitignored (NOT tracked): `output/epi1-archaeology/**`, `output/epi1-archaeology-KEY-SEALED.json`, `output/epi1-archaeology-SECOND-OPINION-judge.md`. Branch `docs/epi1-archaeology-prep`; work commit `a6ba6ce` (Leg A; sole tracked artifact).
 
 **Abandoned:** none.
 
