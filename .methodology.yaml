@@ -68,3 +68,27 @@ sanctioned_divergences:
       (hub gen_claude_rosters.py, @.claude/generated/recent-adrs.md) is carried to this repo,
       at which point the generated last-5 form makes the suffix truthful.
     review_date: 2026-10-13
+
+  # --- fleet_parity ARC-B DECLARE set (2026-07-16 operator ruling): machine-declare the
+  #     two known-good ai-council divergences the #328 checker surfaces (declarations
+  #     only -- no behavioral change; hub JOURNAL / ARC-A leg-1 untouched) ----------------
+  - component: dep-pytest-xdist
+    reason: >-
+      ai-council carries pytest-xdist 3.8.0 in its .venv (the -n parallel test lane) but
+      does NOT pin it in pyproject [project.optional-dependencies] dev, so the #328
+      fleet_parity dependency leg reads it "installed but UNDECLARED". Declared here as a
+      sanctioned divergence rather than pinned -- operator ruling routed leg (1) to DECLARE
+      (not a pyproject add) in the ARC-B set. SHELF-LIFE deliberate: the review decides
+      whether to pin pytest-xdist>=3.8 in pyproject (closing the clean-rebuild gap, the corp
+      ARC-A route) or keep it ambient. Hub dependency-baseline row: pytest-xdist>=3.8
+      (applies_to hub+consumer).
+    review_date: 2026-08-16
+  - component: .vscode
+    reason: >-
+      ai-council tracks .vscode/ (shared workspace editor settings, adopted 2026-07-12).
+      Not part of the intake #12 fleet template, so the #328 root-sweep flags it undeclared.
+      Declared as a sanctioned local editor-config surface. Fleet-parity register e1
+      (shared-editor-config vs ignore) is an OPEN hub ruling; SHORT shelf-life so this is
+      revisited with the fleet-template-membership question (the hub's own .vscode entry
+      carries the same 2026-08-13 review_date).
+    review_date: 2026-08-13
