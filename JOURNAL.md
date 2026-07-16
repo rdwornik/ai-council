@@ -19,6 +19,18 @@
 
 ---
 
+### 2026-07-16 — EPI-1 archaeology blind-scoring pack PREP (Leg A) — #24 prep, NOT #24 close
+
+**Did:** Overnight autonomous PREP for BACKLOG **#24** (EPI-1 archaeology); method canon `docs/intake/2026-07-06-lane-epi-functional-design.md` §3(Q3); operator rulings applied — **r1** comparative gemini-vs-openai (OQ-1), **r3** operator scores blind + LLM-judge = second opinion only (OQ-3), **r5** corpus = full local `output/` + hub dedupe, no curation (FE-1). **Read-only** mined the full 239-file `output/` corpus → **138** identity-readable syntheses (openai 56 / claude 54 / gemini 21 / claude-sonnet 7, incl. 3 openai-`participant` + 1 pre-label anomalies — reconciles **exactly** with the lane doc's witnessed tally). Segmented by de-facto verdict author; built a **blind scoring pack** of **40** items (**20 gemini + 20 openai**, both non-participant), matched on mode (decision), panel size (4-model), and era (by month `{03:4,04:3,05:3,06:10}`); excluded 3 research-mode + 1 FAILED run (documented, not curation-for-outcome). Anonymized (Synthesizer/Panel/header redacted), relabeled + shuffled (seed 20260716). Ran a 5-way **blind** Sonnet **LLM-judge second-opinion** pass (judges had no key).
+
+**Result:** Pack self-sufficient at `output/epi1-archaeology/` (OPERATOR-SCORING-README · CORPUS-MANIFEST · scoring-sheet · items/ITEM-01..40). Identity key **SEALED OUTSIDE** the pack at `output/epi1-archaeology-KEY-SEALED.json`. LLM-judge report (labeled `second-opinion`, **segregated**) at `output/epi1-archaeology-SECOND-OPINION-judge.md`. All pack artifacts are **gitignored** under `output/` (anonymized transcripts + sealed key + judge scores must not be committed) — this JOURNAL entry is the sole tracked artifact. Hub dedupe: **37 of 41** timestamped hub files are confirmed local mirrors (deduped); 4 hub-only (2 research + 2 pick 2026-05-15) excluded per r5. Judge second-opinion: **gemini ≈ openai** (95% overall each; C1–C3/C5 perfect, one C4/faithfulness slip apiece: ITEM-39/gemini, ITEM-33/openai) — explicitly NON-verdict. `output/` corpus **byte-untouched** (read-only reads only; working tree clean; top-level `output/*.md` count 168 unchanged); zero `src/` edits.
+
+**Changes:** `JOURNAL.md` (this entry). Gitignored (NOT tracked): `output/epi1-archaeology/**`, `output/epi1-archaeology-KEY-SEALED.json`, `output/epi1-archaeology-SECOND-OPINION-judge.md`. Branch `docs/epi1-archaeology-prep`; work commit `a6ba6ce` (Leg A; sole tracked artifact).
+
+**Abandoned:** none.
+
+**Next (operator morning event — NOT done here):** #24's own done-when stays **OPEN** — the single-recommendation report (Branch A swap / Branch B keep) + the operator ruling is tomorrow's operator event; it was **NOT** pre-drafted. Operator runbook: open `output/epi1-archaeology/OPERATOR-SCORING-README.md`, score `items/ITEM-01..40.md` into `scoring-sheet.md` (5 criteria, blind), then un-blind with `output/epi1-archaeology-KEY-SEALED.json` only after all 40 are scored.
+
 ### 2026-07-16 — plan-of-record arc anchor: merge `6a5e595`
 
 **Did/Result:** anchors the plan-of-record arc merge SHA `6a5e595` (--no-ff, pushed) — the citation the plan doc's §4 P0 row points to (amended closure: "P0 maps to this arc's plan doc cited by merge SHA"). Work SHAs in the entry below.
