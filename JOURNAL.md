@@ -19,6 +19,10 @@
 
 ---
 
+### 2026-07-16 — plan-of-record arc anchor: merge `6a5e595`
+
+**Did/Result:** anchors the plan-of-record arc merge SHA `6a5e595` (--no-ff, pushed) — the citation the plan doc's §4 P0 row points to (amended closure: "P0 maps to this arc's plan doc cited by merge SHA"). Work SHAs in the entry below.
+
 ### 2026-07-16 — plan-of-record arc: pointer sweep + BACKLOG reconciliation (#22–#31, [E7]) + `docs/intake/2026-07-16-plan-of-record.md`
 
 **Did:** Docs-only arc on `docs/plan-of-record` (plan mode; operator amended the closure in-session: phase rows map to a task ID **or** a named session-event/gate; GOV-1 ruled into new theme [E7]). **(1)** Pointer sweep — fixed the five stale Reading-Map lane-doc paths in the technical-architect intake left by the `b849653` relocation (`a71a5fe`); JOURNAL history + immutable audits untouched. **(2)** BACKLOG reconciliation at task grain — filed #22–#31 (CONTRACT §7 deviation closures, EPI-1 archaeology, doctor v1, verdict package, CLI-4 parity→flip, F3 grok OAuth, F12 stale pin, DOC-3 secrets rule, GOV-1 execution) under new stories [S10]–[S12] + new theme [E7]; #16 gained the ADR-12 v1=claude+codex scope + A1→A3 pre-work note (`ab08ab0`). **(3)** Materialized the plan-of-record (frozen P0–P6 phase plan, gates G1–G3, seam rules, phase→task map, P4 pre-work map) in the intake layer (`320bd70`). **(4)** Codex doc-lane review (terra) returned 2 HIGH + 4 MEDIUM — all addressed (`d12abe5`: #16 v1-set done-when, P6 completion-backstop note, #31 gains the #1/#24 reconciliation, seven-theme counts, P0 citation location).
