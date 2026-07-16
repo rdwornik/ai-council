@@ -19,6 +19,20 @@
 
 ---
 
+### 2026-07-16 — fleet_parity ARC-A leg 3b: .gitignore .hypothesis/ parity (fleet #328)
+
+**Did:** Added `.hypothesis/` to root `.gitignore` (branch `chore/gitignore-hypothesis-parity`, work commit `03886c0`), bringing ai-council to fleet IGNORE-tier parity — the #328 `fleet_parity` checker's `ignore-hypothesis` row was WARN-undeclared (ai lacked the line; `*.egg-info/` was already ignored). Effect probe verified: `git check-ignore -q .hypothesis/x` now exits 0 → AT-PARITY (no `.methodology.yaml` declaration needed). Terra (gpt-5.6-terra) reviewed clean. Merged to main by CC-primary on the operator's GO (merge `5eb15b9`, `--no-ff`; merge execution delegated, operator = authorization gate).
+
+**Result:** canonical unit gate GREEN — `pytest -m "not integration and not envcheck"` = **444 passed, 6 deselected** (unchanged vs main). A raw full `pytest -q` shows 1 failure — the deselected-by-design integration test `test_full_debate_pipeline` (`ImportError: _build_all_providers`), already tracked by **#21**; not introduced here, not a canonical-gate failure. `fleet_parity` against the three mains = 161 at-parity / 4 warn-undeclared / 0 must-absent.
+
+**Changes:** `.gitignore` (+`.hypothesis/`), `JOURNAL.md` (this entry). Work commit `03886c0`; merge `5eb15b9`.
+
+**Abandoned:** none.
+
+**Next:** ARC-B DECLARE leg — declare ai `dep-pytest-xdist` (installed 3.8.0, undeclared) + `.vscode` in `.methodology.yaml`.
+
+---
+
 ### 2026-07-13 — W3 AI legs micro-arc: .gitattributes parity verify + root .env deletion (commit-and-STOP)
 
 **Did:** Three bounded legs on `chore/w3-ai-legs`. **(1) `.gitattributes` byte-parity** with the ruled fleet baseline (`* text=auto eol=lf` + `*.ps1 text eol=crlf`; ai-council is the **source form**): verified **no deviation** — both ruled directives present verbatim (file is 196 bytes, LF, UTF-8 for the `#282` em-dash comment), so **no adjustment made**. `git add --renormalize --dry-run .` listed all **146** tracked files, but that is dry-run *processing* noise, not blob churn — measured **real** churn non-destructively via a throwaway `GIT_INDEX_FILE` temp-index copy: `git diff --cached --numstat HEAD` on the renormalized temp index = **0 files changed**. Tree already fully LF-normalized per #282. Real index **never touched**; did **NOT** renormalize. **(2) Root `.env` DELETED** (operator verb-ruling): confirmed it was **two comment lines, no values** (`# API keys loaded from Documents/.secrets/.env via PowerShell profile` / `# No local overrides needed`; 100 bytes, CRLF) and **untracked + ignored** (`git check-ignore .env` exit 0, `git ls-files .env` empty) → plain `rm`, verified absent. Real key source is the global `~/Documents/.secrets/.env` per the file's own comment; deleting the empty CWD-fallback stub changes no runtime behavior (`cli.py` `load_dotenv(override=False)` — global wins regardless). Being untracked+ignored, deletion leaves the working tree **clean** (no git surface). **(3)** This JOURNAL entry with the embedded session-summary block below.
