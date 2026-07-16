@@ -9,7 +9,7 @@ reliable, and self-enforcing state across six themes.
 
 **Themes (backbone) — epic ids:** [E1] Invocation surface & delegation-readiness · [E2] Synthesizer refresh ·
 [E3] Provider reliability & CLI engine · [E4] Model currency · [E5] Naming & quality automation ·
-[E6] Council process & epistemic quality
+[E6] Council process & epistemic quality · [E7] Record & governance hygiene
 
 ---
 
@@ -18,7 +18,13 @@ reliable, and self-enforcing state across six themes.
 > delegation-ready surface, so an external agent/operator can commission the Council without
 > ambiguity about where specs live or where results land.
 
-_All stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and git. Theme backbone retained per the story-map (themes are the stable backbone; delivered stories/tasks leave per ADR-65)._
+_Prior stories delivered as of 2026-07-02 (#12–#15); see JOURNAL 2026-07-02 and git. Theme backbone retained per the story-map (themes are the stable backbone; delivered stories/tasks leave per ADR-65)._
+
+### [S10] Deliver the delegation-ready caller surface
+So that an external caller gets a contract-honest Lane A and a transcript-free verdict artifact.
+- [#22] [P2][S] Close CONTRACT Known-deviation 1: `--file` parses YAML frontmatter via the same `parse_file()` path as inbox (precedence flag > frontmatter > config default) · Done when: a guide-conformant frontmatter brief behaves identically on both lanes, no frontmatter leaks into the question text, and CONTRACT §7 item 1 is removed · refs ADR-11 decision 2, `protocols/COUNCIL_INVOCATION_CONTRACT.md` §7 · post-pause (G2)
+- [#23] [P2][S] Close CONTRACT Known-deviation 2: research mode honors `--return-dir` (`run_research` gains a return-dir copy; canonical `./output/` always) · Done when: a Lane A research commission lands its artifacts in the caller's return dir and CONTRACT §7 item 2 is removed · refs ADR-11 decision 3, CONTRACT §7 · post-pause (G2)
+- [#26] [P2][M] Verdict package per DRAFT-INT-1: every run additionally emits `council-verdict-<ts>-<mode>-<slug>.json` in every destination + a human-readable summary block atop `council-out-*.md` (transcript-free caller deliverable; consumes the `seats[]`/`synthesis` namespaces by reference, designs neither) · Done when: the package emits deterministically in all destinations with the DRAFT-INT-1 field set · refs L-INT §3(Q2)/§4(DRAFT-INT-1), R2/R3 · baseline-INDEPENDENT · pre-work: refactoring-guide A4 (decompose `save_to_file`; `save_verdict_package` lands as a sibling, never more lines in `save_to_file`) + B3 (shared tz-aware timestamp helper for the deterministic `<ts>`)
 
 ---
 
@@ -31,6 +37,7 @@ So that the ADR-01 default rests on measured synthesis quality, not assumption.
 - [#1] [P1][M] Run the current Gemini synthesizer against ~15 historical transcripts and score with the synthesis rubric · Done when: ~15 transcripts scored + the Phase-3 branch trigger is decided (Branch A swap / Branch B keep) · refs Phase-2 smoke test
 - [#2] [P1][M] Implement the Phase-3 conditional: amend ADR-01 (cost-optimization principle) + execute Branch A (new synthesizer) or Branch B (keep Gemini) · Done when: ADR-01 amended + the chosen branch shipped · refs ADR-01 · BLOCKED on #1 (needs the smoke-test scores)
 - [#3] [P1][S] Codify the cost-optimization principle in the ADR-01 amendment text (balance quality vs cost) · Done when: the principle is written into the ADR-01 amendment · refs ADR-01 (folded into #2 scope, tracked separately)
+- [#24] [P1][M] Execute the EPI-1 archaeology protocol (manual, zero code, pause-independent): mine the full local `output/` corpus (~239 files, ~138 identity-readable) + hub dedupe, segment by verdict author, blind-score per rubric (min n≥10 per segment), produce the dated single-recommendation report (Branch A / Branch B) · Done when: the report is committed under `docs/audits/` and the operator's ruling on it is recorded (= the Epic B event un-gating #18/#19/#9 + the v2 resolver) · refs L-EPI §3(Q3), #1, #2 (evidence phase feeding #1's branch trigger) · corpus is read-only evidence
 
 ### [S2] Settle the panelist/synthesizer overlap policy
 So that overlap rules are explicit if the synthesizer ever joins the panel.
@@ -50,7 +57,14 @@ So that no provider is wired-but-unverified or silently degrading the panel.
 
 ### [S4] Add a CLI-subscription provider backend
 So that subscription CLIs can serve debate turns and API spend is reserved for CLI-less models.
-- [#16] [P3][L] CliProvider engine [Rama 2]: an adapter behind the provider protocol that drives CLI backends (Claude/Gemini/Codex subscriptions); API access reserved for CLI-less providers (DeepSeek/Grok) · Done when: at least one CLI backend runs a debate turn through the provider protocol · refs Rama 2 · design tensions (read-only sandbox, non-determinism, response anonymization, quota-vs-devwork contention) deferred to build-start · do NOT merge provider implementations (keep separate)
+- [#16] [P3][L] CliProvider engine [Rama 2]: an adapter behind the provider protocol that drives CLI backends (Claude/Gemini/Codex subscriptions); API access reserved for CLI-less providers (DeepSeek/Grok) · Done when: at least one CLI backend runs a debate turn through the provider protocol · refs Rama 2 · design tensions (read-only sandbox, non-determinism, response anonymization, quota-vs-devwork contention) deferred to build-start · do NOT merge provider implementations (keep separate) · ADR-12 ratified: v1 adapter set = claude+codex only (gemini CLI struck — auth-dead) · pre-work: refactoring-guide A1 (template-method provider base; CliProvider implements only `_configure`/`_invoke`/`_parse`) then A3 (one error classifier + timeout/retry contract; the five-token cause vocabulary is shared with `seats[].fallback_events[]`)
+- [#27] [P3][M] CLI-4 parity run → default-flip decision: n=12 stratified paired debates (CLI vs API), sealed-key blind, rubric-scored, non-inferiority 1/12 with zero margin on items 2 and 4; ratify DRAFT-CLI-3 or retire per its kill condition · Done when: the parity report exists and the flip decision (ratify/retire) is recorded · refs L-CLI §3(Q2)/§4(DRAFT-CLI-3), ADR-12 §5 · depends-on: #16
+- [#28] [P2][S] F3 grok cost lane: operator runs `grok login` (subscription OAuth) + env-key shielding + one re-probe; record the seat disposition · Done when: the re-probe witnesses subscription-billed grok identity and the disposition is recorded (enters cost lane or stays API) · refs fleet-recon §8 F3, ADR-12 cost lanes · operator action (~5 min) + repo re-probe
+
+### [S11] Stand up the liveness surface (doctor)
+So that seat/provider health is observable without spend and key hazards cannot silently gate runs.
+- [#25] [P2][M] `council doctor` v1 per DRAFT-DOC-1: advisory-only verdicts (the run-time health gate stays the only blocker), exit codes mirror verdict (0/3/1), zero-spend default with `--smoke` explicit, writes `output/health/doctor-<ts>.json` + `doctor-latest.json`, 7-day STALE rule · Done when: doctor runs zero-spend, writes both artifacts, and Lane A pre-flight consumes its verdict as advisory input · refs L-DOC §3(Q1–Q3,Q5)/§4(DRAFT-DOC-1), seam §C.2 (identity re-probe on CLI version change) · post-pause (G2) · pre-work: refactoring-guide A2 (decompose `cli.py:main` → `@click.group` with `run`/`doctor` — load-bearing prerequisite; A5/B5/B7 touch the same file, land first); `healthcheck.py` is the do-not-touch reference module — doctor consumes it, never rewrites it
+- [#30] [P3][S] DOC-3 secrets rule: empty-string-is-absent-LOUDLY on key loading (closes the `cli.py:388-389` `override=False` hazard) · Done when: an empty-string key reads as absent with a loud warning and the hazard path is unit-tested · refs L-DOC §3(Q6)/§4(DRAFT-DOC-3) · post-pause (G2)
 
 ### [S5] Cut multi-round input-token cost
 So that repeated brief/persona blocks don't re-bill on every provider call and debate round.
@@ -64,6 +78,7 @@ So that repeated brief/persona blocks don't re-bill on every provider call and d
 ### [S6] Detect stale model configuration
 So that a superseded model in settings.yaml is surfaced, not silently used.
 - [#17] [P3][M] Online model-version check: verify the `config/settings.yaml` model strings are the latest available per provider + a documented update process · Done when: a check reports any configured model that is no longer the latest + the refresh process is written down · refs `config/settings.yaml` is the single source of model strings
+- [#29] [P3][S] F12 stale research pin: update `grok-4.20-reasoning` → `grok-4.20-0309-reasoning` in `config/settings.yaml` (zero-risk config edit; alias still serves) and confirm on the first doctor run · Done when: the pin is current and a doctor/health check confirms it · refs fleet-recon §8 F12, #17
 
 ---
 
@@ -94,6 +109,15 @@ So that deadlocks resolve on evidence and consensus is genuine, not a framing ar
 
 ---
 
+## [E7] Record & governance hygiene
+> As the tool owner, I want the decision record current and its lifecycle conventions ratified, so the canonical record never drifts from live state.
+
+### [S12] Execute the GOV-1 currency pass
+So that ADR statuses, the instruction file, and the vision doc match ratified reality.
+- [#31] [P1][M] GOV-1 execution (consolidation session): record the 15 operator rulings verbatim → RULED; flip ADR-09/10 → Accepted (header + `docs/decisions/README.md` index row, same commit); extend CLAUDE.md §11 through ADR-11/12; reconcile VISION:25 dual-output line to ADR-43/ADR-10; re-read + re-stamp CONTRIBUTING; ratify the DRAFT-GOV-1 lifecycle ADR; push `main` at close-out · Done when: all GOV-1 items land, the rulings are recorded, and the feature-work pause is declared lifted · refs L-GOV §3(Q2,Q4)/§4(DRAFT-GOV-1/2), intake §7(1) · gate G1→G2
+
+---
+
 **About this file** — ADR-66 story-map (Big Picture → Theme → User Story → Task), migrated
 2026-06-02 from the ADR-41/47 stream schema per ADR-38 A6 (canonical backlog form, all
 repos). Themes carry a stable `[E<n>]` epic id; stories are human (goal + `So that`) and
@@ -101,4 +125,4 @@ carry a stable `[S<n>]` id (#281/#286); tasks carry `[#id] [P][size] · Done whe
 Structure is checked by the `validate-backlog` pre-commit gate (ADR-66). Done tasks **leave** (ADR-65); git is the
 implementation record. Conformance is checked read-only by `.dev-knowledge/scripts/audit.py`.
 
-**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-segment backbone reorganization: 4 themes → 6 lettered segments A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under the provider-reliability segment (C) — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (invocation-surface segment (A) output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; that segment's story fully delivered, backbone header retained) · 2026-07-08 (Wave-1 onboarding: renamed the thematic backbone from the retired lettered scheme to named themes per ADR-99 clause A; adopted stable `[S<n>]` story ids per #281/#286; re-filed #110 + #128 from the hub backlog per the ADR-41 move (hub commit ea6217a); all task ids preserved) · 2026-07-11 (filed #21 under S3 — stale `test_full_debate_pipeline` integration test surfaced during the #326 arc; next-free local id after #20) · 2026-07-13 (content-parity D1: added `[E1]`–`[E6]` epic ids to the 6 theme headers + the epic-ids backbone line, and wired the ADR-66 `validate-backlog` gate — ADR-78 floor twin, hub audit `2026-07-13-technical-content-parity-inventory.md`; stories/tasks unchanged, all ids preserved). Next quarterly: 2026-10-01.
+**Grooming log:** 2026-05-12 (stream-format seed) · 2026-06-02 (story-map migration, all 11 items preserved) · 2026-07-02 (6-segment backbone reorganization: 4 themes → 6 lettered segments A–F; #12–#19 added; #9 re-sliced (return_dir I/O → #13); #20 filed under the provider-reliability segment (C) — pre-existing mypy drift surfaced during Unit 1; all 11 prior items preserved; #12 completed + struck (ADR-65) once the protocols/ surface landed — git carries the record) · 2026-07-02 (invocation-surface segment (A) output subsystem shipped: #13 return_dir routing, #14 double-council fix, #15 minority report closed + struck per ADR-65 — commits bfc268f/53ad525/f1a4b74; that segment's story fully delivered, backbone header retained) · 2026-07-08 (Wave-1 onboarding: renamed the thematic backbone from the retired lettered scheme to named themes per ADR-99 clause A; adopted stable `[S<n>]` story ids per #281/#286; re-filed #110 + #128 from the hub backlog per the ADR-41 move (hub commit ea6217a); all task ids preserved) · 2026-07-11 (filed #21 under S3 — stale `test_full_debate_pipeline` integration test surfaced during the #326 arc; next-free local id after #20) · 2026-07-13 (content-parity D1: added `[E1]`–`[E6]` epic ids to the 6 theme headers + the epic-ids backbone line, and wired the ADR-66 `validate-backlog` gate — ADR-78 floor twin, hub audit `2026-07-13-technical-content-parity-inventory.md`; stories/tasks unchanged, all ids preserved) · 2026-07-16 (plan-of-record reconciliation: filed #22–#31; new theme [E7] + stories [S10]–[S12] — additive, all prior ids preserved; #16 gained an ADR-12/pre-work clause; the phase→task map lives in `docs/intake/2026-07-16-plan-of-record.md`). Next quarterly: 2026-10-01.
