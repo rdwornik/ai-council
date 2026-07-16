@@ -5,7 +5,7 @@
 `ai-council` is the ecosystem's multi-model deliberation engine: it runs structured
 debate/research across a configurable AI panel and produces the verdicts that become
 binding ADRs. The backlog advances the tool toward a delegation-ready, evidence-based,
-reliable, and self-enforcing state across six themes.
+reliable, and self-enforcing state across seven themes.
 
 **Themes (backbone) — epic ids:** [E1] Invocation surface & delegation-readiness · [E2] Synthesizer refresh ·
 [E3] Provider reliability & CLI engine · [E4] Model currency · [E5] Naming & quality automation ·
@@ -57,7 +57,7 @@ So that no provider is wired-but-unverified or silently degrading the panel.
 
 ### [S4] Add a CLI-subscription provider backend
 So that subscription CLIs can serve debate turns and API spend is reserved for CLI-less models.
-- [#16] [P3][L] CliProvider engine [Rama 2]: an adapter behind the provider protocol that drives CLI backends (Claude/Gemini/Codex subscriptions); API access reserved for CLI-less providers (DeepSeek/Grok) · Done when: at least one CLI backend runs a debate turn through the provider protocol · refs Rama 2 · design tensions (read-only sandbox, non-determinism, response anonymization, quota-vs-devwork contention) deferred to build-start · do NOT merge provider implementations (keep separate) · ADR-12 ratified: v1 adapter set = claude+codex only (gemini CLI struck — auth-dead) · pre-work: refactoring-guide A1 (template-method provider base; CliProvider implements only `_configure`/`_invoke`/`_parse`) then A3 (one error classifier + timeout/retry contract; the five-token cause vocabulary is shared with `seats[].fallback_events[]`)
+- [#16] [P3][L] CliProvider engine [Rama 2]: an adapter behind the provider protocol that drives the ratified v1 CLI backends (claude + codex per ADR-12; gemini CLI struck — auth-dead); API access reserved for CLI-less providers (DeepSeek/Grok) · Done when: both v1 CLI backends (claude, codex) each run a debate turn through the provider protocol · refs Rama 2, ADR-12 (whose consequence marks the first backend as the engine-proof milestone) · design tensions (read-only sandbox, non-determinism, response anonymization, quota-vs-devwork contention) deferred to build-start · do NOT merge provider implementations (keep separate) · pre-work: refactoring-guide A1 (template-method provider base; CliProvider implements only `_configure`/`_invoke`/`_parse`) then A3 (one error classifier + timeout/retry contract; the five-token cause vocabulary is shared with `seats[].fallback_events[]`)
 - [#27] [P3][M] CLI-4 parity run → default-flip decision: n=12 stratified paired debates (CLI vs API), sealed-key blind, rubric-scored, non-inferiority 1/12 with zero margin on items 2 and 4; ratify DRAFT-CLI-3 or retire per its kill condition · Done when: the parity report exists and the flip decision (ratify/retire) is recorded · refs L-CLI §3(Q2)/§4(DRAFT-CLI-3), ADR-12 §5 · depends-on: #16
 - [#28] [P2][S] F3 grok cost lane: operator runs `grok login` (subscription OAuth) + env-key shielding + one re-probe; record the seat disposition · Done when: the re-probe witnesses subscription-billed grok identity and the disposition is recorded (enters cost lane or stays API) · refs fleet-recon §8 F3, ADR-12 cost lanes · operator action (~5 min) + repo re-probe
 
@@ -114,7 +114,7 @@ So that deadlocks resolve on evidence and consensus is genuine, not a framing ar
 
 ### [S12] Execute the GOV-1 currency pass
 So that ADR statuses, the instruction file, and the vision doc match ratified reality.
-- [#31] [P1][M] GOV-1 execution (consolidation session): record the 15 operator rulings verbatim → RULED; flip ADR-09/10 → Accepted (header + `docs/decisions/README.md` index row, same commit); extend CLAUDE.md §11 through ADR-11/12; reconcile VISION:25 dual-output line to ADR-43/ADR-10; re-read + re-stamp CONTRIBUTING; ratify the DRAFT-GOV-1 lifecycle ADR; push `main` at close-out · Done when: all GOV-1 items land, the rulings are recorded, and the feature-work pause is declared lifted · refs L-GOV §3(Q2,Q4)/§4(DRAFT-GOV-1/2), intake §7(1) · gate G1→G2
+- [#31] [P1][M] GOV-1 execution (consolidation session): record the 15 operator rulings verbatim → RULED; flip ADR-09/10 → Accepted (header + `docs/decisions/README.md` index row, same commit); extend CLAUDE.md §11 through ADR-11/12; reconcile VISION:25 dual-output line to ADR-43/ADR-10; re-read + re-stamp CONTRIBUTING; ratify the DRAFT-GOV-1 lifecycle ADR; reconcile the #1/#24 evidence-method overlap (EPI-1 full-corpus protocol vs #1's ~15-transcript sampling); push `main` at close-out · Done when: all GOV-1 items land, the rulings are recorded, and the feature-work pause is declared lifted · refs L-GOV §3(Q2,Q4)/§4(DRAFT-GOV-1/2), intake §7(1) · gate G1→G2
 
 ---
 

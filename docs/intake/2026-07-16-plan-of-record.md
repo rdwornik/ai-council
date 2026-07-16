@@ -40,7 +40,7 @@ Closure rule (operator's amendment, this arc): *every phase row maps to either a
 
 | Phase | Row item | Maps to |
 |---|---|---|
-| P0 | this arc | session-event: this doc, cited by its merge SHA |
+| P0 | this arc | session-event: this doc; its merge SHA is recorded in the JOURNAL 2026-07-16 plan-of-record entry (the closure's citation location) |
 | P1 | consolidation (G1) | **#31** |
 | P2 | EPI-1 archaeology | **#24** |
 | P3 | F3 grok login | **#28** |
@@ -68,7 +68,8 @@ Pre-work notes are attached on the three P4 tasks only (#25, #16, #26); this tab
 
 ## 6. Notes
 
-- **#24 vs #1 method overlap:** the EPI-1 full-corpus archaeology protocol supersedes #1's ~15-transcript sampling as the evidence method for the Branch A/B trigger; #1 was left untouched this arc — reconcile the pair at the consolidation session (#31).
+- **#24 vs #1 method overlap:** #24 (EPI-1 full-corpus archaeology) is the broader evidence method for the same Branch A/B trigger as #1 (~15-transcript sampling). Both task texts stand until the consolidation session; the reconciliation is an explicit #31 scope item (make #24 the authoritative evidence path for #2, or retain both methods deliberately).
+- **P6 is a completion backstop, not a start gate:** the refactoring guide notes the `--file` gap "falls out of" A2's `cli.py:main` decomposition — so #25's P4 pre-work may deliver the structural basis of the D2 parity fixes early, and #22/#23 may close during P4. Tasks close whenever their done-whens are met; the P6 row then verifies the window is complete (CONTRACT §7 emptied).
 - **Residual stale mention, deliberately left:** `docs/audits/2026-07-06-code-quality-audit.md:5` references the intake by bare filename (no path claim); audits are immutable — documented here instead of edited.
 - **No ADR status flips this arc:** ADR-09/10 remain `Proposed`; the flip is #31's (consolidation session), per DRAFT-GOV-1 (header + index row in the same commit).
 - **Label collision (carried from the intake §5):** "CLI-4" names the parity-run *process* (L-CLI §3 Q2, the gate on DRAFT-CLI-3); DRAFT-CLI-**4** is the separate v2-resolver annotation. This document's P5 row means the former.
