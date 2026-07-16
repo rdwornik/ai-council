@@ -19,6 +19,18 @@
 
 ---
 
+### 2026-07-16 — plan-of-record arc: pointer sweep + BACKLOG reconciliation (#22–#31, [E7]) + `docs/intake/2026-07-16-plan-of-record.md`
+
+**Did:** Docs-only arc on `docs/plan-of-record` (plan mode; operator amended the closure in-session: phase rows map to a task ID **or** a named session-event/gate; GOV-1 ruled into new theme [E7]). **(1)** Pointer sweep — fixed the five stale Reading-Map lane-doc paths in the technical-architect intake left by the `b849653` relocation (`a71a5fe`); JOURNAL history + immutable audits untouched. **(2)** BACKLOG reconciliation at task grain — filed #22–#31 (CONTRACT §7 deviation closures, EPI-1 archaeology, doctor v1, verdict package, CLI-4 parity→flip, F3 grok OAuth, F12 stale pin, DOC-3 secrets rule, GOV-1 execution) under new stories [S10]–[S12] + new theme [E7]; #16 gained the ADR-12 v1=claude+codex scope + A1→A3 pre-work note (`ab08ab0`). **(3)** Materialized the plan-of-record (frozen P0–P6 phase plan, gates G1–G3, seam rules, phase→task map, P4 pre-work map) in the intake layer (`320bd70`). **(4)** Codex doc-lane review (terra) returned 2 HIGH + 4 MEDIUM — all addressed (`d12abe5`: #16 v1-set done-when, P6 completion-backstop note, #31 gains the #1/#24 reconciliation, seven-theme counts, P0 citation location).
+
+**Result:** `validate_backlog` OK (7 themes, 12 stories, 29 tasks, 0 warnings); zero editable stale lane-doc pointers (grep-verified); every phase row mapped per the amended closure. ADR-09/10 untouched (`Proposed` — flip is #31's, consolidation session). Zero `src/` changes.
+
+**Changes:** `BACKLOG.md` (+#22–#31, [E7]/[S10]–[S12], grooming log), `docs/intake/2026-07-06-technical-architect-intake.md` (Reading-Map paths + backlog row; appendix deltas 7–8), `docs/intake/2026-07-16-plan-of-record.md` (new), `docs/audits/2026-07-16-codex-plan-of-record.md` (new, review artifact), `JOURNAL.md` (this entry). Session SHAs: `a71a5fe`, `ab08ab0`, `320bd70`, `d12abe5`.
+
+**Abandoned:** none. `docs/audits/2026-07-06-code-quality-audit.md:5` bare-filename mention deliberately left (immutable audit; documented in the plan doc §6).
+
+**Next:** G1 — operator acceptance of the 15-item rulings register → consolidation session executes #31 (GOV-1) → pause lifts; #24 (EPI-1 archaeology) is pause-independent and runnable now.
+
 ### 2026-07-16 — fleet_parity ARC-B legs 1+2: DECLARE dep-pytest-xdist + .vscode (fleet #328)
 
 **Did:** Machine-declared ai-council's two known-good divergences in `.methodology.yaml` (branch `chore/methodology-declares-arcb`, work commit `f62cd80`) — **(1)** `dep-pytest-xdist` (pytest-xdist 3.8.0 in `.venv`, unpinned in pyproject → the #328 dep leg read "installed but UNDECLARED"; DECLARED not pinned per operator ruling; shelf-life 2026-08-16 to revisit pin-vs-ambient); **(2)** `.vscode` (shared editor settings, register-e1 short shelf-life 2026-08-13). **Declarations ONLY** — no pyproject/behavioral change. Terra reviewed clean. Merged by CC-primary on the operator's GO (`--no-ff`).

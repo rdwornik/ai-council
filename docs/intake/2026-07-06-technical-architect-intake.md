@@ -21,13 +21,13 @@ You are the technical architect. The functional design layer is COMPLETE; nothin
 | Question authoring + synthesis quality | `protocols/COUNCIL_QUESTION_GUIDE.md`, `protocols/SYNTHESIS_QUALITY_RUBRIC.md` | Brief discipline incl. research-mode recognition; the 5-criterion scoring instrument |
 | Architecture audit (decisions D1–D14) | `docs/audits/2026-07-04-fable-architecture-audit.md` | The whole-system decision base (§4 tagged decision list D1–D14) + the reserved ADR-13 draft (§3) |
 | Fleet recon + liveness + process specs P1–P4 + forks F1–F12 | `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` | Witnessed fleet matrix (§2), key/provider liveness (§3), the four process designs (§6 P1–P4), consolidated fork list (§8 F1–F12) |
-| Functional design — L-EPI | `docs/audits/2026-07-06-lane-epi-functional-design.md` | Bias registry, falsifiers, EPI-1 archaeology protocol, gated #18/#19/#9 shapes, synthesis namespace |
-| Functional design — L-CLI | `docs/audits/2026-07-06-lane-cli-functional-design.md` | Seat-equivalence contract, parity methodology, quota policy, seats[] namespace |
-| Functional design — L-DOC | `docs/audits/2026-07-06-lane-doc-functional-design.md` | Doctor semantics/UX, pin-upgrade lifecycle, secrets rule |
-| Functional design — L-INT | `docs/audits/2026-07-06-lane-int-functional-design.md` | Caller journey + failure paths, verdict package, versioning stance |
-| Functional design — L-GOV | `docs/audits/2026-07-06-lane-gov-functional-design.md` | Enforcement inventory, ADR lifecycle, currency pass, hub-carrier requirements |
+| Functional design — L-EPI | `docs/intake/2026-07-06-lane-epi-functional-design.md` | Bias registry, falsifiers, EPI-1 archaeology protocol, gated #18/#19/#9 shapes, synthesis namespace |
+| Functional design — L-CLI | `docs/intake/2026-07-06-lane-cli-functional-design.md` | Seat-equivalence contract, parity methodology, quota policy, seats[] namespace |
+| Functional design — L-DOC | `docs/intake/2026-07-06-lane-doc-functional-design.md` | Doctor semantics/UX, pin-upgrade lifecycle, secrets rule |
+| Functional design — L-INT | `docs/intake/2026-07-06-lane-int-functional-design.md` | Caller journey + failure paths, verdict package, versioning stance |
+| Functional design — L-GOV | `docs/intake/2026-07-06-lane-gov-functional-design.md` | Enforcement inventory, ADR lifecycle, currency pass, hub-carrier requirements |
 | Functional requirements master (navigation + register) | `docs/audits/2026-07-06-functional-requirements-master.md` | `[pending: file absent from live main — never committed; THIS intake supersedes it as the navigation layer. §4 below is the register of record.]` |
-| Narrative + task record | `JOURNAL.md`, `LESSONS.md`, `BACKLOG.md` | History; the 6-epic story map (Epics A–F) your backlog extends |
+| Narrative + task record | `JOURNAL.md`, `LESSONS.md`, `BACKLOG.md` | History; the 7-theme story map ([E1]–[E7]) your backlog extends |
 | Historical audit stream (context only, added by CC) | `docs/audits/` 2026-05-09 … 2026-07-02 entries + `docs/audits/archive/`, per `docs/audits/README.md` | Pre-design-layer audits (Codex reviews, governance sweeps, the 2026-06-16 architecture-vs-research audit, the 2026-07-02 methodology-adoption audit) — background; superseded where they overlap the 2026-07-04/05 documents above |
 
 **The one key to all five lane docs — uniform structure:** §1 charter & verified current state · §2 functional target state · §3 design answers (Q1–Q7 in L-CLI/L-EPI/L-INT; L-DOC has Q1–Q6, L-GOV Q1–Q5) · §4 draft ADRs · §5 refined forks · §6 operator questions · §7 requirements forward (your primary input).
@@ -100,3 +100,5 @@ Everything above the rule is the functional architect's content, embedded verbat
 4. **Status corrections (§5):** ADR-01..10 are not uniformly Proposed — only ADR-09/10 are (01/02/06 Revised, 03/04/05/08 Accepted, 07 Superseded by ADR-43); header ↔ index sync confirmed. CLI-4 v2-resolver gate recorded verbatim as `DRAFT-GATED(EPI-2 ruling)` with its "(Epic B baseline)" gloss; the CLI-4 label collision (parity run vs resolver draft) flagged.
 5. **Count correction (§4 Governance):** hub-carrier consumer requirements are R1–R8 live (R8 push-cadence surface), not R1–R7.
 6. Verified consistent as authored: 16 draft ADRs (5 EPI, 4 CLI, 3 DOC, 2 INT, 2 GOV); two CONTRACT Known-deviations; I1–I6 / B1–B8 / M1–M8 / R1–R8 (INT) / T1–T3 (#19) enumerations; the 6-epic BACKLOG story map (Epics A–F); ADR-13 reservation.
+7. **2026-07-16 (CC):** Reading-Map lane-doc paths updated `docs/audits/` → `docs/intake/` — the five lane FDs were relocated at `b849653` (census f.6); content untouched.
+8. **2026-07-16 (CC):** Reading-Map backlog row updated — the lettered 6-epic scheme (Epics A–F) was renamed to named themes at the 2026-07-08 Wave-1 grooming (ADR-99 clause A) and `[E7]` was added at the 2026-07-16 plan-of-record reconciliation; the row now reads "7-theme story map ([E1]–[E7])". Appendix item 6 stands unchanged as the historical verification record of 2026-07-06.
