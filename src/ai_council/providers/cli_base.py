@@ -66,11 +66,22 @@ _ENV_ALLOWLIST = frozenset({
 })
 
 
+# Proxy vars are allowlisted for network functionality, but a proxy URL may embed
+# `user:password@` userinfo — a credential. Strip the userinfo, keep the host:port.
+_PROXY_USERINFO = re.compile(r"://[^/@]*@")
+_PROXY_VARS = frozenset({"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"})
+
+
 def _scrubbed_env() -> dict[str, str]:
-    """The minimal non-secret environment a CLI subprocess needs (an allowlist). The CLIs auth
-    via their own subscription stores (~/.claude, ~/.codex), never env keys — verified live
-    2026-07-17 that both run under this allowlist."""
-    return {k: v for k, v in os.environ.items() if k.upper() in _ENV_ALLOWLIST}
+    """The minimal non-secret environment a CLI subprocess needs (an allowlist). Every
+    credential is dropped by exclusion; proxy URLs additionally have any `user:pass@` userinfo
+    stripped. The CLIs auth via their own subscription stores (~/.claude, ~/.codex), never env
+    keys — verified live 2026-07-17 that both run under this allowlist."""
+    env = {k: v for k, v in os.environ.items() if k.upper() in _ENV_ALLOWLIST}
+    for key, value in env.items():
+        if key.upper() in _PROXY_VARS:
+            env[key] = _PROXY_USERINFO.sub("://", value)
+    return env
 
 
 def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:

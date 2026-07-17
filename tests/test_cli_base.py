@@ -178,6 +178,16 @@ def test_scrubbed_env_is_allowlist_only() -> None:
     assert env == {"PATH": "/usr/bin"}  # only the allowlisted, non-secret var survives
 
 
+def test_scrubbed_env_strips_proxy_userinfo() -> None:
+    """A proxy URL's user:pass@ credential is stripped; the host:port is kept for function."""
+    from ai_council.providers.cli_base import _scrubbed_env
+    with patch.dict("os.environ",
+                    {"HTTPS_PROXY": "http://user:s3cret@proxy.corp:8080", "PATH": "/x"}, clear=True):
+        env = _scrubbed_env()
+    assert env["HTTPS_PROXY"] == "http://proxy.corp:8080"
+    assert "user" not in env["HTTPS_PROXY"] and "s3cret" not in env["HTTPS_PROXY"]
+
+
 async def test_generate_returns_served_identity_as_model() -> None:
     p = _make(ClaudeCliProvider, "claude")
     doc = json.dumps({"result": "answer", "modelUsage": {"claude-opus-4-8": {}}})
