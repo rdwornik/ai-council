@@ -77,7 +77,6 @@ So that repeated brief/persona blocks don't re-bill on every provider call and d
 ### [S6] Detect stale model configuration
 So that a superseded model in settings.yaml is surfaced, not silently used.
 - [#17] [P3][M] Online model-version check: verify the `config/settings.yaml` model strings are the latest available per provider + a documented update process · Done when: a check reports any configured model that is no longer the latest + the refresh process is written down · refs `config/settings.yaml` is the single source of model strings
-- [#29] [P3][S] F12 stale research pin: update `grok-4.20-reasoning` → `grok-4.20-0309-reasoning` in `config/settings.yaml` (zero-risk config edit; alias still serves) and confirm on the first doctor run · Done when: the pin is current and a doctor/health check confirms it · refs fleet-recon §8 F12, #17
 
 ---
 
