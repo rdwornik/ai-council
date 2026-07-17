@@ -739,7 +739,16 @@ def doctor() -> None:
     # This is the doctor's OWN load -- the shared run-path loader is untouched.
     _global_env = Path.home() / "Documents" / ".secrets" / ".env"
     if _global_env.exists():
-        load_dotenv(_global_env, override=True)
+        # A diagnostic must run even in a sick environment (L-DOC 2.3): an unreadable or
+        # corrupt secrets file warns loudly but does not abort -- the doctor then measures
+        # the current environment, and the seat pings report the real reachability.
+        try:
+            load_dotenv(_global_env, override=True)
+        except (OSError, UnicodeDecodeError) as exc:
+            console.print(
+                f"[yellow]WARNING:[/yellow] could not read global secrets file {_global_env}: "
+                f"{exc} -- measuring the current environment only."
+            )
     try:
         config = load_config()
     except (FileNotFoundError, ValueError) as exc:

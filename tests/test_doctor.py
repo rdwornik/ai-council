@@ -361,3 +361,18 @@ def test_doctor_subcommand_invokes(tmp_path: Path) -> None:
 def test_doctor_subcommand_registered() -> None:
     assert "doctor" in main.commands
     assert "run" in main.commands
+
+
+def test_doctor_subcommand_survives_unreadable_secrets_file(tmp_path: Path) -> None:
+    """An unreadable/corrupt global secrets file warns but does not abort the doctor."""
+    config = _make_config(tmp_path)
+    runner = CliRunner()
+    with patch("ai_council.cli.load_config", return_value=config), \
+         patch("ai_council.cli.load_dotenv", side_effect=OSError("permission denied")), \
+         patch.object(Path, "exists", return_value=True), \
+         patch.dict(os.environ, {"TEST_KEY": "sk-real"}, clear=False), \
+         patch.object(doc, "build_all_providers", return_value={"claude": MockProvider("claude")}), \
+         patch.object(doc, "run_health_checks_sync", return_value={"claude": (True, "")}):
+        result = runner.invoke(main, ["doctor"])
+    assert result.exit_code == 0
+    assert "WARNING" in result.output and "COUNCIL DOCTOR" in result.output
