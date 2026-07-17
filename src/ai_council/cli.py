@@ -707,5 +707,47 @@ def run(
     asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
 
 
+@main.command("doctor")
+def doctor() -> None:
+    """Liveness + config pre-flight: a GREEN/YELLOW/RED truth table over keys, seats, and
+    config. Writes a machine-readable record to output/health/. Never blocks a run."""
+    if sys.platform == "win32":
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+    from ai_council.doctor import run_doctor
+
+    # First load: learn the configured key-env NAMES and snapshot the launching shell's
+    # values for them, so a set-but-empty key (env shadowing) can be surfaced below.
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]Config error:[/bold red] {exc}")
+        sys.exit(1)
+    key_envs = {model.api_key_env for model in config.models.values()}
+    shell_snapshot = {env: os.environ.get(env) for env in key_envs}
+
+    # The doctor measures the REAL global credentials regardless of shell state
+    # (DRAFT-DOC-3 doctor stance): load with override=True, then reload config so
+    # available_providers reflects the on-disk secrets. This is the doctor's OWN load
+    # only -- the shared run-path loader (cli.py run()) is untouched.
+    _global_env = Path.home() / "Documents" / ".secrets" / ".env"
+    if _global_env.exists():
+        load_dotenv(_global_env, override=True)
+    load_dotenv(override=True)
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]Config error:[/bold red] {exc}")
+        sys.exit(1)
+
+    exit_code = run_doctor(
+        config, PROVIDER_CLASSES, shell_snapshot=shell_snapshot, console=console
+    )
+    sys.exit(exit_code)
+
+
 if __name__ == "__main__":
     main()
