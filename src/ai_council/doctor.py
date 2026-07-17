@@ -181,15 +181,16 @@ def validate_config(config: AppConfig) -> list[Check]:
 
 
 def _collect_secret_values(config: AppConfig) -> list[str]:
-    """Actual credential VALUES currently in the environment, for redaction. Only values
-    long enough to be real keys (>= 8 chars) -- so we never redact trivial substrings."""
+    """Every non-empty credential VALUE currently in the environment, for redaction.
+    Length is not filtered -- under-redaction leaks, over-redaction is merely cosmetic,
+    so any non-empty configured credential is redacted regardless of length."""
     envs = {m.api_key_env for m in config.models.values()}
     if config.research is not None:
         envs |= {p.api_key_env for p in config.research.providers.values()}
     values = []
     for env in envs:
         value = os.environ.get(env, "")
-        if value and len(value) >= 8:
+        if value:
             values.append(value)
     return values
 

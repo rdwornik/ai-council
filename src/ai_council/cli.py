@@ -729,16 +729,15 @@ def doctor() -> None:
     key_envs = {model.api_key_env for model in config.models.values()}
     shell_snapshot = {env: os.environ.get(env) for env in key_envs}
 
-    # The doctor measures the REAL global credentials regardless of shell state
-    # (DRAFT-DOC-3 doctor stance): load the GLOBAL secrets with override=True so they win
-    # over a poisoned shell (e.g. an empty-but-set key). The global file is the only
-    # overriding load -- a repo-local .env is loaded override=False (fills only genuinely
-    # unset gaps, never trampling the measured global truth; repo rule: global secrets
-    # only). This is the doctor's OWN load -- the shared run-path loader is untouched.
+    # The doctor measures the REAL GLOBAL credentials regardless of shell state
+    # (DRAFT-DOC-3 doctor stance): load ONLY the global secrets file, with override=True so
+    # it wins over a poisoned shell (e.g. an empty-but-set key). A repo-local .env is
+    # deliberately NOT consulted -- consulting it would let a forbidden repo-local secret
+    # (repo rule: global secrets only) mask a genuine global-config gap with a false GREEN.
+    # This is the doctor's OWN load -- the shared run-path loader is untouched.
     _global_env = Path.home() / "Documents" / ".secrets" / ".env"
     if _global_env.exists():
         load_dotenv(_global_env, override=True)
-    load_dotenv(override=False)
     try:
         config = load_config()
     except (FileNotFoundError, ValueError) as exc:

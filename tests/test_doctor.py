@@ -255,6 +255,22 @@ def test_run_doctor_redacts_secret_in_error_detail(tmp_path: Path) -> None:
     assert secret not in latest
 
 
+def test_run_doctor_redacts_short_secret(tmp_path: Path) -> None:
+    """Redaction is length-agnostic: even a short credential value is stripped."""
+    config = _make_config(tmp_path)
+    secret = "sk9z"  # short, under the old 8-char guard
+    console, sio = _sio_console()
+    with patch.dict(os.environ, {"TEST_KEY": secret}, clear=False), \
+         patch.object(doc, "build_all_providers", return_value={"claude": MockProvider("claude")}), \
+         patch.object(doc, "run_health_checks_sync",
+                      return_value={"claude": (False, f"bad token {secret} rejected")}):
+        run_doctor(config, {"claude": MockProvider}, console=console,
+                   output_dir=config.defaults.output_dir)
+    assert f"{secret} rejected" not in sio.getvalue()
+    latest = (config.defaults.output_dir / "health" / "doctor-latest.json").read_text(encoding="utf-8")
+    assert f"token {secret}" not in latest
+
+
 def test_run_doctor_seat_build_failure_contained(tmp_path: Path) -> None:
     """A provider-build blow-up becomes a FAIL row, not a doctor crash."""
     config = _make_config(tmp_path)
