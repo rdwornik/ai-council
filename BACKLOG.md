@@ -63,7 +63,6 @@ So that subscription CLIs can serve debate turns and API spend is reserved for C
 ### [S11] Stand up the liveness surface (doctor)
 So that seat/provider health is observable without spend and key hazards cannot silently gate runs.
 - [#25] [P2][M] `council doctor` v1 per DRAFT-DOC-1: advisory-only verdicts (the run-time health gate stays the only blocker), exit codes mirror verdict (0/3/1), zero-spend default with `--smoke` explicit, writes `output/health/doctor-<ts>.json` + `doctor-latest.json`, 7-day STALE rule · Done when: doctor runs zero-spend, writes both artifacts, and Lane A pre-flight consumes its verdict as advisory input · refs L-DOC §3(Q1–Q3,Q5)/§4(DRAFT-DOC-1), seam §C.2 (identity re-probe on CLI version change) · post-pause (G2) · pre-work: refactoring-guide A2 (decompose `cli.py:main` → `@click.group` with `run`/`doctor` — load-bearing prerequisite; A5/B5/B7 touch the same file, land first); `healthcheck.py` is the do-not-touch reference module — doctor consumes it, never rewrites it
-- [#30] [P3][S] DOC-3 secrets rule: empty-string-is-absent-LOUDLY on key loading (closes the `cli.py:388-389` `override=False` hazard) · Done when: an empty-string key reads as absent with a loud warning and the hazard path is unit-tested · refs L-DOC §3(Q6)/§4(DRAFT-DOC-3) · post-pause (G2)
 
 ### [S5] Cut multi-round input-token cost
 So that repeated brief/persona blocks don't re-bill on every provider call and debate round.
