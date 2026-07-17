@@ -1,7 +1,7 @@
 # ADR-10: Output routing — local default + return-dir override
 
 **Date:** 2026-07-02
-**Status:** Proposed
+**Status:** Accepted (2026-07-17)
 
 ## Context
 
