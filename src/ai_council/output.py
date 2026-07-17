@@ -507,9 +507,9 @@ _OPTIONS_HEADING_MARKERS = (
 
 
 def _one_line(body: str) -> str:
-    """First non-empty, de-bulleted line of a section body."""
+    """First non-empty content line, de-bulleted and stripped of wrapping markdown emphasis."""
     for ln in body.splitlines():
-        t = ln.strip().lstrip("-*# ").strip()
+        t = ln.strip().lstrip("-*#> ").strip().strip("*`_").strip()
         if t:
             return t
     return ""
@@ -596,14 +596,15 @@ def _build_verdict_payload(
     requested = sorted(set(result.provider_statuses) | set(seated))
     dropped = sorted(k for k, v in result.provider_statuses.items() if v == "failed")
 
-    dissent_body = extract_dissent(result.synthesis)
-    if dissent_body is None:
+    if extract_dissent(result.synthesis) is None:
         dissent = {"status": "unanimous", "minority_artifact": None, "gist": None, "source": "extraction"}
     else:
+        # Gist from the dissent section BODY (skip the heading, which extract_dissent re-emits).
+        _, dissent_body = _first_by_priority(sections, _DISSENT_HEADING_MARKERS)
         dissent = {
             "status": "non-unanimous",
             "minority_artifact": f"council-minority-{base}.md",
-            "gist": _one_line(dissent_body)[:280],
+            "gist": _one_line(dissent_body or "")[:280] or None,
             "source": "extraction",
         }
 

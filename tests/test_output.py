@@ -592,6 +592,13 @@ def test_verdict_transcript_free_decision_extraction(tmp_path, sample_question, 
     assert data["options_considered"]["source"] == "extraction"
 
 
+def test_verdict_decision_strips_wrapping_emphasis(tmp_path, sample_question, sample_round):
+    """A bold-wrapped one-line decision is extracted clean (no leading/trailing ** )."""
+    synthesis = "## Recommended Decision\n**Default to a monorepo with lightweight tooling.**\n"
+    data = _emit(_pick_result(sample_question, sample_round, synthesis=synthesis), tmp_path / "out")
+    assert data["decision"]["value"] == "Default to a monorepo with lightweight tooling."
+
+
 def test_verdict_dissent_unanimous(tmp_path, sample_question, sample_round):
     data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
     assert data["dissent"]["status"] == "unanimous"
@@ -605,7 +612,9 @@ def test_verdict_dissent_non_unanimous_points_to_minority(tmp_path, sample_quest
     assert data["dissent"]["status"] == "non-unanimous"
     assert data["dissent"]["minority_artifact"].startswith("council-minority-")
     assert data["dissent"]["minority_artifact"].endswith(".md")
-    assert data["dissent"]["gist"]
+    # gist is the dissent CONTENT, not an echo of the section heading
+    assert "crux" in data["dissent"]["gist"].lower()
+    assert data["dissent"]["gist"] != "Unresolved Disagreements"
 
 
 def test_verdict_contract_version_null_and_exit_zero(tmp_path, sample_question, sample_round):
