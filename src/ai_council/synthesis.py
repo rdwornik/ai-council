@@ -4,7 +4,14 @@ import logging
 import time
 
 from ai_council.metrics import build_call_metrics, build_debate_metrics
-from ai_council.models import DebateResult, ModelResponse, Question, Round, SynthesisMetrics
+from ai_council.models import (
+    DebateResult,
+    ModelResponse,
+    Question,
+    Round,
+    SeatMetrics,
+    SynthesisMetrics,
+)
 from ai_council.providers.base import AIProvider, ProviderError, classify_error
 from config.config_loader import ModeConfig, ModelConfig, PromptsConfig
 
@@ -62,6 +69,7 @@ async def synthesize(
     provider_statuses: dict[str, str] | None = None,
     mode_config: ModeConfig | None = None,
     debate_mode: str = "pick",
+    seats: list["SeatMetrics"] | None = None,
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -127,7 +135,7 @@ async def synthesize(
             round_number=0,  # 0 = synthesis call
         )
         metrics = build_debate_metrics(
-            rounds, synthesis_call_metrics, model_configs, total_duration
+            rounds, synthesis_call_metrics, model_configs, total_duration, seats=seats
         )
 
     return DebateResult(

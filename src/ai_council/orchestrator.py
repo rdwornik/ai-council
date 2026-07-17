@@ -18,6 +18,7 @@ from ai_council.output import (
 )
 from ai_council.providers.base import AIProvider
 from ai_council.runner import exclude_synthesizer_from_panel, pick_synthesizer
+from ai_council.seat_router import build_seat_router
 from ai_council.synthesis import synthesize
 from config.config_loader import AppConfig
 
@@ -72,6 +73,12 @@ class CouncilRunner:
         synthesizer, is_participant = pick_synthesizer(
             self._providers, panel_names, synthesizer_name
         )
+
+        # ADR-12 backend routing: CLI-backed seats get their subscription-CLI adapter (+ same-seat
+        # API fallback); API seats route through unchanged. The synthesizer is never CLI (it is
+        # called directly below, not via a seat). Default backend is api everywhere until the
+        # §5 flip (#27), so this is a no-op unless a seat opts in with backend: cli.
+        seat_router = build_seat_router(panel_names, self._providers, self._config.models)
 
         mode_config = self._config.modes.get(request.mode) if self._config.modes else None
         persona_directives = (
@@ -128,6 +135,7 @@ class CouncilRunner:
                 policy=request.policy,
                 mode_config=mode_config,
                 persona_directives=persona_directives,
+                seat_router=seat_router,
             )
             progress.update(debate_task, description="Running synthesis...")
 
@@ -145,6 +153,7 @@ class CouncilRunner:
                 provider_statuses=outcome.provider_statuses,
                 mode_config=mode_config,
                 debate_mode=request.mode,
+                seats=outcome.seats,
             )
 
         for rnd in outcome.rounds:

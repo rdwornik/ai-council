@@ -1,6 +1,6 @@
 """Cost and performance metric computation for debate runs."""
 
-from ai_council.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round
+from ai_council.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round, SeatMetrics
 from config.config_loader import ModelConfig
 
 
@@ -27,7 +27,18 @@ def build_call_metrics(
     cfg = model_configs.get(response.provider)
     input_tokens = response.input_tokens or 0
     output_tokens = response.output_tokens or 0
-    cost = compute_call_cost(input_tokens, output_tokens, cfg) if cfg else 0.0
+    # CLI (subscription-lane) calls are $0 marginal — never priced at API token rates
+    # (L-CLI §2.1). Tokens are still recorded for transparency; only the cost is zeroed.
+    # ASSUMPTION (v1): a CLI seat is subscription-authed. Env-scrubbing forces the CLI off any
+    # API key in the environment, but a CLI whose OWN config store holds an API key could still
+    # be API-billed while recorded here as $0. Verifying each CLI's auth LANE (subscription vs
+    # API-key) is the doctor's CLI-fleet check — deferred to doctor-v2 as BACKLOG #32 (ADR-12
+    # §Decision 3; this arc must not extend doctor). Until then the $0 recording trusts the
+    # subscription lane.
+    if response.backend == "cli":
+        cost = 0.0
+    else:
+        cost = compute_call_cost(input_tokens, output_tokens, cfg) if cfg else 0.0
     return ProviderCallMetrics(
         provider=response.provider,
         round_number=round_number,
@@ -36,6 +47,7 @@ def build_call_metrics(
         estimated_cost_usd=cost,
         latency_sec=response.latency_sec,
         was_retry=was_retry,
+        backend=response.backend,
     )
 
 
@@ -44,8 +56,12 @@ def build_debate_metrics(
     synthesis_call: ProviderCallMetrics,
     model_configs: dict[str, ModelConfig],
     total_duration_sec: float,
+    seats: list[SeatMetrics] | None = None,
 ) -> DebateMetrics:
-    """Aggregate metrics across all debate rounds plus synthesis."""
+    """Aggregate metrics across all debate rounds plus synthesis.
+
+    ``seats`` is the L-CLI per-seat backend/identity/fallback telemetry (seats[] sidecar).
+    """
     calls: list[ProviderCallMetrics] = []
     for rnd in rounds:
         for response in rnd.responses:
@@ -60,6 +76,7 @@ def build_debate_metrics(
 
     return DebateMetrics(
         calls=calls,
+        seats=seats or [],
         total_input_tokens=total_input,
         total_output_tokens=total_output,
         total_estimated_cost_usd=total_cost,

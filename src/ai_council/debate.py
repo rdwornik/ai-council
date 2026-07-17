@@ -8,6 +8,7 @@ from collections.abc import Callable
 from ai_council.models import DebateOutcome, ModelResponse, Question, Round
 from ai_council.policy import RunPolicy
 from ai_council.providers.base import AIProvider, ProviderError, classify_error, is_retryable
+from ai_council.seat_router import SeatRouter
 from config.config_loader import ModeConfig, PromptsConfig
 
 logger = logging.getLogger(__name__)
@@ -166,6 +167,7 @@ async def run_debate(
     policy: RunPolicy | None = None,
     mode_config: ModeConfig | None = None,
     persona_directives: dict[str, str] | None = None,
+    seat_router: SeatRouter | None = None,
 ) -> DebateOutcome:
     """Run the full debate across all rounds.
 
@@ -211,10 +213,20 @@ async def run_debate(
 
         logger.info("Starting round %d with %d providers", round_num, len(providers))
 
-        tasks = [
-            _call_provider(p, prompts_for_round[p.name()], round_num, _policy)
-            for p in providers
-        ]
+        async def _run_seat(p: AIProvider) -> ModelResponse | ProviderError:
+            """Per-seat: try the CLI backend (admission gate inside the router), else the
+            same-seat API leg with the A3 retry contract. The router records seat telemetry."""
+            prompt = prompts_for_round[p.name()]
+            if seat_router is not None:
+                cli_response = await seat_router.try_cli(p.name(), prompt, round_num)
+                if cli_response is not None:
+                    return cli_response
+            result = await _call_provider(p, prompt, round_num, _policy)
+            if seat_router is not None:
+                seat_router.record_api(p.name(), result)
+            return result
+
+        tasks = [_run_seat(p) for p in providers]
         results = await asyncio.gather(*tasks)
 
         responses: list[ModelResponse] = []
@@ -238,6 +250,7 @@ async def run_debate(
                 degraded=True,
                 degradation_summary=degradation_summary,
                 provider_statuses=provider_statuses,
+                seats=seat_router.collect() if seat_router is not None else [],
             )
 
         # Quality gate: warn when Round 1 has low participation on a large panel
@@ -266,4 +279,8 @@ async def run_debate(
         if on_round_complete:
             on_round_complete(current_round)
 
-    return DebateOutcome(rounds=rounds, provider_statuses=provider_statuses)
+    return DebateOutcome(
+        rounds=rounds,
+        provider_statuses=provider_statuses,
+        seats=seat_router.collect() if seat_router is not None else [],
+    )
