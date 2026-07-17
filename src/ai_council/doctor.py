@@ -150,6 +150,9 @@ def validate_config(config: AppConfig) -> list[Check]:
 
     for label, panel in (("default_panel", config.defaults.default_panel),
                          ("full_panel", config.defaults.full_panel)):
+        if not panel:
+            checks.append(Check("config", label, FAIL, "empty -- a run would select zero debate seats"))
+            continue
         missing = [p for p in panel if p not in model_names]
         if missing:
             checks.append(Check("config", label, FAIL, f"unresolved: {', '.join(missing)}"))
@@ -180,19 +183,20 @@ def validate_config(config: AppConfig) -> list[Check]:
             else:
                 checks.append(Check("config", label, PASS, f"{len(names)} resolve"))
 
-        # Compare unconditionally: an empty roster with a positive threshold is unsatisfiable
-        # (e.g. 3 > 0), so it must NOT fall through to PASS.
-        n_default = len(research.default_providers)
-        if research.min_successful_providers > n_default:
-            checks.append(Check(
-                "config", "research.min_successful_providers", ADVISORY,
-                f"{research.min_successful_providers} > {n_default} default providers (unsatisfiable)",
-            ))
-        else:
-            checks.append(Check(
-                "config", "research.min_successful_providers", PASS,
-                f"{research.min_successful_providers} <= {n_default} default providers",
-            ))
+        # min_successful is the threshold for whichever roster a run selects -- default_providers
+        # for a normal research run, deep_providers standalone for --deep (runner.py:39/180).
+        # Validate BOTH, unconditionally (an empty roster with a positive threshold is
+        # unsatisfiable, e.g. 3 > 0, and must NOT fall through to PASS).
+        threshold = research.min_successful_providers
+        for roster_label, roster in (("default", research.default_providers),
+                                     ("deep", research.deep_providers)):
+            subject = f"research.min_successful ({roster_label})"
+            if threshold > len(roster):
+                checks.append(Check("config", subject, ADVISORY,
+                                    f"{threshold} > {len(roster)} {roster_label} providers (unsatisfiable)"))
+            else:
+                checks.append(Check("config", subject, PASS,
+                                    f"{threshold} <= {len(roster)} {roster_label} providers"))
     return checks
 
 

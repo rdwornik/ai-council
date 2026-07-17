@@ -147,9 +147,31 @@ def test_validate_config_empty_roster_unsatisfiable_threshold(tmp_path: Path) ->
     config.research.default_providers = []
     config.research.min_successful_providers = 3
     checks = validate_config(config)
-    m = next(c for c in checks if c.subject == "research.min_successful_providers")
+    m = next(c for c in checks if c.subject == "research.min_successful (default)")
     assert m.status == ADVISORY and "unsatisfiable" in m.detail
     assert evaluate_verdict(checks) != GREEN
+
+
+def test_validate_config_deep_threshold_checked(tmp_path: Path) -> None:
+    """min_successful is validated against deep_providers too (--deep uses it standalone)."""
+    config = _make_config(tmp_path, with_research=True)
+    assert config.research is not None
+    config.research.default_providers = ["perplexity", "perplexity", "perplexity"]
+    config.research.deep_providers = ["perplexity"]  # smaller than threshold
+    config.research.min_successful_providers = 3
+    checks = validate_config(config)
+    deep = next(c for c in checks if c.subject == "research.min_successful (deep)")
+    assert deep.status == ADVISORY and "unsatisfiable" in deep.detail
+
+
+def test_validate_config_empty_panel_is_fail(tmp_path: Path) -> None:
+    """An empty debate panel is FAIL (a run would select zero seats), never a false PASS."""
+    config = _make_config(tmp_path)
+    config.defaults.default_panel = []
+    checks = validate_config(config)
+    panel = next(c for c in checks if c.subject == "default_panel")
+    assert panel.status == FAIL and "empty" in panel.detail
+    assert evaluate_verdict(checks) == RED
 
 
 def test_check_keys_present_absent_and_shadow(tmp_path: Path) -> None:
