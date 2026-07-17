@@ -180,6 +180,30 @@ def validate_config(config: AppConfig) -> list[Check]:
     return checks
 
 
+def _collect_secret_values(config: AppConfig) -> list[str]:
+    """Actual credential VALUES currently in the environment, for redaction. Only values
+    long enough to be real keys (>= 8 chars) -- so we never redact trivial substrings."""
+    envs = {m.api_key_env for m in config.models.values()}
+    if config.research is not None:
+        envs |= {p.api_key_env for p in config.research.providers.values()}
+    values = []
+    for env in envs:
+        value = os.environ.get(env, "")
+        if value and len(value) >= 8:
+            values.append(value)
+    return values
+
+
+def _redact(text: str, secrets: list[str]) -> str:
+    """Defense-in-depth: strip any raw credential value that a provider exception or
+    health-check string might carry, before it reaches the screen or the JSON record.
+    The contract is keys by NAME only -- values never appear (DRAFT-DOC-1)."""
+    for secret in secrets:
+        if secret and secret in text:
+            text = text.replace(secret, "[REDACTED]")
+    return text
+
+
 def evaluate_verdict(checks: list[Check]) -> str:
     """Any FAIL -> RED; else any ADVISORY -> YELLOW; else GREEN."""
     if any(c.status == FAIL for c in checks):
@@ -267,6 +291,15 @@ def run_doctor(
     checks += check_keys(config, shell_snapshot)
     checks += check_seats(config, provider_classes)
     checks += validate_config(config)
+
+    # Redact any raw credential value a provider exception / ping string may carry, so
+    # values never reach the screen or the persisted record (keys by NAME only).
+    secrets = _collect_secret_values(config)
+    if secrets:
+        checks = [
+            Check(c.category, _redact(c.subject, secrets), c.status, _redact(c.detail, secrets), c.role)
+            for c in checks
+        ]
 
     verdict = evaluate_verdict(checks)
     out_dir = output_dir if output_dir is not None else config.defaults.output_dir

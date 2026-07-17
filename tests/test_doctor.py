@@ -238,6 +238,23 @@ def test_run_doctor_writes_record(tmp_path: Path) -> None:
     assert "sk-real" not in latest.read_text(encoding="utf-8")
 
 
+def test_run_doctor_redacts_secret_in_error_detail(tmp_path: Path) -> None:
+    """A raw ping-error string carrying the key VALUE is redacted before screen + record."""
+    config = _make_config(tmp_path)
+    secret = "sk-live-abcdef0123456789"
+    console, sio = _sio_console()
+    with patch.dict(os.environ, {"TEST_KEY": secret}, clear=False), \
+         patch.object(doc, "build_all_providers", return_value={"claude": MockProvider("claude")}), \
+         patch.object(doc, "run_health_checks_sync",
+                      return_value={"claude": (False, f"401 from https://x?key={secret}")}):
+        run_doctor(config, {"claude": MockProvider}, console=console,
+                   output_dir=config.defaults.output_dir)
+    assert secret not in sio.getvalue()
+    assert "[REDACTED]" in sio.getvalue()
+    latest = (config.defaults.output_dir / "health" / "doctor-latest.json").read_text(encoding="utf-8")
+    assert secret not in latest
+
+
 def test_run_doctor_seat_build_failure_contained(tmp_path: Path) -> None:
     """A provider-build blow-up becomes a FAIL row, not a doctor crash."""
     config = _make_config(tmp_path)
