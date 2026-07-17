@@ -297,7 +297,50 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
-@click.command(
+class _DefaultGroup(click.Group):
+    """Group that falls back to a default subcommand when the first token is not a
+    registered command -- preserves the bare ``council "question"`` invocation
+    (routed to ``run``) while also exposing ``council run`` / ``council doctor`` /
+    ``council --modes``. No new dependency; the whole shim is these two methods.
+    """
+
+    default_cmd = "run"
+
+    def _own_opt_names(self) -> set[str]:
+        """Option strings the GROUP itself owns (e.g. --modes, --help)."""
+        names = {"--help", "-h"}
+        for param in self.params:
+            names.update(param.opts)
+            names.update(param.secondary_opts)
+        return names
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        # No subcommand token -> run (preserves `council` -> "provide a question" path).
+        if not args:
+            args = [self.default_cmd]
+        # First token is neither a known subcommand nor a group-level option -> it is a
+        # positional question or a run-level option; route the whole tail through `run`.
+        elif args[0] not in self.commands and args[0] not in self._own_opt_names():
+            args = [self.default_cmd, *args]
+        return super().parse_args(ctx, args)
+
+
+@click.group(
+    cls=_DefaultGroup,
+    context_settings={"max_content_width": 120},
+    epilog=_EPILOG,
+)
+@click.option(
+    "--modes", is_flag=True, is_eager=True, expose_value=False,
+    callback=_print_modes_callback,
+    help="Print all debate modes with aliases and exit.",
+)
+def main() -> None:
+    """AI Council -- multi-model debate and research tool. Use --modes for mode details."""
+
+
+@main.command(
+    "run",
     context_settings={"max_content_width": 120},
     epilog=_EPILOG,
 )
@@ -343,11 +386,6 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     help="Debate mode: pick (default), ideas, or judge - or any alias. "
          "Skips auto-detection when set. Run --modes to see all aliases.",
 )
-@click.option(
-    "--modes", is_flag=True, is_eager=True, expose_value=False,
-    callback=_print_modes_callback,
-    help="Print all debate modes with aliases and exit.",
-)
 @click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging.")
 @click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in the inbox folder.")
 @click.option(
@@ -375,7 +413,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
         "Must be a name in the config/settings.yaml target_projects list; path resolved under dev_root."
     ),
 )
-def main(
+def run(
     question: str | None,
     question_file: str | None,
     rounds: int | None,
