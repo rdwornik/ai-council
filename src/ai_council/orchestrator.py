@@ -15,6 +15,7 @@ from ai_council.output import (
     print_synthesis,
     save_minority_report,
     save_to_file,
+    save_verdict_package,
 )
 from ai_council.providers.base import AIProvider
 from ai_council.runner import exclude_synthesizer_from_panel, pick_synthesizer
@@ -182,7 +183,9 @@ class CouncilRunner:
             )
 
         # Rama 4 (#15): emit dissent as a first-class artifact on a non-unanimous verdict,
-        # routed to the same destinations as the verdict (incl. any --return-dir).
+        # routed to the same destinations as the verdict (incl. any --return-dir). Share the
+        # transcript's exact <ts>-<mode>-<slug> so all of a run's artifacts are one matched set.
+        run_base = saved_paths[0].stem[len("council-out-"):]
         minority_paths = save_minority_report(
             result,
             output_dir,
@@ -190,6 +193,7 @@ class CouncilRunner:
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
             return_dir=request.return_dir,
+            stem_base=run_base,
         )
         if minority_paths:
             console.print(
@@ -197,6 +201,28 @@ class CouncilRunner:
             )
             for p in minority_paths[1:]:
                 console.print(f"[dim]Minority copied: {p}[/dim]")
+
+        # DRAFT-INT-1 (#26): the transcript-free caller deliverable. Sibling of save_to_file,
+        # routed to the same destinations; inherits the transcript's deterministic <ts>.
+        written: dict[str, list[Path]] = {"transcript": saved_paths}
+        if result.metrics:
+            written["metrics"] = [
+                saved_paths[0].with_name(saved_paths[0].stem + "_metrics.json")
+            ]
+        if minority_paths:
+            written["minority"] = minority_paths
+        verdict_paths = save_verdict_package(
+            result,
+            output_dir,
+            saved_paths[0],
+            written=written,
+            secondary_dir=secondary_dir,
+            target_paths=request.target_paths,
+            return_dir=request.return_dir,
+        )
+        console.print(f"[dim]Verdict package: {verdict_paths[0]}[/dim]")
+        for p in verdict_paths[1:]:
+            console.print(f"[dim]Verdict copied: {p}[/dim]")
 
         if output_format == "json":
             import dataclasses
