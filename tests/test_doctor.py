@@ -139,6 +139,19 @@ def test_validate_config_summary_model_unresolved_is_advisory(tmp_path: Path) ->
     assert sm.status == ADVISORY and "ghost" in sm.detail
 
 
+def test_validate_config_empty_roster_unsatisfiable_threshold(tmp_path: Path) -> None:
+    """Empty default_providers with a positive min_successful is unsatisfiable -> ADVISORY,
+    never a false PASS (regression guard for the short-circuit bug)."""
+    config = _make_config(tmp_path, with_research=True)
+    assert config.research is not None
+    config.research.default_providers = []
+    config.research.min_successful_providers = 3
+    checks = validate_config(config)
+    m = next(c for c in checks if c.subject == "research.min_successful_providers")
+    assert m.status == ADVISORY and "unsatisfiable" in m.detail
+    assert evaluate_verdict(checks) != GREEN
+
+
 def test_check_keys_present_absent_and_shadow(tmp_path: Path) -> None:
     config = _make_config(tmp_path)
     with patch.dict(os.environ, {"TEST_KEY": "sk-real"}, clear=False):

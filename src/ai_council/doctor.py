@@ -180,8 +180,10 @@ def validate_config(config: AppConfig) -> list[Check]:
             else:
                 checks.append(Check("config", label, PASS, f"{len(names)} resolve"))
 
+        # Compare unconditionally: an empty roster with a positive threshold is unsatisfiable
+        # (e.g. 3 > 0), so it must NOT fall through to PASS.
         n_default = len(research.default_providers)
-        if n_default and research.min_successful_providers > n_default:
+        if research.min_successful_providers > n_default:
             checks.append(Check(
                 "config", "research.min_successful_providers", ADVISORY,
                 f"{research.min_successful_providers} > {n_default} default providers (unsatisfiable)",
