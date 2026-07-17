@@ -292,6 +292,26 @@ def test_run_doctor_redacts_short_secret(tmp_path: Path) -> None:
     assert f"token {secret}" not in latest
 
 
+def test_collect_secret_values_orders_longest_first(tmp_path: Path) -> None:
+    config = _make_config(tmp_path)  # single model -> TEST_KEY
+    with patch.dict(os.environ, {"TEST_KEY": "short", "OTHER": "muchlongervalue"}, clear=True):
+        # only TEST_KEY is a configured env, so OTHER is ignored; verify sorting on a 2-key config
+        config.models["extra"] = ModelConfig(
+            name="extra", sdk="x", model="m", api_key_env="OTHER", timeout_sec=1, max_tokens=1,
+        )
+        values = doc._collect_secret_values(config)
+    assert values == sorted(values, key=len, reverse=True)
+
+
+def test_redact_overlapping_secret_no_suffix_leak() -> None:
+    """A shorter secret that is a prefix of a longer one must not leave the suffix exposed."""
+    short = "abc12345"
+    longer = short + "def67890"
+    ordered = sorted({short, longer}, key=len, reverse=True)  # the contract: longest-first
+    out = doc._redact(f"error {longer} here", ordered)
+    assert short not in out and longer not in out and "def67890" not in out
+
+
 def test_run_doctor_seat_build_failure_contained(tmp_path: Path) -> None:
     """A provider-build blow-up becomes a FAIL row, not a doctor crash."""
     config = _make_config(tmp_path)

@@ -201,18 +201,21 @@ def _collect_secret_values(config: AppConfig) -> list[str]:
     envs = {m.api_key_env for m in config.models.values()}
     if config.research is not None:
         envs |= {p.api_key_env for p in config.research.providers.values()}
-    values = []
+    values = set()
     for env in envs:
         value = os.environ.get(env, "")
         if value:
-            values.append(value)
-    return values
+            values.add(value)
+    # Longest-first so that when one secret is a substring of another, the longer is
+    # redacted before the shorter can leave a trailing suffix exposed.
+    return sorted(values, key=len, reverse=True)
 
 
 def _redact(text: str, secrets: list[str]) -> str:
     """Defense-in-depth: strip any raw credential value that a provider exception or
     health-check string might carry, before it reaches the screen or the JSON record.
-    The contract is keys by NAME only -- values never appear (DRAFT-DOC-1)."""
+    The contract is keys by NAME only -- values never appear (DRAFT-DOC-1). ``secrets``
+    must be ordered longest-first (see _collect_secret_values)."""
     for secret in secrets:
         if secret and secret in text:
             text = text.replace(secret, "[REDACTED]")
