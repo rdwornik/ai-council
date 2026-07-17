@@ -27,7 +27,12 @@ def build_call_metrics(
     cfg = model_configs.get(response.provider)
     input_tokens = response.input_tokens or 0
     output_tokens = response.output_tokens or 0
-    cost = compute_call_cost(input_tokens, output_tokens, cfg) if cfg else 0.0
+    # CLI (subscription-lane) calls are $0 marginal — never priced at API token rates
+    # (L-CLI §2.1). Tokens are still recorded for transparency; only the cost is zeroed.
+    if response.backend == "cli":
+        cost = 0.0
+    else:
+        cost = compute_call_cost(input_tokens, output_tokens, cfg) if cfg else 0.0
     return ProviderCallMetrics(
         provider=response.provider,
         round_number=round_number,
@@ -36,6 +41,7 @@ def build_call_metrics(
         estimated_cost_usd=cost,
         latency_sec=response.latency_sec,
         was_retry=was_retry,
+        backend=response.backend,
     )
 
 

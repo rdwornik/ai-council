@@ -20,9 +20,10 @@ admission gate + same-seat API fallback live in `seat_router.py` (a debate-engin
 L-CLI IF#2). Separate classes, no provider-merge (ADR-12 / CLAUDE 5.7).
 
 Security posture (defense in depth):
-- **Credential-scrubbed subprocess env** — the council's API keys are stripped from the CLI
-  child's environment. This forces subscription auth (the cost-lane intent — ADR-12's
-  "key-strip guard") AND denies a prompt-injected agent the env-var exfiltration path.
+- **Allowlisted subprocess env** — the CLI child receives ONLY a minimal set of non-secret
+  system variables (`_ENV_ALLOWLIST`); every credential is dropped regardless of its name. This
+  forces subscription auth (the cost-lane intent — ADR-12's "key-strip guard") AND denies a
+  prompt-injected agent any inherited secret to exfiltrate.
 - **Process-tree kill** on timeout/cancellation — the Windows `.CMD` shim spawns a node child;
   killing only the shim would orphan it, so we terminate the whole tree.
 - **Residual (accepted + logged, ADR-12 §3):** codex `exec` is an agent whose `--sandbox
@@ -53,14 +54,23 @@ from config.config_loader import ModelConfig
 
 logger = logging.getLogger(__name__)
 
-# Env var names carrying credentials — stripped from every CLI subprocess (see security note).
-_SECRET_ENV = re.compile(r"(_API_KEY|_TOKEN|_SECRET|PASSWORD|CREDENTIAL|APIKEY)$", re.IGNORECASE)
+# The ONLY (non-secret) environment variables passed to a CLI subprocess. An ALLOWLIST, not a
+# denylist: anything not named here — every API key, AWS/GCP/DB credential, token, regardless
+# of its name — is dropped, so a prompt-injected agent has no inherited secret to exfiltrate.
+_ENV_ALLOWLIST = frozenset({
+    "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP",
+    "TZ", "LANG", "LC_ALL", "HOME", "HOMEDRIVE", "HOMEPATH", "USERPROFILE", "USERNAME",
+    "USER", "LOGNAME", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES",
+    "PROGRAMFILES(X86)", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS",
+})
 
 
 def _scrubbed_env() -> dict[str, str]:
-    """A copy of the environment with credential-bearing variables removed. The CLIs auth via
-    their own subscription stores (~/.claude, ~/.codex), never these keys — verified 2026-07-17."""
-    return {k: v for k, v in os.environ.items() if not _SECRET_ENV.search(k)}
+    """The minimal non-secret environment a CLI subprocess needs (an allowlist). The CLIs auth
+    via their own subscription stores (~/.claude, ~/.codex), never env keys — verified live
+    2026-07-17 that both run under this allowlist."""
+    return {k: v for k, v in os.environ.items() if k.upper() in _ENV_ALLOWLIST}
 
 
 def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
@@ -210,6 +220,7 @@ class CliProvider(AIProvider):
             token_count=outcome.token_count,
             input_tokens=outcome.input_tokens,
             output_tokens=outcome.output_tokens,
+            backend="cli",  # subscription lane — $0 marginal cost in metrics
         )
 
     # --- ABC hooks: unused (generate is overridden for subprocess transport) ---

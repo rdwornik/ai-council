@@ -27,6 +27,7 @@ class ModelResponse:
     input_tokens: int | None = None  # prompt tokens (for cost calculation)
     output_tokens: int | None = None  # completion tokens (for cost calculation)
     was_retry: bool = False  # True when this response came from a retry attempt
+    backend: str = "api"  # "api" | "cli" — the transport that served this response (cost lane)
 
 
 @dataclass
@@ -92,6 +93,7 @@ class ProviderCallMetrics:
     estimated_cost_usd: float
     latency_sec: float
     was_retry: bool = False
+    backend: str = "api"  # "api" | "cli"; CLI calls are $0 marginal (subscription lane)
 
 
 @dataclass

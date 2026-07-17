@@ -172,3 +172,15 @@ def test_build_debate_metrics_empty_rounds():
     metrics = build_debate_metrics([], synth, configs, total_duration_sec=1.0)
     assert metrics.total_input_tokens == 500
     assert metrics.total_output_tokens == 200
+
+
+def test_cli_backend_call_is_zero_marginal_cost() -> None:
+    """A CLI (subscription-lane) response is $0 marginal; the same call via API is priced."""
+    configs = {"claude": _make_config("claude", cost_in=10.0, cost_out=30.0)}
+    kw = dict(provider="claude", model="m", round_number=1, content="x", latency_sec=0.1,
+              token_count=2000, input_tokens=1000, output_tokens=1000)
+    cli = build_call_metrics(ModelResponse(backend="cli", **kw), configs, round_number=1)
+    api = build_call_metrics(ModelResponse(backend="api", **kw), configs, round_number=1)
+    assert cli.estimated_cost_usd == 0.0 and cli.backend == "cli"
+    assert api.estimated_cost_usd > 0.0 and api.backend == "api"
+    assert cli.input_tokens == 1000  # tokens still recorded for transparency

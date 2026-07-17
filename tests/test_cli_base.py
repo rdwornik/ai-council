@@ -164,15 +164,18 @@ async def test_run_timeout_is_hard_kill() -> None:  # I6
     kill_tree.assert_called()  # the whole process tree is terminated on timeout
 
 
-def test_scrubbed_env_strips_credentials() -> None:
+def test_scrubbed_env_is_allowlist_only() -> None:
+    """Allowlist: only named non-secret vars survive; ANY credential is dropped by exclusion,
+    including odd names a denylist would miss (AWS_*, GOOGLE_APPLICATION_CREDENTIALS, DB URLs)."""
     from ai_council.providers.cli_base import _scrubbed_env
-    with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-x", "XAI_API_KEY": "y",
-                                   "MY_TOKEN": "t", "DB_PASSWORD": "p", "PATH": "/usr/bin"},
-                    clear=True):
+    poison = {
+        "OPENAI_API_KEY": "sk", "XAI_API_KEY": "y", "AWS_SECRET_ACCESS_KEY": "a",
+        "AWS_ACCESS_KEY_ID": "b", "GOOGLE_APPLICATION_CREDENTIALS": "/c.json",
+        "DATABASE_URL": "postgres://u:p@h/db", "MY_TOKEN": "t", "PATH": "/usr/bin",
+    }
+    with patch.dict("os.environ", poison, clear=True):
         env = _scrubbed_env()
-    assert "OPENAI_API_KEY" not in env and "XAI_API_KEY" not in env
-    assert "MY_TOKEN" not in env and "DB_PASSWORD" not in env
-    assert env.get("PATH") == "/usr/bin"  # non-secret vars preserved (CLI still runs)
+    assert env == {"PATH": "/usr/bin"}  # only the allowlisted, non-secret var survives
 
 
 async def test_generate_returns_served_identity_as_model() -> None:

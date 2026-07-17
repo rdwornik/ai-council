@@ -467,6 +467,7 @@ def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
                 "estimated_cost_usd": round(c.estimated_cost_usd, 6),
                 "latency_sec": round(c.latency_sec, 3),
                 "was_retry": c.was_retry,
+                "backend": c.backend,
             }
             for c in m.calls
         ],
