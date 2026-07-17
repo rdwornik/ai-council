@@ -3,8 +3,12 @@
 ADR-12 safety floor on EVERY call (all witnessed 2026-07-05, re-witnessed 2026-07-17):
 - **cwd = a fresh scratch dir, never a repo** — the PRIMARY isolation (`claude -p --tools ""`
   still ingests cwd `CLAUDE.md`; CL-3). A per-call TemporaryDirectory leaves no residue.
-- **stdin closed** (`codex exec` prints "Reading additional input from stdin…" then reads EOF;
-  an *open* stdin hangs it — CX-1).
+- **prompt delivered via stdin, then EOF** — NOT as an argv element. Discovered at build time
+  (2026-07-17): a multi-line prompt passed as a command-line arg is mangled by the Windows npm
+  `.CMD` shim (cmd.exe treats embedded newlines as command terminators), so the seat would
+  receive a truncated prompt — a prompt-parity (I3) break. Both `claude -p` and `codex exec`
+  read the prompt from stdin when no prompt arg is given; writing it and closing stdin restores
+  parity AND keeps codex from hanging (the CX-1 hang is on an *open* stdin, not a closed one).
 - **read-only / tools-off flags** + an **explicit model pin** on every call (per-call pin rule:
   codex otherwise serves its own default, now `gpt-5.6-sol`).
 - **`timeout_sec` is the hard kill** (I6).
@@ -94,14 +98,14 @@ class CliProvider(AIProvider):
         unreadable identity) with a message that classify_cli_failure maps to a cause token.
         """
         effective_timeout = timeout if timeout is not None else self._config.timeout_sec
-        argv = [self._exe, *self._argv(prompt, self._cli_model)]
+        argv = [self._exe, *self._argv(self._cli_model)]
         # Fresh scratch cwd per call — PRIMARY isolation; auto-removed (no leftover).
         with tempfile.TemporaryDirectory(prefix="council-cli-") as scratch:
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *argv,
                     cwd=scratch,
-                    stdin=subprocess.DEVNULL,  # closed — codex hangs on open stdin (CX-1)
+                    stdin=subprocess.PIPE,  # prompt is written then stdin is closed (EOF)
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
@@ -109,7 +113,9 @@ class CliProvider(AIProvider):
                 raise ProviderError(self._config.name, f"CLI process error: {exc}") from exc
 
             try:
-                raw_out, raw_err = await asyncio.wait_for(proc.communicate(), timeout=effective_timeout)
+                raw_out, raw_err = await asyncio.wait_for(
+                    proc.communicate(input=prompt.encode("utf-8")), timeout=effective_timeout
+                )
             except (TimeoutError, asyncio.TimeoutError) as exc:
                 proc.kill()
                 await proc.wait()
@@ -157,7 +163,8 @@ class CliProvider(AIProvider):
         raise NotImplementedError("CliProvider overrides generate(); _parse is unused")
 
     # --- subclass hooks ---
-    def _argv(self, prompt: str, model: str) -> list[str]:
+    def _argv(self, model: str) -> list[str]:
+        """The CLI flags (WITHOUT the prompt — the prompt is delivered on stdin)."""
         raise NotImplementedError
 
     def _extract(self, stdout: str, stderr: str) -> CliOutcome:
@@ -169,8 +176,8 @@ class ClaudeCliProvider(CliProvider):
 
     identity_channel = "modelUsage"
 
-    def _argv(self, prompt: str, model: str) -> list[str]:
-        return ["-p", prompt, "--output-format", "json", "--tools", "", "--model", model]
+    def _argv(self, model: str) -> list[str]:
+        return ["-p", "--output-format", "json", "--tools", "", "--model", model]
 
     def _extract(self, stdout: str, stderr: str) -> CliOutcome:
         try:
@@ -212,8 +219,8 @@ class CodexCliProvider(CliProvider):
     _MODEL_RE = re.compile(r"^\s*model:\s*(\S+)", re.MULTILINE)
     _TOKENS_RE = re.compile(r"tokens used[:\s]+([\d,]+)", re.IGNORECASE)
 
-    def _argv(self, prompt: str, model: str) -> list[str]:
-        return ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-m", model, prompt]
+    def _argv(self, model: str) -> list[str]:
+        return ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-m", model]
 
     def _extract(self, stdout: str, stderr: str) -> CliOutcome:
         content = stdout.strip()

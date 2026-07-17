@@ -142,14 +142,14 @@ async def test_run_scratch_cwd_is_not_a_repo() -> None:  # I2
         await p.run("hi")
     cwd = str(captured["cwd"])
     assert "council-cli-" in cwd  # a fresh scratch temp dir, never the repo
-    assert captured["stdin"] == asyncio.subprocess.DEVNULL  # stdin closed
+    assert captured["stdin"] == asyncio.subprocess.PIPE  # prompt written then stdin closed (EOF)
 
 
 async def test_run_timeout_is_hard_kill() -> None:  # I6
     p = _make(ClaudeCliProvider, "claude")
     proc = MagicMock()
 
-    async def never_returns() -> tuple[bytes, bytes]:
+    async def never_returns(*args: object, **kwargs: object) -> tuple[bytes, bytes]:
         await asyncio.sleep(5)
         return (b"", b"")
 
