@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from rich.console import Console
@@ -17,6 +17,22 @@ from ai_council.models import DebateMetrics, DebateResult, ModelResponse
 logger = logging.getLogger(__name__)
 
 console = Console(legacy_windows=False)
+
+
+def _ts(fmt: str = "%Y%m%d_%H%M%S") -> str:
+    """Single source for wall-clock timestamp strings (audit B3).
+
+    Local-time by design: these are filename/header display strings, never compared,
+    and every existing ``output/`` artifact uses local ``%Y%m%d_%H%M%S``. The machine-
+    readable, tz-aware timestamp for callers lives in the verdict package's ``timestamp``
+    field (``_iso_now``), not here. One place so a run's ``<ts>`` is derived consistently.
+    """
+    return datetime.now().strftime(fmt)
+
+
+def _iso_now() -> str:
+    """Tz-aware ISO-8601 timestamp for the machine-readable verdict-package field."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _slug(text: str, max_len: int = 50) -> str:
@@ -176,35 +192,18 @@ def _write_routed(
     return saved
 
 
-def save_to_file(
-    result: DebateResult,
-    output_dir: Path,
-    slug_override: str | None = None,
-    secondary_dir: Path | None = None,
-    target_paths: list[Path] | None = None,
-    return_dir: Path | None = None,
-) -> list[Path]:
-    """Save the full debate transcript as a markdown file.
-
-    Writes to output_dir (always, canonical), secondary_dir (if it exists on disk),
-    return_dir (ADR-10 deterministic return; auto-mkdir, best-effort), and each path
-    in target_paths (auto-mkdir, best-effort).
-
-    Returns:
-        List of paths written. First entry is always the primary path.
-    """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    slug = slug_override if slug_override is not None else _slug(result.question.text)
-    filename = f"council-out-{timestamp}-{result.mode}-{slug}.md"
-
-    # Derive panel info from first round responses
+def _panel_str(result: DebateResult) -> str:
+    """The comma-joined panel model list, derived from first-round responses."""
     panel_providers = sorted({r.provider for r in result.rounds[0].responses})
     panel_models = [
         next(r.model for r in result.rounds[0].responses if r.provider == p)
         for p in panel_providers
     ]
-    panel_str = ", ".join(panel_models)
+    return ", ".join(panel_models)
 
+
+def _synth_label(result: DebateResult) -> str:
+    """The synthesizer's model string + (participant|non-participant) suffix."""
     synth_model = next(
         (
             r.model
@@ -214,13 +213,17 @@ def save_to_file(
         ),
         result.synthesizer,
     )
-    synth_label = synth_model
-    if result.synthesizer_is_participant:
-        synth_label += " (participant)"
-    else:
-        synth_label += " (non-participant)"
+    suffix = " (participant)" if result.synthesizer_is_participant else " (non-participant)"
+    return synth_model + suffix
 
-    panel_count = len(panel_providers)
+
+def _build_header(result: DebateResult) -> list[str]:
+    """The **Panel/Synthesizer/Rounds/Cost/Status/Provider-Notes** metadata lines.
+
+    Returns only the ``**key:** value`` lines (no title, no separator) so the caller
+    controls document framing. Was inlined in ``save_to_file`` (audit A4).
+    """
+    panel_count = len(sorted({r.provider for r in result.rounds[0].responses}))
     if result.panel_mode == "default":
         panel_mode_str = f"default ({panel_count}-model panel)"
     elif result.panel_mode == "full":
@@ -228,25 +231,21 @@ def save_to_file(
     else:
         panel_mode_str = "custom"
 
-    cost_line = ""
-    if result.metrics:
-        total_tokens = result.metrics.total_input_tokens + result.metrics.total_output_tokens
-        cost_line = f"**Cost:** ~${result.metrics.total_estimated_cost_usd:.4f} ({total_tokens:,} tokens)"
-
     lines: list[str] = [
-        f"# AI Council Debate: {result.question.text[:80]}",
-        "",
-        f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"**Panel:** {panel_str}",
-        f"**Synthesizer:** {synth_label}",
+        f"**Date:** {_ts('%Y-%m-%d %H:%M:%S')}",
+        f"**Panel:** {_panel_str(result)}",
+        f"**Synthesizer:** {_synth_label(result)}",
         f"**Rounds:** {len(result.rounds)}",
         f"**Duration:** {result.total_duration_sec:.1f}s",
         f"**Panel Mode:** {panel_mode_str}",
         f"**Debate Mode:** {result.mode}",
         f"**Source:** {result.question.source}",
     ]
-    if cost_line:
-        lines.append(cost_line)
+    if result.metrics:
+        total_tokens = result.metrics.total_input_tokens + result.metrics.total_output_tokens
+        lines.append(
+            f"**Cost:** ~${result.metrics.total_estimated_cost_usd:.4f} ({total_tokens:,} tokens)"
+        )
     if result.degraded:
         failed = [k for k, v in result.provider_statuses.items() if v == "failed"]
         degradation_note = result.degradation_summary or "Some providers failed during the debate."
@@ -255,12 +254,7 @@ def save_to_file(
             lines.append(f"**Failed providers:** {', '.join(failed)}")
 
     # Provider notes: retried-and-recovered + skipped providers
-    retried = sorted({
-        r.provider
-        for rnd in result.rounds
-        for r in rnd.responses
-        if r.was_retry
-    })
+    retried = sorted({r.provider for rnd in result.rounds for r in rnd.responses if r.was_retry})
     failed_providers = [k for k, v in result.provider_statuses.items() if v == "failed"]
     provider_note_parts: list[str] = []
     for p in retried:
@@ -269,16 +263,15 @@ def save_to_file(
         provider_note_parts.append(f"{p} skipped")
     if provider_note_parts:
         lines.append(f"**Provider Notes:** {'; '.join(provider_note_parts)}.")
-    lines += [
-        "",
-        "---",
-        "",
-        "## Question",
-        "",
-        result.question.text,
-        "",
-    ]
+    return lines
 
+
+def _build_body(result: DebateResult) -> list[str]:
+    """The ``## Question`` block, per-round transcript, and ``## Synthesis`` block.
+
+    Everything below the ``---`` separator. Was inlined in ``save_to_file`` (audit A4).
+    """
+    lines: list[str] = ["## Question", "", result.question.text, ""]
     for rnd in result.rounds:
         round_label = "Initial Responses" if rnd.number == 1 else "Critique"
         lines.append(f"## Round {rnd.number}: {round_label}")
@@ -295,14 +288,46 @@ def save_to_file(
             )
             lines.append("")
 
-    synth_is_label = (
-        "participant" if result.synthesizer_is_participant else "non-participant"
-    )
+    synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
     lines += [
         f"## Synthesis (by {result.synthesizer}, {synth_is_label})",
         "",
         result.synthesis,
         "",
+    ]
+    return lines
+
+
+def save_to_file(
+    result: DebateResult,
+    output_dir: Path,
+    slug_override: str | None = None,
+    secondary_dir: Path | None = None,
+    target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
+) -> list[Path]:
+    """Save the full debate transcript as a markdown file.
+
+    Pure orchestration (audit A4): filename derivation, content assembly via
+    ``_build_header``/``_build_body``, routed write, metrics trigger. Writes to
+    output_dir (always, canonical), secondary_dir (if it exists on disk), return_dir
+    (ADR-10 deterministic return; auto-mkdir, best-effort), and each path in
+    target_paths (auto-mkdir, best-effort).
+
+    Returns:
+        List of paths written. First entry is always the primary path.
+    """
+    slug = slug_override if slug_override is not None else _slug(result.question.text)
+    filename = f"council-out-{_ts()}-{result.mode}-{slug}.md"
+
+    lines = [
+        f"# AI Council Debate: {result.question.text[:80]}",
+        "",
+        *_build_header(result),
+        "",
+        "---",
+        "",
+        *_build_body(result),
     ]
 
     saved = _write_routed(
@@ -418,15 +443,14 @@ def save_minority_report(
     if body is None:
         return []
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = slug_override if slug_override is not None else _slug(result.question.text)
-    filename = f"council-minority-{timestamp}-{result.mode}-{slug}.md"
+    filename = f"council-minority-{_ts()}-{result.mode}-{slug}.md"
 
     synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
     lines = [
         f"# AI Council Minority Report: {result.question.text[:80]}",
         "",
-        f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**Date:** {_ts('%Y-%m-%d %H:%M:%S')}",
         f"**Debate Mode:** {result.mode}",
         f"**Synthesizer:** {result.synthesizer} ({synth_is_label})",
         f"**Source:** {result.question.source}",
