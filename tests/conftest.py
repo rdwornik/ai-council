@@ -16,7 +16,7 @@ from ai_council.models import (  # noqa: E402  # after load_dotenv so env vars a
     Question,
     Round,
 )
-from ai_council.providers.base import AIProvider  # noqa: E402
+from ai_council.providers.base import AIProvider, _Parsed  # noqa: E402
 from config.config_loader import AppConfig, DefaultsConfig, ModelConfig, PromptsConfig  # noqa: E402
 
 
@@ -106,6 +106,11 @@ class MockProvider(AIProvider):
     ) -> None:
         self._name = provider_name
         self._response_content = response_content
+        # Default config so AIProvider.timeout_sec works; retry tests override _config.
+        self._config = ModelConfig(
+            name=provider_name, sdk="mock", model="mock-model",
+            api_key_env="MOCK_KEY", timeout_sec=30, max_tokens=100,
+        )
         # Shadow the class method with an AsyncMock at the instance level.
         # ABC check passes because generate is defined in the class body below.
         self.generate = AsyncMock(  # type: ignore[assignment]
@@ -135,6 +140,15 @@ class MockProvider(AIProvider):
             latency_sec=0.1,
             token_count=10,
         )
+
+    # A1 template-method hooks: MockProvider shadows generate() with an AsyncMock, so these
+    # are never called — they exist only to satisfy the AIProvider ABC (which gained the
+    # abstract _invoke/_parse in the A1 refactor).
+    async def _invoke(self, prompt: str) -> object:
+        return None
+
+    def _parse(self, raw: object) -> _Parsed:
+        return _Parsed(self._response_content)
 
 
 @pytest.fixture

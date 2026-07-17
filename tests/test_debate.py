@@ -94,13 +94,17 @@ async def test_run_debate_injects_persona_in_round1(
     sample_prompts_config, sample_question
 ):
     """Persona text should appear in the prompt passed to the provider on round 1."""
-    from ai_council.providers.base import AIProvider
+    from ai_council.providers.base import AIProvider, _Parsed
 
     captured_prompts: list[str] = []
 
     class CapturingProvider(AIProvider):
         def __init__(self, provider_name: str) -> None:
             self._name = provider_name
+            self._config = ModelConfig(
+                name=provider_name, sdk="mock", model="mock-model",
+                api_key_env="K", timeout_sec=30, max_tokens=100,
+            )
 
         def name(self) -> str:
             return self._name
@@ -108,11 +112,20 @@ async def test_run_debate_injects_persona_in_round1(
         def model_string(self) -> str:
             return "mock-model"
 
-        async def generate(self, prompt: str, round_number: int) -> ModelResponse:
+        async def generate(
+            self, prompt: str, round_number: int, *, timeout: float | None = None
+        ) -> ModelResponse:
             captured_prompts.append(prompt)
             return ModelResponse(
                 self._name, "mock-model", round_number, "response", 0.1, 5
             )
+
+        # A1 ABC hooks — never called (generate is overridden above); satisfy the ABC.
+        async def _invoke(self, prompt: str) -> object:
+            return None
+
+        def _parse(self, raw: object) -> _Parsed:
+            return _Parsed("response")
 
     provider1 = CapturingProvider("mock")
     provider2 = CapturingProvider("mock2")
@@ -276,7 +289,9 @@ async def test_retry_succeeds_on_second_attempt(sample_prompts_config, sample_qu
 
     call_count = 0
 
-    async def timeout_then_succeed(prompt: str, round_number: int) -> ModelResponse:
+    async def timeout_then_succeed(
+        prompt: str, round_number: int, *, timeout: float | None = None
+    ) -> ModelResponse:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -319,15 +334,17 @@ async def test_retry_excluded_after_second_timeout(
 
 
 async def test_retry_uses_15x_timeout(sample_prompts_config, sample_question):
-    """On retry, provider config timeout_sec is bumped to 1.5x."""
+    """On retry, the timeout kwarg grows to 1.5x — WITHOUT mutating provider config (A3)."""
     good = MockProvider("good", "Good response")
     slow = MockProvider("slow", "Slow response")
     slow._config = _make_mock_config(100)
 
-    observed_timeouts: list[int] = []
+    observed_timeouts: list[float | None] = []
 
-    async def capture_timeout(prompt: str, round_number: int) -> ModelResponse:
-        observed_timeouts.append(slow._config.timeout_sec)
+    async def capture_timeout(
+        prompt: str, round_number: int, *, timeout: float | None = None
+    ) -> ModelResponse:
+        observed_timeouts.append(timeout)
         if len(observed_timeouts) == 1:
             raise ProviderError("slow", "Request timed out after 100s")
         return ModelResponse("slow", "m", round_number, "Slow response", 0.1, 5)
@@ -340,9 +357,9 @@ async def test_retry_uses_15x_timeout(sample_prompts_config, sample_question):
         prompts=sample_prompts_config,
         num_rounds=1,
     )
-    assert observed_timeouts[0] == 100  # original timeout on first attempt
-    assert observed_timeouts[1] == 150  # 1.5x on retry
-    assert slow._config.timeout_sec == 100  # restored after retry
+    assert observed_timeouts[0] == 100  # base timeout on first attempt (1.5**0)
+    assert observed_timeouts[1] == 150  # 1.5x on retry, via the kwarg
+    assert slow._config.timeout_sec == 100  # never mutated — the reach-through is gone
 
 
 async def test_was_retry_set_on_retry_response(sample_prompts_config, sample_question):
@@ -353,7 +370,9 @@ async def test_was_retry_set_on_retry_response(sample_prompts_config, sample_que
 
     call_count = 0
 
-    async def timeout_then_succeed(prompt: str, round_number: int) -> ModelResponse:
+    async def timeout_then_succeed(
+        prompt: str, round_number: int, *, timeout: float | None = None
+    ) -> ModelResponse:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -481,12 +500,16 @@ async def test_run_debate_round2_all_fail_returns_partial(
     p1 = MockProvider("p1", "Round 1 response")
     p2 = MockProvider("p2", "Round 1 response")
 
-    async def p1_generate(prompt: str, round_number: int) -> ModelResponse:
+    async def p1_generate(
+        prompt: str, round_number: int, *, timeout: float | None = None
+    ) -> ModelResponse:
         if round_number == 1:
             return ModelResponse("p1", "mock-model", round_number, "Round 1 from p1", 0.1, 5)
         raise ProviderError("p1", "fail round 2")
 
-    async def p2_generate(prompt: str, round_number: int) -> ModelResponse:
+    async def p2_generate(
+        prompt: str, round_number: int, *, timeout: float | None = None
+    ) -> ModelResponse:
         if round_number == 1:
             return ModelResponse("p2", "mock-model", round_number, "Round 1 from p2", 0.1, 5)
         raise ProviderError("p2", "fail round 2")

@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from ai_council.models import DebateOutcome, ModelResponse, Question, Round
 from ai_council.policy import RunPolicy
-from ai_council.providers.base import AIProvider, ProviderError
+from ai_council.providers.base import AIProvider, ProviderError, classify_error, is_retryable
 from config.config_loader import ModeConfig, PromptsConfig
 
 logger = logging.getLogger(__name__)
@@ -40,72 +40,46 @@ async def _call_provider(
     round_number: int,
     policy: RunPolicy,
 ) -> ModelResponse | ProviderError:
-    """Call a single provider, retrying once on retryable errors with 1.5x the timeout.
+    """Call a single provider, retrying retryable failures with a growing timeout.
 
-    Never raises — returns ProviderError on permanent failure.
+    Total attempts = ``policy.max_retries_per_provider + 1``. Each attempt grows the
+    timeout by 1.5x via ``generate(..., timeout=)`` — no provider state is mutated. Retry
+    eligibility uses the canonical ``classify_error``/``is_retryable`` taxonomy (A3).
+    Never raises — returns the last ProviderError on permanent failure.
     """
-    try:
-        return await provider.generate(prompt, round_number)
-    except ProviderError as exc:
-        if policy.should_retry(str(exc)):
-            # Retry once with 1.5x timeout by temporarily patching provider config
-            cfg = getattr(provider, "_config", None)
-            original_timeout: int | None = None
-            if cfg is not None and hasattr(cfg, "timeout_sec"):
-                original_timeout = cfg.timeout_sec
-                cfg.timeout_sec = int(original_timeout * 1.5)
+    last: ProviderError | None = None
+    for attempt in range(policy.max_retries_per_provider + 1):
+        timeout = provider.timeout_sec * (1.5**attempt)
+        try:
+            result = await provider.generate(prompt, round_number, timeout=timeout)
+            result.was_retry = attempt > 0
+            return result
+        except ProviderError as exc:
+            last = exc
+            if not is_retryable(classify_error(exc)):
                 logger.warning(
-                    "Provider %s timed out in round %d, retrying with %ds (1.5x)",
-                    provider.name(),
-                    round_number,
-                    cfg.timeout_sec,
+                    "Provider %s failed in round %d: %s", provider.name(), round_number, exc
                 )
-            else:
-                logger.warning(
-                    "Provider %s timed out in round %d, retrying",
-                    provider.name(),
-                    round_number,
-                )
-            try:
-                result = await provider.generate(prompt, round_number)
-                result.was_retry = True
-                return result
-            except ProviderError as retry_exc:
-                logger.warning(
-                    "Provider %s failed after retry in round %d: %s",
-                    provider.name(),
-                    round_number,
-                    retry_exc,
-                )
-                return retry_exc
-            except Exception as retry_exc:
-                err = ProviderError(
-                    provider.name(), f"Unexpected error on retry: {retry_exc}"
-                )
-                logger.warning(
-                    "Provider %s unexpected failure after retry in round %d: %s",
-                    provider.name(),
-                    round_number,
-                    retry_exc,
-                )
-                return err
-            finally:
-                if cfg is not None and original_timeout is not None:
-                    cfg.timeout_sec = original_timeout
+                break
+            logger.warning(
+                "Provider %s attempt %d failed in round %d, retrying: %s",
+                provider.name(),
+                attempt + 1,
+                round_number,
+                exc,
+            )
+        except Exception as exc:
+            last = ProviderError(provider.name(), f"Unexpected error: {exc}")
+            logger.warning(
+                "Provider %s unexpected failure in round %d: %s",
+                provider.name(),
+                round_number,
+                exc,
+            )
+            break
 
-        logger.warning(
-            "Provider %s failed in round %d: %s", provider.name(), round_number, exc
-        )
-        return exc
-    except Exception as exc:
-        err = ProviderError(provider.name(), f"Unexpected error: {exc}")
-        logger.warning(
-            "Provider %s unexpected failure in round %d: %s",
-            provider.name(),
-            round_number,
-            exc,
-        )
-        return err
+    assert last is not None  # the loop always runs >= 1 attempt; any non-return path sets last
+    return last
 
 
 def _build_round1_prompt(
@@ -250,7 +224,7 @@ async def run_debate(
                 provider_statuses[provider.name()] = "ok"
             # ProviderError already logged in _call_provider
 
-        if not responses:
+        if _policy.should_abort(len(responses), round_num):
             if round_num == 1:
                 raise RuntimeError(f"All providers failed in round {round_num}")
             # Round 2+: return partial results rather than aborting entirely
