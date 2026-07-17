@@ -1,11 +1,26 @@
 """Tests for src/output.py."""
 
+import json
 from pathlib import Path
 
 import pytest
 
-from ai_council.models import DebateResult, ModelResponse, Round
-from ai_council.output import _slug, extract_dissent, save_minority_report, save_to_file
+from ai_council.models import (
+    DebateMetrics,
+    DebateResult,
+    FallbackEvent,
+    ModelResponse,
+    Round,
+    SeatMetrics,
+    SynthesisMetrics,
+)
+from ai_council.output import (
+    _slug,
+    extract_dissent,
+    save_minority_report,
+    save_to_file,
+    save_verdict_package,
+)
 
 
 def _result_with_synthesis(synthesis: str, sample_question, sample_round, mode: str = "pick") -> DebateResult:
@@ -485,3 +500,215 @@ def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):
     assert by_seat["openai"]["fallback_events"][0]["cause"] == "timeout"
     # additive namespace: calls[] still present, seats[] alongside (not nested)
     assert "calls" in data and "seats" in data
+
+
+# ---------------------------------------------------------------------------
+# Verdict package (DRAFT-INT-1, #26) — the transcript-free caller deliverable
+# ---------------------------------------------------------------------------
+
+_PICK_SYNTHESIS = (
+    "## Position\nUse YAML.\n\n"
+    "## Recommendation\nAdopt YAML for config.\n\n"
+    "## Rationale\n- Human-editable\n- Comments supported\n\n"
+    "## Alternatives Considered\n- JSON: no comments\n- TOML: less familiar\n"
+)
+
+
+def _pick_result(sample_question, sample_round, **overrides) -> DebateResult:
+    base = dict(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesis=_PICK_SYNTHESIS,
+        synthesizer="gemini",
+        total_duration_sec=5.0,
+        panel_mode="default",
+        mode="pick",
+    )
+    base.update(overrides)
+    return DebateResult(**base)
+
+
+def _load_verdict(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _emit(result: DebateResult, out: Path, **routes) -> dict:
+    """save_to_file then save_verdict_package (the orchestrator sequence); return the payload."""
+    transcript = save_to_file(result, out, **routes)[0]
+    verdict = save_verdict_package(result, out, transcript, **routes)
+    return _load_verdict(verdict[0])
+
+
+def test_verdict_package_emits_full_field_set(tmp_path, sample_question, sample_round):
+    result = _pick_result(sample_question, sample_round)
+    transcript = save_to_file(result, tmp_path / "out")[0]
+    saved = save_verdict_package(result, tmp_path / "out", transcript)
+    assert len(saved) == 1
+    assert saved[0].name.startswith("council-verdict-")
+    assert saved[0].name.endswith(".json")
+    data = _load_verdict(saved[0])
+    for field in (
+        "run_id", "timestamp", "contract_version", "question", "mode", "exit_semantics",
+        "decision", "rationale", "options_considered", "dissent", "panel",
+        "verdict_author", "degradation", "artifacts",
+    ):
+        assert field in data, f"missing DRAFT-INT-1 field: {field}"
+
+
+def test_verdict_ts_matches_transcript_deterministically(tmp_path, sample_question, sample_round):
+    """The verdict shares the transcript's <ts>-<mode>-<slug> stem (single source, B3)."""
+    result = _pick_result(sample_question, sample_round)
+    transcript = save_to_file(result, tmp_path / "out")[0]
+    verdict = save_verdict_package(result, tmp_path / "out", transcript)[0]
+    t_base = transcript.name[len("council-out-"):-len(".md")]
+    v_base = verdict.name[len("council-verdict-"):-len(".json")]
+    assert t_base == v_base
+    assert _load_verdict(verdict)["run_id"] == transcript.stem
+
+
+def test_verdict_routes_to_every_destination(tmp_path, sample_question, sample_round):
+    result = _pick_result(sample_question, sample_round)
+    ret = tmp_path / "return"
+    target = tmp_path / "mirror"
+    transcript = save_to_file(result, tmp_path / "out", return_dir=ret, target_paths=[target])[0]
+    saved = save_verdict_package(
+        result, tmp_path / "out", transcript, return_dir=ret, target_paths=[target]
+    )
+    assert len(saved) == 3
+    assert saved[0].parent == tmp_path / "out"  # canonical first
+    assert {p.parent for p in saved} == {tmp_path / "out", ret, target}
+    assert len({p.name for p in saved}) == 1  # identical filename in every destination
+
+
+def test_verdict_transcript_free_decision_extraction(tmp_path, sample_question, sample_round):
+    """decision/rationale/options are extracted from synthesis and annotated source='extraction'."""
+    data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
+    assert data["decision"]["value"] == "Adopt YAML for config."
+    assert data["decision"]["source"] == "extraction"
+    assert data["decision"]["heading"] == "Recommendation"
+    assert "Human-editable" in data["rationale"]["value"]
+    assert data["rationale"]["source"] == "extraction"
+    assert data["options_considered"]["items"] == ["JSON: no comments", "TOML: less familiar"]
+    assert data["options_considered"]["source"] == "extraction"
+
+
+def test_verdict_dissent_unanimous(tmp_path, sample_question, sample_round):
+    data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
+    assert data["dissent"]["status"] == "unanimous"
+    assert data["dissent"]["minority_artifact"] is None
+    assert data["dissent"]["source"] == "extraction"
+
+
+def test_verdict_dissent_non_unanimous_points_to_minority(tmp_path, sample_question, sample_round):
+    result = _pick_result(sample_question, sample_round, synthesis=_DISSENT_SYNTHESIS)
+    data = _emit(result, tmp_path / "out")
+    assert data["dissent"]["status"] == "non-unanimous"
+    assert data["dissent"]["minority_artifact"].startswith("council-minority-")
+    assert data["dissent"]["minority_artifact"].endswith(".md")
+    assert data["dissent"]["gist"]
+
+
+def test_verdict_contract_version_null_and_exit_zero(tmp_path, sample_question, sample_round):
+    """Gap 2 (no invented version) + Gap 3 (completed debate exits 0)."""
+    data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
+    assert data["contract_version"] is None
+    assert data["exit_semantics"] == 0
+
+
+def test_verdict_panel_and_degradation_record(tmp_path, sample_question, sample_round):
+    """Shrunk-panel truth is caller-visible (two-signal rule); alarm text persisted (G3)."""
+    result = _pick_result(
+        sample_question,
+        sample_round,
+        provider_statuses={"claude": "ok", "deepseek": "failed"},
+        degraded=True,
+        degradation_summary="deepseek failed: timeout after 120s",
+    )
+    data = _emit(result, tmp_path / "out")
+    assert "claude" in data["panel"]["seated"]
+    assert data["panel"]["dropped"] == ["deepseek"]
+    assert "deepseek" in data["panel"]["requested"]
+    assert data["panel"]["source"] == "record"
+    assert data["degradation"]["degraded"] is True
+    assert "timeout" in data["degradation"]["summary"]
+    assert data["degradation"]["failed_providers"] == ["deepseek"]
+
+
+def test_verdict_fallback_events_persisted_by_reference(tmp_path, sample_question, sample_round):
+    """G4: per-seat classified CLI fallback causes land in the package (seats[] consumed by ref)."""
+    seat = SeatMetrics(
+        seat="claude",
+        requested_backend="cli",
+        actual_backend="api",
+        requested_model="claude-opus-4-6",
+        actual_model="claude-opus-4-6",
+        identity_channel="stderr-banner",
+        identity_readable=True,
+        cli={"name": "claude", "version": "1.2.3"},
+        fallback_events=[
+            FallbackEvent(
+                round=1,
+                from_backend="cli",
+                to_backend="api",
+                cause="process-error",
+                detail="cli exited 1",
+            )
+        ],
+    )
+    result = _pick_result(sample_question, sample_round, metrics=DebateMetrics(seats=[seat]))
+    data = _emit(result, tmp_path / "out")
+    events = data["degradation"]["fallback_events"]
+    assert len(events) == 1
+    assert events[0]["seat"] == "claude"
+    assert events[0]["cause"] == "process-error"
+    assert data["panel"]["seats"][0]["requested_backend"] == "cli"
+    assert data["panel"]["seats"][0]["actual_backend"] == "api"
+
+
+def test_verdict_author_sourced_from_synthesis_metrics(tmp_path, sample_question, sample_round):
+    sm = SynthesisMetrics(
+        synthesizer_model="gemini-2.5-pro",
+        transcript_size_tokens=1000,
+        output_tokens=500,
+        synth_latency_seconds=3.2,
+        error_class="none",
+    )
+    result = _pick_result(sample_question, sample_round, synthesis_metrics=sm)
+    data = _emit(result, tmp_path / "out")
+    assert data["verdict_author"]["actual"] == "gemini"
+    assert data["verdict_author"]["model"] == "gemini-2.5-pro"
+    assert data["verdict_author"]["source"] == "record"
+
+
+def test_verdict_mirror_block_atop_transcript(tmp_path, sample_question, sample_round):
+    """DRAFT-INT-1 human-readable mirror block lands in council-out (Gap 1 ruling)."""
+    result = _pick_result(sample_question, sample_round)
+    transcript = save_to_file(result, tmp_path / "out")[0]
+    content = transcript.read_text(encoding="utf-8")
+    assert "## Verdict Summary" in content
+    assert "**Decision:** Adopt YAML for config." in content
+    assert "council-verdict-*.json" in content
+
+
+def test_verdict_mirror_block_does_not_echo_question(tmp_path, sample_round):
+    """The mirror must not duplicate the question (protects the ## Question single-site invariant)."""
+    result = _result_with_question(_LONG_QUESTION, "pick", sample_round)
+    transcript = save_to_file(result, tmp_path / "out")[0]
+    content = transcript.read_text(encoding="utf-8")
+    # first occurrence of the full question is in the body's ## Question section, not the mirror
+    assert content.index(_LONG_QUESTION) > content.index("## Question")
+
+
+def test_verdict_artifacts_manifest_lists_run_outputs(tmp_path, sample_question, sample_round):
+    result = _pick_result(sample_question, sample_round)
+    saved_paths = save_to_file(result, tmp_path / "out")
+    written = {"transcript": saved_paths}
+    verdict = save_verdict_package(
+        result, tmp_path / "out", saved_paths[0], written=written
+    )
+    data = _load_verdict(verdict[0])
+    kinds = {a["kind"] for a in data["artifacts"]}
+    assert "transcript" in kinds
+    assert "verdict" in kinds
+    transcript_entry = next(a for a in data["artifacts"] if a["kind"] == "transcript")
+    assert transcript_entry["filename"] == saved_paths[0].name

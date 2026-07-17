@@ -263,6 +263,11 @@ def _build_header(result: DebateResult) -> list[str]:
         provider_note_parts.append(f"{p} skipped")
     if provider_note_parts:
         lines.append(f"**Provider Notes:** {'; '.join(provider_note_parts)}.")
+    # Human-readable mirror of the verdict package (DRAFT-INT-1, folded here per the
+    # architect ruling): keeps a Lane B/operator read self-contained. Never echoes the
+    # question text (the body's ## Question stays the single full-question site).
+    lines.append("")
+    lines.extend(_verdict_summary_lines(result))
     return lines
 
 
@@ -468,6 +473,238 @@ def save_minority_report(
         "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
     )
     logger.info("Minority report saved to: %s", saved[0])
+    return saved
+
+
+# ---------------------------------------------------------------------------
+# Verdict package (DRAFT-INT-1) — a caller-consumable JSON summary + human mirror.
+# NOT a metrics-sidecar extension (the sidecar is telemetry; this is the deliverable).
+# Consumes the seats[]/synthesis namespaces by reference; designs neither.
+# ---------------------------------------------------------------------------
+
+# Synthesis headings that carry the decision / rationale / options, by descending
+# priority. Mode-dependent (pick/judge/ideas templates differ), so matched as
+# case-insensitive substrings — the same D13-class heading heuristic as extract_dissent.
+# Every field sourced this way is annotated source="extraction" (vs "record") so a
+# transcript-free caller knows which values are parsed prose and which are structured.
+_DECISION_HEADING_MARKERS = (
+    "recommended decision",
+    "recommendation",
+    "overall verdict",
+    "verdict",
+    "suggested next step",
+    "decision",
+    "position",
+)
+_RATIONALE_HEADING_MARKERS = ("rationale", "decision criteria", "argument quality", "reasoning")
+_OPTIONS_HEADING_MARKERS = (
+    "alternatives considered",
+    "options",
+    "considered",
+    "top tier",
+    "idea inventory",
+)
+
+
+def _one_line(body: str) -> str:
+    """First non-empty, de-bulleted line of a section body."""
+    for ln in body.splitlines():
+        t = ln.strip().lstrip("-*# ").strip()
+        if t:
+            return t
+    return ""
+
+
+def _first_by_priority(
+    sections: list[tuple[str, str]], markers: tuple[str, ...]
+) -> tuple[str | None, str | None]:
+    """First (heading, body) whose heading contains a marker, scanned in marker priority."""
+    for marker in markers:
+        for heading, body in sections:
+            if marker in heading.lower() and body.strip():
+                return heading, body.strip()
+    return None, None
+
+
+def _extracted_field(
+    sections: list[tuple[str, str]], markers: tuple[str, ...], *, one_line: bool = False
+) -> dict:
+    """A heuristic-extracted {value, source, heading} triple (source always 'extraction')."""
+    heading, body = _first_by_priority(sections, markers)
+    if body is None:
+        return {"value": None, "source": "extraction", "heading": None}
+    return {"value": _one_line(body) if one_line else body, "source": "extraction", "heading": heading}
+
+
+def _extracted_options(sections: list[tuple[str, str]]) -> dict:
+    """Options/alternatives as a list of bullet items (source='extraction')."""
+    heading, body = _first_by_priority(sections, _OPTIONS_HEADING_MARKERS)
+    items: list[str] = []
+    if body:
+        for ln in body.splitlines():
+            t = ln.strip()
+            first_token = t.split(" ", 1)[0].rstrip(".")
+            if t[:1] in ("-", "*") or first_token.isdigit():
+                cleaned = t.lstrip("-*0123456789. ").strip()
+                if cleaned:
+                    items.append(cleaned)
+    return {"items": items, "source": "extraction", "heading": heading}
+
+
+def _verdict_summary_lines(result: DebateResult) -> list[str]:
+    """Human-readable mirror block for the top of council-out (DRAFT-INT-1).
+
+    Prose mirror of the machine-authoritative council-verdict-*.json sibling: the decision,
+    dissent status, panel seated-vs-requested, verdict author, and any degradation — so a
+    Lane B/operator read is self-contained without opening the JSON.
+    """
+    sections = _split_sections(result.synthesis)
+    decision = _extracted_field(sections, _DECISION_HEADING_MARKERS, one_line=True)["value"]
+    seated = sorted({r.provider for r in result.rounds[0].responses})
+    requested = sorted(set(result.provider_statuses) | set(seated))
+    dropped = sorted(k for k, v in result.provider_statuses.items() if v == "failed")
+    dissent = "unanimous" if extract_dissent(result.synthesis) is None else "non-unanimous (see minority report)"
+
+    lines = [
+        "## Verdict Summary",
+        "",
+        f"**Decision:** {decision or '(not extracted — see synthesis below)'}",
+        f"**Dissent:** {dissent}",
+        f"**Panel seated:** {len(seated)}/{len(requested)}"
+        + (f" (dropped: {', '.join(dropped)})" if dropped else ""),
+        f"**Verdict author:** {_synth_label(result)}",
+    ]
+    if result.degraded:
+        lines.append(
+            f"**Degradation:** {result.degradation_summary or 'Some providers failed during the debate.'}"
+        )
+    lines += [
+        "",
+        "_Machine-readable fields are authoritative in the council-verdict-*.json sibling._",
+    ]
+    return lines
+
+
+def _build_verdict_payload(
+    result: DebateResult, run_id: str, base: str, filename: str, written: dict[str, list[Path]]
+) -> dict:
+    """Assemble the DRAFT-INT-1 field set, sourcing every field by reference."""
+    sections = _split_sections(result.synthesis)
+    seats = result.metrics.seats if result.metrics else []
+
+    seated = sorted({r.provider for r in result.rounds[0].responses})
+    requested = sorted(set(result.provider_statuses) | set(seated))
+    dropped = sorted(k for k, v in result.provider_statuses.items() if v == "failed")
+
+    dissent_body = extract_dissent(result.synthesis)
+    if dissent_body is None:
+        dissent = {"status": "unanimous", "minority_artifact": None, "gist": None, "source": "extraction"}
+    else:
+        dissent = {
+            "status": "non-unanimous",
+            "minority_artifact": f"council-minority-{base}.md",
+            "gist": _one_line(dissent_body)[:280],
+            "source": "extraction",
+        }
+
+    verdict_author: dict = {
+        "actual": result.synthesizer,
+        "is_participant": result.synthesizer_is_participant,
+        "source": "record",
+    }
+    if result.synthesis_metrics is not None:
+        verdict_author["model"] = result.synthesis_metrics.synthesizer_model
+        verdict_author["error_class"] = result.synthesis_metrics.error_class
+
+    artifacts: list[dict] = [
+        {"kind": kind, "filename": paths[0].name, "paths": [str(p) for p in paths]}
+        for kind, paths in written.items()
+        if paths
+    ]
+    artifacts.append({"kind": "verdict", "filename": filename})
+
+    return {
+        "run_id": run_id,
+        "timestamp": _iso_now(),
+        # No Contract-Version is stamped until the D2 deviations empty (Q7/DRAFT-INT-2, P6);
+        # emit null rather than inventing one — a caller records "unversioned" honestly.
+        "contract_version": None,
+        "question": result.question.text,
+        "mode": result.mode,
+        # A completed debate returns exit 0 even on a shrunk panel (ADR-08/§1 finding); the
+        # panel/degradation fields below carry the shrunk-panel truth (two-signal rule).
+        "exit_semantics": 0,
+        "decision": _extracted_field(sections, _DECISION_HEADING_MARKERS, one_line=True),
+        "rationale": _extracted_field(sections, _RATIONALE_HEADING_MARKERS),
+        "options_considered": _extracted_options(sections),
+        "dissent": dissent,
+        "panel": {
+            "requested": requested,
+            "seated": seated,
+            "dropped": dropped,
+            "source": "record",
+            "seats": [
+                {
+                    "seat": s.seat,
+                    "requested_backend": s.requested_backend,
+                    "actual_backend": s.actual_backend,
+                    "requested_model": s.requested_model,
+                    "actual_model": s.actual_model,
+                    "identity_readable": s.identity_readable,
+                }
+                for s in seats
+            ],
+        },
+        "verdict_author": verdict_author,
+        "degradation": {
+            "degraded": result.degraded,
+            "summary": result.degradation_summary,  # persisted alarm text — closes G3
+            "failed_providers": dropped,
+            "fallback_events": [  # per-seat classified causes — closes G4
+                {
+                    "seat": s.seat,
+                    "round": fe.round,
+                    "from_backend": fe.from_backend,
+                    "to_backend": fe.to_backend,
+                    "cause": fe.cause,
+                    "detail": fe.detail,
+                }
+                for s in seats
+                for fe in s.fallback_events
+            ],
+            "source": "record",
+        },
+        "artifacts": artifacts,
+    }
+
+
+def save_verdict_package(
+    result: DebateResult,
+    output_dir: Path,
+    transcript_path: Path,
+    written: dict[str, list[Path]] | None = None,
+    secondary_dir: Path | None = None,
+    target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
+) -> list[Path]:
+    """Emit the DRAFT-INT-1 verdict package as a sibling of save_to_file (#26).
+
+    A transcript-free, caller-consumable JSON summary: council-verdict-<ts>-<mode>-<slug>.json,
+    routed to every destination via _write_routed (canonical + secondary + return + targets).
+    The deterministic <ts> is inherited from ``transcript_path`` (single source, so the verdict
+    and its transcript always share the same stem); ``written`` is the manifest of artifacts
+    already emitted this run (transcript/minority/metrics), recorded in the package's artifacts[].
+
+    Returns the paths written, canonical first.
+    """
+    run_id = transcript_path.stem  # council-out-<ts>-<mode>-<slug>
+    base = run_id[len("council-out-"):]  # <ts>-<mode>-<slug>
+    filename = f"council-verdict-{base}.json"
+    payload = _build_verdict_payload(result, run_id, base, filename, written or {})
+    saved = _write_routed(
+        json.dumps(payload, indent=2), filename, output_dir, secondary_dir, target_paths, return_dir
+    )
+    logger.info("Verdict package saved to: %s", saved[0])
     return saved
 
 
