@@ -64,3 +64,34 @@ is therefore **unmet**, so #28 remains **OPEN** pending the actual `grok login` 
 re-probe. The disposition above is recorded; the cost-lane question is answered "stays API for
 now." (If the operator elects to retire F3 as "stays API / OAuth deferred indefinitely" rather
 than pursue `grok login`, that is an operator ruling that would close #28 — not taken here.)
+
+---
+
+## AMENDMENT 2026-07-17 (post `grok login`) — #28 CLOSED: subscription lane witnessed
+
+> In-file amendment marker per the immutability rule (CLAUDE.md §5.3). Supersedes the
+> "does NOT close (gap)" verdict above, which reflected the pre-`grok login` state.
+
+The operator completed `grok login` (subscription OAuth, browser) after the initial re-probe.
+The subscription re-probe was repeated with **scoped env-key shielding** (subshell-local
+`unset XAI_API_KEY` — the central `~/Documents/.secrets/.env` store is **untouched**; other
+tools still use the key; shielding applies to grok invocations only):
+
+| Check | Result 2026-07-17 (post-login) |
+|---|---|
+| `~/.grok/auth.json` (subscription OAuth marker) | **PRESENT** (created 17:48) |
+| `grok models` UNSHIELDED (`XAI_API_KEY` in env) | "You are using XAI_API_KEY." — env key still shadows |
+| `grok models` SHIELDED (scoped `unset XAI_API_KEY`) | **"You are logged in with grok.com."** — subscription lane active |
+
+**Subscription-billed grok identity WITNESSED** (shielded). Key finding: the env-key shielding
+is a **per-invocation requirement** — unshielded, `XAI_API_KEY` shadows the subscription lane
+(API-billed), so a future grok CLI seat must strip `XAI_API_KEY` per grok call (mirror the
+claude key-strip pattern), never by editing the central store.
+
+**Revised disposition:** the grok **cost lane is now AVAILABLE** — the F3 subscription blocker is
+cleared. The grok seat itself remains **deferred** (gated on #27 CLI-4 parity; no seat work this
+session) and, when built, **pins `grok-4.5`** (ruling above) and **scope-shields `XAI_API_KEY`**
+per invocation.
+
+**#28 done-when MET** — subscription-billed identity witnessed + disposition recorded (enters
+cost lane) → **#28 CLOSED**.
