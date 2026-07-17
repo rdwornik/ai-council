@@ -106,6 +106,11 @@ class MockProvider(AIProvider):
     ) -> None:
         self._name = provider_name
         self._response_content = response_content
+        # Default config so AIProvider.timeout_sec works; retry tests override _config.
+        self._config = ModelConfig(
+            name=provider_name, sdk="mock", model="mock-model",
+            api_key_env="MOCK_KEY", timeout_sec=30, max_tokens=100,
+        )
         # Shadow the class method with an AsyncMock at the instance level.
         # ABC check passes because generate is defined in the class body below.
         self.generate = AsyncMock(  # type: ignore[assignment]

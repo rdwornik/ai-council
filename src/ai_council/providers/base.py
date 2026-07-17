@@ -163,6 +163,12 @@ class AIProvider(ABC):
         """Return the actual model identifier string."""
         return self._config.model
 
+    @property
+    def timeout_sec(self) -> float:
+        """The seat's configured per-call timeout budget (seconds). Public read so the retry
+        contract can grow the budget per attempt without reaching into ``_config``."""
+        return self._config.timeout_sec
+
     async def generate(
         self, prompt: str, round_number: int, *, timeout: float | None = None
     ) -> ModelResponse:
