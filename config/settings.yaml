@@ -425,7 +425,7 @@ research:
       reasoning_effort: "high"
 
     grok:
-      model: "grok-4.20-reasoning"
+      model: "grok-4.20-0309-reasoning"
       api_key_env: "XAI_API_KEY"
       base_url: "https://api.x.ai/v1"
       timeout_sec: 300

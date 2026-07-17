@@ -29,7 +29,7 @@ class GrokResearchProvider(ResearchProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "grok-4.20-reasoning",
+        model: str = "grok-4.20-0309-reasoning",
         base_url: str = _BASE_URL,
         timeout_sec: int = 120,
         cost_per_1m_input: float = 3.00,
