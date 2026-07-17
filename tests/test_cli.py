@@ -1,5 +1,6 @@
 """Tests for CLI panel/synthesizer selection logic in src/cli.py."""
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -56,6 +57,36 @@ def _make_test_config(
         dev_root=dev_root,
         target_projects=target_projects or [],
     )
+
+
+# ---------------------------------------------------------------------------
+# DOC-3 (#30): empty API-key env var is treated as absent, LOUDLY
+# ---------------------------------------------------------------------------
+
+
+def test_strip_empty_api_keys_treats_empty_as_absent(tmp_path, monkeypatch):
+    """DOC-3 (#30): an expected API-key env var that is set-but-EMPTY is stripped from the
+    environment (treated as ABSENT) and reported, so it never silently shadows a real .env value
+    under load_dotenv(override=False). Guards the cli.py:386 hazard."""
+    from ai_council.cli import _strip_empty_api_keys
+
+    config = _make_test_config(tmp_path)  # models={"claude": ModelConfig(api_key_env="TEST_KEY")}
+    monkeypatch.setenv("TEST_KEY", "")  # present but empty — the hazard
+    stripped = _strip_empty_api_keys(config)
+    assert stripped == ["TEST_KEY"]
+    assert "TEST_KEY" not in os.environ
+
+
+def test_strip_empty_api_keys_keeps_present_and_ignores_absent(tmp_path, monkeypatch):
+    """A non-empty key is left untouched; an absent key is not reported (no false positives)."""
+    from ai_council.cli import _strip_empty_api_keys
+
+    config = _make_test_config(tmp_path)
+    monkeypatch.setenv("TEST_KEY", "real-value")
+    assert _strip_empty_api_keys(config) == []
+    assert os.environ["TEST_KEY"] == "real-value"
+    monkeypatch.delenv("TEST_KEY", raising=False)
+    assert _strip_empty_api_keys(config) == []
 
 
 @pytest.fixture

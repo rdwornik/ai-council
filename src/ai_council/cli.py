@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -25,6 +26,7 @@ from ai_council.providers.xai import XAIProvider
 from ai_council.routing import RoutingError, TargetResolver
 from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
 from config.config_loader import (
+    AppConfig,
     ModeConfig,
     ResearchConfig,
     default_mode,
@@ -52,6 +54,23 @@ def _setup_logging(verbose: bool) -> None:
         format="%(message)s",
         handlers=[RichHandler(rich_tracebacks=True, show_path=False)],
     )
+
+
+def _strip_empty_api_keys(config: AppConfig) -> list[str]:
+    """DOC-3 (#30): an API-key env var set to an EMPTY string shadows the real value in the
+    `.env` file under `load_dotenv(override=False)`, so a key that IS on disk never loads and the
+    provider is silently dropped from ``available_providers``. Detect expected key env vars that
+    are present-but-empty, remove them from the environment (so empty reads as ABSENT, never
+    silently), and return the names stripped so the caller can warn loudly and reload. Expected
+    names are derived from config (debate models + research providers) — never a hardcoded list.
+    """
+    key_envs = {m.api_key_env for m in config.models.values()}
+    if config.research is not None:
+        key_envs |= {p.api_key_env for p in config.research.providers.values()}
+    stripped = sorted(v for v in key_envs if v in os.environ and not os.environ[v].strip())
+    for var in stripped:
+        del os.environ[var]
+    return stripped
 
 
 def _check_and_filter_providers(
@@ -394,6 +413,21 @@ def main(
     except (FileNotFoundError, ValueError) as exc:
         console.print(f"[bold red]Config error:[/bold red] {exc}")
         sys.exit(1)
+
+    # DOC-3 (#30): a present-but-empty API-key env var silently shadows the real .env value under
+    # override=False. Strip such keys (treat empty as ABSENT), warn LOUDLY, then reload .env +
+    # config so the on-disk value takes effect and available_providers is recomputed.
+    _empty_keys = _strip_empty_api_keys(config)
+    if _empty_keys:
+        console.print(
+            "[bold yellow]WARNING:[/bold yellow] API key env var(s) set but empty: "
+            f"{', '.join(_empty_keys)} -- treated as absent; reloading .env."
+        )
+        logger.warning("Empty API key env var(s) treated as absent: %s", ", ".join(_empty_keys))
+        if _global_env.exists():
+            load_dotenv(_global_env, override=False)
+        load_dotenv(override=False)
+        config = load_config()
 
     effective_output = Path(output_path) if output_path else config.defaults.output_dir
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
