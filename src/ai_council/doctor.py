@@ -246,7 +246,7 @@ def write_record(record: dict, output_dir: Path, filestamp: str) -> Path:
 
 
 def render_report(console: Console, checks: list[Check], verdict: str,
-                  record_path: Path, generated_at: str) -> None:
+                  record_path: Path | None, generated_at: str) -> None:
     """One-screen ASCII report, fixed epistemic-load order KEYS -> SEATS -> CONFIG."""
     console.print(f"\n[bold]COUNCIL DOCTOR[/bold] -- {generated_at} -- verdict: {_VERDICT_COLOR[verdict]}\n")
 
@@ -266,7 +266,7 @@ def render_report(console: Console, checks: list[Check], verdict: str,
         console.print(f"  {_MARK[c.status]} {c.subject}: {c.detail}")
 
     console.print(f"\nverdict: {_VERDICT_COLOR[verdict]}  (doctor never blocks a run)")
-    console.print(f"record: {record_path}\n")
+    console.print(f"record: {record_path if record_path is not None else '(not written)'}\n")
 
 
 def run_doctor(
@@ -305,6 +305,16 @@ def run_doctor(
     verdict = evaluate_verdict(checks)
     out_dir = output_dir if output_dir is not None else config.defaults.output_dir
     record = build_record(checks, verdict, generated_at)
-    record_path = write_record(record, out_dir, filestamp)
+
+    # The record is a best-effort side artifact. A filesystem failure must not crash the
+    # doctor (containment) nor flip the health verdict -- a GREEN council whose record
+    # could not be written is still GREEN; a Lane-A caller must not be told "don't
+    # commission" over a local write error. Warn, keep the verdict, carry on.
+    try:
+        record_path: Path | None = write_record(record, out_dir, filestamp)
+    except OSError as exc:
+        record_path = None
+        console.print(f"[yellow]WARNING:[/yellow] could not write doctor record to {out_dir}: {exc}")
+
     render_report(console, checks, verdict, record_path, generated_at)
     return _EXIT[verdict]
