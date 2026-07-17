@@ -24,6 +24,13 @@ class ModelConfig:
     base_url: str | None = None
     cost_per_1m_input: float = 0.0   # USD per 1M input tokens
     cost_per_1m_output: float = 0.0  # USD per 1M output tokens
+    # ADR-12 backend axis. Default "api" everywhere — the §5 flip to CLI is evidence-gated
+    # on CLI-4 parity (#27), not enabled here. When backend == "cli": cli_command drives the
+    # subprocess (claude|codex) with cli_model pinned per call; the API `model` above is the
+    # same-seat API fallback target.
+    backend: str = "api"             # "api" | "cli"
+    cli_command: str | None = None   # "claude" | "codex" when backend == "cli"
+    cli_model: str | None = None     # model pinned on every CLI call (per-call pin rule)
 
 
 @dataclass
@@ -238,6 +245,9 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             base_url=model_raw.get("base_url"),
             cost_per_1m_input=float(model_raw.get("cost_per_1m_input", 0.0)),
             cost_per_1m_output=float(model_raw.get("cost_per_1m_output", 0.0)),
+            backend=str(model_raw.get("backend", "api")),
+            cli_command=str(model_raw["cli_command"]) if "cli_command" in model_raw else None,
+            cli_model=str(model_raw["cli_model"]) if "cli_model" in model_raw else None,
         )
         models[provider_name] = model_cfg
 

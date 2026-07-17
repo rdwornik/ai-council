@@ -30,6 +30,41 @@ class ModelResponse:
 
 
 @dataclass
+class FallbackEvent:
+    """One CLI-seat degradation event within a run (L-CLI §3.Q5).
+
+    ``cause`` is drawn from the shared 5-token vocabulary CLI_FALLBACK_CAUSES
+    (providers/base.py) — the single source shared with the CLI failure classifier.
+    """
+
+    round: int
+    from_backend: str  # "cli"
+    to_backend: str  # "api"
+    cause: str  # quota | timeout | parse | identity-unreadable | process-error
+    detail: str  # classified error string (never a raw credential)
+
+
+@dataclass
+class SeatMetrics:
+    """Per-seat telemetry for the `_metrics.json` seats[] sidecar (L-CLI §3.Q5).
+
+    One entry per seat per run, uniform for API and CLI seats so consumers never branch on
+    backend. Model/seat names only — never secret values. ``actual_model`` is null only in a
+    degradation record, never on an admitted response (invariant I1).
+    """
+
+    seat: str
+    requested_backend: str  # "api" | "cli"
+    actual_backend: str  # "api" | "cli"
+    requested_model: str
+    actual_model: str | None
+    identity_channel: str  # modelUsage | stderr-banner | session-events | api-echo
+    identity_readable: bool
+    cli: dict | None = None  # {name, version} when any CLI attempt occurred
+    fallback_events: list[FallbackEvent] = field(default_factory=list)
+
+
+@dataclass
 class Round:
     number: int
     responses: list[ModelResponse] = field(default_factory=list)
@@ -43,6 +78,7 @@ class DebateOutcome:
     degraded: bool = False
     degradation_summary: str | None = None
     provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
+    seats: list[SeatMetrics] = field(default_factory=list)  # per-seat backend/identity/fallback telemetry
 
 
 @dataclass
@@ -63,6 +99,7 @@ class DebateMetrics:
     """Aggregated cost and performance metrics for an entire debate run."""
 
     calls: list[ProviderCallMetrics] = field(default_factory=list)
+    seats: list[SeatMetrics] = field(default_factory=list)  # L-CLI seats[] sidecar (owned by this lane)
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_estimated_cost_usd: float = 0.0

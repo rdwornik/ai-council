@@ -97,6 +97,33 @@ def is_retryable(error_type: str) -> bool:
     return error_type in RETRYABLE_ERRORS
 
 
+def classify_cli_failure(exc: Exception) -> str:
+    """Map a CLI-seat subprocess failure to one of the shared CLI_FALLBACK_CAUSES tokens.
+
+    Sibling of classify_error (which stays API-only for API exceptions): CLI failures are
+    subprocess / parse / identity conditions — a different mechanism. The returned token IS
+    the value written to seats[].fallback_events[].cause, so the classifier and the record
+    share one vocabulary by construction (L-CLI IF#4). Always returns a member of
+    CLI_FALLBACK_CAUSES; unrecognized failures fall through to ``process-error``.
+    """
+    msg = str(exc).lower()
+    if "timeout" in msg or "timed out" in msg:
+        return "timeout"
+    if (
+        "quota" in msg
+        or "rate limit" in msg
+        or "rate_limit" in msg
+        or "usage limit" in msg
+        or "429" in msg
+    ):
+        return "quota"
+    if "identity" in msg or "modelusage" in msg or "no served model" in msg or "banner" in msg:
+        return "identity-unreadable"
+    if "parse" in msg or "json" in msg or "decode" in msg or "unexpected output" in msg:
+        return "parse"
+    return "process-error"
+
+
 class ProviderError(Exception):
     """Raised when a provider call fails."""
 
