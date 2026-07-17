@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-17
 reconciled_with: handoff-process@5.7
 status: active
 owner: Rob
@@ -130,7 +130,7 @@ Decisions that bind future sessions live in `docs/decisions/ADR-NN-topic.md`.
 
 - Numbering: next integer after highest existing ADR
 - Filename: `ADR-NN-short-kebab-topic.md` (hyphen-named per ADR-34)
-- Status values: `Accepted | Superseded | Withdrawn`
+- Status values (per ADR-14 lifecycle): `Proposed | Accepted | Revised (dated) | Superseded (by ADR-X)`
 - Minor prescription drift → amend in-place (add dated `## Amendment YYYY-MM-DD` section)
 - Intent change or reversal → new ADR or AI Council reopen
 
