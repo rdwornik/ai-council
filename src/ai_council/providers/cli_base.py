@@ -148,6 +148,7 @@ class CliProvider(AIProvider):
             out = subprocess.run(
                 [exe, "--version"],
                 capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL,
+                env=_scrubbed_env(),  # same credential boundary as run() — never inherit secrets
             )
             return (out.stdout or out.stderr).strip().splitlines()[0] if (out.stdout or out.stderr) else None
         except Exception:  # version is best-effort telemetry; never fatal
