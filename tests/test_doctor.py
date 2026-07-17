@@ -67,7 +67,7 @@ def _make_config(tmp_path: Path, *, with_research: bool = False) -> AppConfig:
             cache_dir=tmp_path / "cache",
             cache_ttl_days=7,
             summary_max_tokens=2500,
-            summary_model="perplexity",
+            summary_model="claude",  # resolves against top-level models, not research.providers
             providers={"perplexity": ResearchProviderConfig(
                 name="perplexity", model="sonar", api_key_env="PPLX_KEY", timeout_sec=60,
             )},
@@ -118,6 +118,25 @@ def test_validate_config_unresolved_research_ref(tmp_path: Path) -> None:
     checks = validate_config(config)
     ref = next(c for c in checks if c.subject == "research.default_providers")
     assert ref.status == FAIL and "nonexistent" in ref.detail
+
+
+def test_validate_config_summary_model_resolves_against_models(tmp_path: Path) -> None:
+    """research.summary_model resolves against top-level models (merger.py/cli.py), not
+    research.providers -- a valid model name is PASS."""
+    config = _make_config(tmp_path, with_research=True)  # summary_model="claude" (a model)
+    checks = validate_config(config)
+    sm = next(c for c in checks if c.subject == "research.summary_model")
+    assert sm.status == PASS
+
+
+def test_validate_config_summary_model_unresolved_is_advisory(tmp_path: Path) -> None:
+    """An unresolved summary_model is ADVISORY (merger degrades to truncation), not FAIL."""
+    config = _make_config(tmp_path, with_research=True)
+    assert config.research is not None
+    config.research.summary_model = "ghost"
+    checks = validate_config(config)
+    sm = next(c for c in checks if c.subject == "research.summary_model")
+    assert sm.status == ADVISORY and "ghost" in sm.detail
 
 
 def test_check_keys_present_absent_and_shadow(tmp_path: Path) -> None:

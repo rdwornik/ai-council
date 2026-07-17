@@ -145,8 +145,20 @@ def validate_config(config: AppConfig) -> list[Check]:
     research = config.research
     if research is not None:
         research_names = set(research.providers)
-        for label, names in (("research.summary_model", [research.summary_model]),
-                             ("research.default_providers", research.default_providers),
+
+        # summary_model resolves against the TOP-LEVEL models pool, not research.providers
+        # (merger.py + cli.py _check_summarizer_health). An unresolved name is not run-fatal:
+        # merger.py degrades to a truncation fallback -- so it is an ADVISORY, not a FAIL.
+        summary = research.summary_model
+        if summary in model_names:
+            checks.append(Check("config", "research.summary_model", PASS,
+                                f"'{summary}' resolves to models"))
+        else:
+            checks.append(Check("config", "research.summary_model", ADVISORY,
+                                f"'{summary}' not in models -- research uses truncation fallback"))
+
+        # default/deep provider rosters resolve against research.providers.
+        for label, names in (("research.default_providers", research.default_providers),
                              ("research.deep_providers", research.deep_providers)):
             missing = [p for p in names if p not in research_names]
             if missing:
