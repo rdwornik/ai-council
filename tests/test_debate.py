@@ -94,7 +94,7 @@ async def test_run_debate_injects_persona_in_round1(
     sample_prompts_config, sample_question
 ):
     """Persona text should appear in the prompt passed to the provider on round 1."""
-    from ai_council.providers.base import AIProvider
+    from ai_council.providers.base import AIProvider, _Parsed
 
     captured_prompts: list[str] = []
 
@@ -113,6 +113,13 @@ async def test_run_debate_injects_persona_in_round1(
             return ModelResponse(
                 self._name, "mock-model", round_number, "response", 0.1, 5
             )
+
+        # A1 ABC hooks — never called (generate is overridden above); satisfy the ABC.
+        async def _invoke(self, prompt: str) -> object:
+            return None
+
+        def _parse(self, raw: object) -> _Parsed:
+            return _Parsed("response")
 
     provider1 = CapturingProvider("mock")
     provider2 = CapturingProvider("mock2")
