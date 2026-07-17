@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-13
+last_reviewed: 2026-07-17
 status: active
 owner: Rob
 ---
@@ -208,6 +208,11 @@ Do NOT:
 - ADR-06: Cost Optimization — per-provider tracking; Qwen trial deferred (Revised 2026-05-11)
 - ADR-07: Dual Output Paths — superseded by ADR-43 (opt-in target-project routing)
 - ADR-08: Research Degradation Alarm — <3 research providers succeed → exit code 3 + alarm banner
+- ADR-09: protocols/ as the invocation surface — GUIDE + RUBRIC live under `protocols/` (Accepted 2026-07-17)
+- ADR-10: Output routing — local `./output/` default + `--return-dir` override; hub never a silent default (Accepted 2026-07-17)
+- ADR-11: Delegated Invocation Contract — two lanes, one machine-readable surface (`COUNCIL_INVOCATION_CONTRACT.md`) (Accepted 2026-07-05)
+- ADR-12: Provider Backend Engine — CLI-subscription seats (v1 = claude+codex) + two-lane cost policy; §5 default-flip evidence-gated (Accepted 2026-07-05)
+- ADR-14: ADR lifecycle states — Proposed/Accepted/Revised(dated)/Superseded + header↔index sync; ratifies DRAFT-GOV-1 (Accepted 2026-07-17)
 
 **Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**
 - ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
@@ -233,6 +238,7 @@ Do NOT:
 - v2.7 (2026-07-11) — ADR-101 root-parity backfill (parity with corp-monorepo's 2026-07-11 rollout): added the **human-visible methodology-boundary note** above §1 (owner=hub = fleet methodology tracked from `.dev-knowledge`; owner=repo = project-local; the `<!-- methodology:… owner=… -->` markers ARE the machine map; sanctioned divergences in `.methodology.yaml`) — corp carried it, ai-council did not. **Marker regions untouched; body prose otherwise byte-identical.** Same arc: the **#326 consumer leg** was verified a no-op (ARCHITECTURE.md already ToC/Mermaid-free since #262; ASCII Data-Flow retained, out of ruled scope) and re-review-stamped; and a new `docs/audits/2026-07-11-technical-root-parity-disposition.md` disposition table (ai-council root surface vs hub + corp) was committed. `last_reviewed` stays 2026-07-11 (same-day re-review).
 - v2.8 (2026-07-12) — ruff-gate re-activation (fleet ruling) + hub `.vscode/settings.json` carry: §9's `ruff` bullet flipped from PRUNED to a live consumer-owned gate (`astral-sh/ruff-pre-commit` mirror `v0.15.5`, gate mode `args: []`, prune-safe bare `id: ruff`), re-activated 2026-07-12 overriding the [#244] 2026-07-04 prune; declared in `.methodology.yaml` (`ruff-gate` divergence, since the fleet-generic manifest carries no ruff). **Wording correction:** the triggering prompt's "divergence-register item 9" authority was a hub-side pointer (the hub's divergence register), mis-addressed as local — recorded truthfully here rather than as "item 9 did not exist." Also carried `.vscode/settings.json` byte-identical to the hub (77-byte `files.watcherExclude` for `.claude/worktrees/**`; `.gitignore` narrowed `.vscode/` → `.vscode/*` + `!.vscode/settings.json`). `last_reviewed` re-stamped 2026-07-12.
 - v2.9 (2026-07-13) — content-parity T1 canonical baseline (consumer half; hub audit `2026-07-13-technical-content-parity-inventory.md` @ `2b21cb26`, rows A1–A8/B1/B2/B4/B5/C/D1/E3/F1). §1/§4/§5/§6 hub regions **expanded from 4 → 8** and materialized **byte-verbatim** from `templates/claude-regions/`: `first-read` (A1, +adjacent repo handoff note), `conventions-commit-branch` (A2), **+`conventions-output-formatting`** (A3), `critical-rules-records` (A4, now 3 canonical items), **+`critical-rules-consistency`** (A5, slot 6), **+`critical-rules-no-leftovers`** (A6, slot 9), `session-start-protocol` (A7, +adjacent repo merge-command note), **+`antipatterns-universal`** (A8, §10). §5 renumbered to the hub 1–10 skeleton (hub regions at 1-3/6/9; all 5 local rules preserved at 4/5/7/8/10). B2: contiguous §4/§5 project prose wrapped `owner=repo`. B4: §8 relabels the three `.claude/rules/` files as **rules, not skills**. B5: §9 gains the two missing live local ids (`validate-audit-casing`, `validate-backlog`). §11 title kept **without** "(last 5)" per operator ruling (a false-claim over a ~20-item curated list; declared in `.methodology.yaml` `claude-md-section-11-title`). `last_reviewed` re-stamped 2026-07-13.
+- v2.10 (2026-07-17) — GOV-1 consolidation currency pass (#31, gate G1→G2): §11 Local ADR list extended from ADR-08 through **ADR-09/10/11/12 + ADR-14** (the roster stopped at ADR-08 while ADR-09..12 were live and ADR-14 ratified this session — the exact A2 staleness `canonical_freshness` guards). ADR-09/10 flipped `Proposed`→`Accepted` and DRAFT-GOV-1 ratified as ADR-14 (see the ADR index + `docs/intake/2026-07-17-gov1-rulings-register.md`). Genuine end-to-end re-read verified §1–§10 unchanged against live state (hooks, commands, conventions all current since the 2026-07-13 stamp); only §11 was stale. `last_reviewed` re-stamped 2026-07-17.
 <!-- methodology:end id=section-history -->
 
 ---
