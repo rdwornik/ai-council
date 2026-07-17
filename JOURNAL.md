@@ -19,6 +19,18 @@
 
 ---
 
+### 2026-07-17 — SESSION WRAP: #26 merged; RIDER 2 filed ([S13]); P4 wave complete
+
+**Did:** Closed the #26 session per the Stop-gate. **#26 merged** to `main` at **`3875068`** (`--no-ff`, pushed `5d601f4..3875068`, branch `feat/verdict-package` deleted; first-parent arc clean). **RIDER 2** (session ruling, filing only): checked the operator's delegation-window ADVISOR-layer coverage (caller-side authoring → sub-question decomposition → outputs read-back) against ADR-11 + [E1] = **PARTIAL** — [S10] delivered the council-side surface, the caller-side front half was uncovered. Filed **new story [S13]** "caller-side commissioning advisor" with **#36** (authoring advisor; reconcile w/ #9 quality gate), **#37** (decomposition advisory; caller-side, L-INT Q5-compatible), **#38** (verdict→ADR read-back guide, F7). Regenerated the hub handoff bundle for the next session.
+
+**Result:** **P4 build wave complete** — doctor (#25, `6e0782e`) → CLI seats (#16, `5d601f4`) → verdict package (#26, `3875068`). BACKLOG structural markers current: wave tasks gone per ADR-65 (#16/#25/#26 struck), #33/#34/#35 (#26 residuals) + [S13]/#36–#38 (RIDER 2) present, `validate-backlog` green. Ready slack for next session: **#22/#23** (ADR-11 D2 parity closure, the P6 window-completion pair); date-gated: **#33** (terra pass-3, on/after 2026-07-23).
+
+**Changes:** `BACKLOG.md` (RIDER 2 [S13]/#36–#38 filed), `JOURNAL.md`, hub handoff bundle under `../.dev-knowledge/docs/handoffs/` (ADR-42). Wrap branch `docs/session-wrap-26`.
+
+**Abandoned:** none.
+
+**Next:** #22/#23 (D2 parity → CONTRACT §7 empties → the DRAFT-INT-2 `1.0` version stamp) as the ready slack; #33 terra pass-3 after 2026-07-23; #34/#35 (verdict-package residuals) and [S13]/#36–#38 (caller-side advisor) when prioritized.
+
 ### 2026-07-17 — TASK #26: verdict package (DRAFT-INT-1) — P4 lane 3/3, #26 CLOSED
 
 **Did:** Last of the P4 build wave, on `feat/verdict-package`, plan-mode-first → architect review → execute. **Pre-step** (`07e4bef`): struck #25's stale BACKLOG line (doctor delivered `6e0782e`; the ADR-65 hygiene gap the prior #16 session explicitly flagged for operator disposition) + grooming-log entry. **Pre-work** (`0ae7429`): **A4** — `save_to_file` decomposed to pure orchestration + `_build_header`/`_build_body` (byte-identical); **B3** — one `_ts()` helper (local wall-clock per the refactoring guide) + `_iso_now()` for the tz-aware machine field. **Package** (`fd40585`): `save_verdict_package` lands as a **sibling** (save_to_file gains zero package lines; the "zero added lines" contract was **architect-amended** to "all content-building in helpers/sibling; save_to_file stays pure orchestration + at most the package/mirror calls"), emitting `council-verdict-<ts>-<mode>-<slug>.json` to every destination via `_write_routed`. Deterministic `<ts>` inherited from the transcript stem (single source). 14 DRAFT-INT-1 fields sourced by reference; **mirror block** folded into `_build_header`; decision/rationale/options/dissent extracted D13-style with an explicit per-item `source` annotation (`extraction` vs `record` — Gap-4 hardening); `contract_version=null` (Gap 2), `exit_semantics=0` (Gap 3). Orchestrator wires it after transcript+minority.
