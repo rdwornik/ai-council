@@ -18,14 +18,30 @@ plain-mode **stderr** banner `model:` (the `--json` stream carries none). These 
 ONLY transport + identity read and raise a classifiable ProviderError on failure; the
 admission gate + same-seat API fallback live in `seat_router.py` (a debate-engine concern,
 L-CLI IF#2). Separate classes, no provider-merge (ADR-12 / CLAUDE 5.7).
+
+Security posture (defense in depth):
+- **Credential-scrubbed subprocess env** — the council's API keys are stripped from the CLI
+  child's environment. This forces subscription auth (the cost-lane intent — ADR-12's
+  "key-strip guard") AND denies a prompt-injected agent the env-var exfiltration path.
+- **Process-tree kill** on timeout/cancellation — the Windows `.CMD` shim spawns a node child;
+  killing only the shim would orphan it, so we terminate the whole tree.
+- **Residual (accepted + logged, ADR-12 §3):** codex `exec` is an agent whose `--sandbox
+  read-only` policy blocks writes but permits file *reads*. A malicious prompt could, in
+  principle, read a local file and surface its contents in the answer. Containment is
+  doctrinal: `important`/untrusted content stays on the API lane (ADR-12 §4, all-API), so
+  untrusted inbox briefs must not be routed to CLI seats. A stricter no-read sandbox is not
+  offered by codex exec; hardening beyond this is out of this arc's scope.
 """
 
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
+import signal
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -36,6 +52,35 @@ from ai_council.providers.base import AIProvider, ProviderError
 from config.config_loader import ModelConfig
 
 logger = logging.getLogger(__name__)
+
+# Env var names carrying credentials — stripped from every CLI subprocess (see security note).
+_SECRET_ENV = re.compile(r"(_API_KEY|_TOKEN|_SECRET|PASSWORD|CREDENTIAL|APIKEY)$", re.IGNORECASE)
+
+
+def _scrubbed_env() -> dict[str, str]:
+    """A copy of the environment with credential-bearing variables removed. The CLIs auth via
+    their own subscription stores (~/.claude, ~/.codex), never these keys — verified 2026-07-17."""
+    return {k: v for k, v in os.environ.items() if not _SECRET_ENV.search(k)}
+
+
+def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
+    """Terminate the child AND its descendants. On Windows a `.CMD` shim's node child would
+    otherwise survive `proc.kill()`; on POSIX the process group is signalled."""
+    if proc.returncode is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, check=False,
+            )
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:  # best-effort cleanup; never mask the original failure
+        try:
+            proc.kill()
+        except Exception:
+            pass
 
 
 @dataclass
@@ -99,15 +144,23 @@ class CliProvider(AIProvider):
         """
         effective_timeout = timeout if timeout is not None else self._config.timeout_sec
         argv = [self._exe, *self._argv(self._cli_model)]
+        # New process group so the whole tree (shim + node child) is terminable together.
+        group_kwargs: dict[str, Any] = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if sys.platform == "win32"
+            else {"start_new_session": True}
+        )
         # Fresh scratch cwd per call — PRIMARY isolation; auto-removed (no leftover).
         with tempfile.TemporaryDirectory(prefix="council-cli-") as scratch:
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *argv,
                     cwd=scratch,
+                    env=_scrubbed_env(),  # strip council API keys -> subscription auth, no exfil
                     stdin=subprocess.PIPE,  # prompt is written then stdin is closed (EOF)
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    **group_kwargs,
                 )
             except Exception as exc:  # spawn failure (binary missing, etc.)
                 raise ProviderError(self._config.name, f"CLI process error: {exc}") from exc
@@ -117,11 +170,15 @@ class CliProvider(AIProvider):
                     proc.communicate(input=prompt.encode("utf-8")), timeout=effective_timeout
                 )
             except (TimeoutError, asyncio.TimeoutError) as exc:
-                proc.kill()
+                _kill_process_tree(proc)
                 await proc.wait()
                 raise ProviderError(
                     self._config.name, f"CLI timed out after {effective_timeout}s"
                 ) from exc
+            finally:
+                # On cancellation (or any early exit) the process must not be orphaned.
+                if proc.returncode is None:
+                    _kill_process_tree(proc)
 
         stdout = raw_out.decode("utf-8", errors="replace")
         stderr = raw_err.decode("utf-8", errors="replace")
