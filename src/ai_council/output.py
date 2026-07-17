@@ -12,7 +12,13 @@ from rich.rule import Rule
 from rich.text import Text
 from rich.tree import Tree
 
-from ai_council.models import DebateMetrics, DebateResult, ModelResponse
+from ai_council.models import (
+    DebateMetrics,
+    DebateResult,
+    FallbackEvent,
+    ModelResponse,
+    SeatMetrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +196,64 @@ def _write_routed(
             logger.warning("Mirror write failed for %s: %s", target_dir, exc)
 
     return saved
+
+
+def _route_dirs(
+    output_dir: Path,
+    secondary_dir: Path | None,
+    target_paths: list[Path] | None,
+    return_dir: Path | None,
+) -> list[Path]:
+    """The directories `_write_routed` will target, in order (canonical first).
+
+    Mirrors `_write_routed`'s destination selection so a manifest can name every planned
+    path before the write; `secondary_dir` is included only when it exists (as the write is).
+    """
+    dirs = [output_dir]
+    if secondary_dir is not None and secondary_dir.exists():
+        dirs.append(secondary_dir)
+    if return_dir is not None:
+        dirs.append(return_dir)
+    dirs.extend(target_paths or [])
+    return dirs
+
+
+class OutputRoutingError(RuntimeError):
+    """A required output destination (e.g. an explicit --return-dir) was not written.
+
+    Raised for the caller's *required* deliverable so a routing failure surfaces loudly
+    instead of yielding a bare exit 0 (DRAFT-INT-1 R4). Optional mirrors stay best-effort.
+    """
+
+
+def _fallback_payload(fe: FallbackEvent) -> dict:
+    """The single canonical serialization of one CLI fallback event (never a raw credential)."""
+    return {
+        "round": fe.round,
+        "from_backend": fe.from_backend,
+        "to_backend": fe.to_backend,
+        "cause": fe.cause,
+        "detail": fe.detail,
+    }
+
+
+def _seat_payload(seat: SeatMetrics) -> dict:
+    """The single canonical per-seat serialization (L-CLI seats[] namespace).
+
+    One definition, consumed by both the `_metrics.json` sidecar and the verdict package's
+    `panel.seats`, so the two can never drift. Names only, never secrets.
+    """
+    return {
+        "seat": seat.seat,
+        "requested_backend": seat.requested_backend,
+        "actual_backend": seat.actual_backend,
+        "cli": seat.cli,
+        "requested_model": seat.requested_model,
+        "actual_model": seat.actual_model,
+        "identity_channel": seat.identity_channel,
+        "identity_readable": seat.identity_readable,
+        "fallback_events": [_fallback_payload(fe) for fe in seat.fallback_events],
+    }
 
 
 def _panel_str(result: DebateResult) -> str:
@@ -437,19 +501,27 @@ def save_minority_report(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    stem_base: str | None = None,
 ) -> list[Path]:
     """Emit the minority/dissent report as a discrete, durable artifact (Rama 4, #15).
 
     Fires only when the verdict is non-unanimous (see extract_dissent). Routed to the
     same destinations as the verdict via _write_routed (canonical + secondary + return +
     targets), so a --return-dir also receives it. Returns [] when there is no dissent.
+
+    ``stem_base`` (``<ts>-<mode>-<slug>``, from the transcript) makes this report share the
+    transcript's exact <ts> — so the verdict package's minority pointer always resolves and
+    a run's artifacts are one matched set. Falls back to a fresh _ts() when not supplied.
     """
     body = extract_dissent(result.synthesis)
     if body is None:
         return []
 
-    slug = slug_override if slug_override is not None else _slug(result.question.text)
-    filename = f"council-minority-{_ts()}-{result.mode}-{slug}.md"
+    if stem_base is not None:
+        filename = f"council-minority-{stem_base}.md"
+    else:
+        slug = slug_override if slug_override is not None else _slug(result.question.text)
+        filename = f"council-minority-{_ts()}-{result.mode}-{slug}.md"
 
     synth_is_label = "participant" if result.synthesizer_is_participant else "non-participant"
     lines = [
@@ -487,12 +559,15 @@ def save_minority_report(
 # case-insensitive substrings — the same D13-class heading heuristic as extract_dissent.
 # Every field sourced this way is annotated source="extraction" (vs "record") so a
 # transcript-free caller knows which values are parsed prose and which are structured.
+# Priority order matters: the authoritative decision heading must win when a template
+# carries several. "overall verdict" precedes "recommendation" so a JUDGE synthesis
+# (## Overall Verdict + ## Recommendations) reports the verdict, not the first action item.
 _DECISION_HEADING_MARKERS = (
-    "recommended decision",
-    "recommendation",
-    "overall verdict",
+    "recommended decision",  # judge synthesis-prompt primary
+    "overall verdict",       # judge synthesis_output primary — must beat "recommendation"
+    "recommendation",        # pick synthesis primary (## Recommendation)
+    "suggested next step",   # ideas primary
     "verdict",
-    "suggested next step",
     "decision",
     "position",
 )
@@ -586,7 +661,12 @@ def _verdict_summary_lines(result: DebateResult) -> list[str]:
 
 
 def _build_verdict_payload(
-    result: DebateResult, run_id: str, base: str, filename: str, written: dict[str, list[Path]]
+    result: DebateResult,
+    run_id: str,
+    base: str,
+    filename: str,
+    written: dict[str, list[Path]],
+    verdict_dirs: list[Path],
 ) -> dict:
     """Assemble the DRAFT-INT-1 field set, sourcing every field by reference."""
     sections = _split_sections(result.synthesis)
@@ -601,9 +681,16 @@ def _build_verdict_payload(
     else:
         # Gist from the dissent section BODY (skip the heading, which extract_dissent re-emits).
         _, dissent_body = _first_by_priority(sections, _DISSENT_HEADING_MARKERS)
+        # Point at the ACTUAL emitted minority filename when the orchestrator supplied it
+        # (authoritative — save_minority_report mints its own <ts> and could differ by a
+        # rollover second); fall back to reconstruction only when it wasn't passed.
+        minority_written = written.get("minority")
+        minority_name = (
+            minority_written[0].name if minority_written else f"council-minority-{base}.md"
+        )
         dissent = {
             "status": "non-unanimous",
-            "minority_artifact": f"council-minority-{base}.md",
+            "minority_artifact": minority_name,
             "gist": _one_line(dissent_body or "")[:280] or None,
             "source": "extraction",
         }
@@ -622,7 +709,13 @@ def _build_verdict_payload(
         for kind, paths in written.items()
         if paths
     ]
-    artifacts.append({"kind": "verdict", "filename": filename})
+    artifacts.append(
+        {
+            "kind": "verdict",
+            "filename": filename,
+            "paths": [str(d / filename) for d in verdict_dirs],
+        }
+    )
 
     return {
         "run_id": run_id,
@@ -644,35 +737,22 @@ def _build_verdict_payload(
             "seated": seated,
             "dropped": dropped,
             "source": "record",
-            "seats": [
-                {
-                    "seat": s.seat,
-                    "requested_backend": s.requested_backend,
-                    "actual_backend": s.actual_backend,
-                    "requested_model": s.requested_model,
-                    "actual_model": s.actual_model,
-                    "identity_readable": s.identity_readable,
-                }
-                for s in seats
-            ],
+            # The canonical L-CLI seats[] serialization, consumed by reference (identical to
+            # the _metrics.json sidecar shape via _seat_payload — no parallel schema).
+            "seats": [_seat_payload(s) for s in seats],
         },
         "verdict_author": verdict_author,
         "degradation": {
             "degraded": result.degraded,
             "summary": result.degradation_summary,  # persisted alarm text — closes G3
-            "failed_providers": dropped,
-            "fallback_events": [  # per-seat classified causes — closes G4
-                {
-                    "seat": s.seat,
-                    "round": fe.round,
-                    "from_backend": fe.from_backend,
-                    "to_backend": fe.to_backend,
-                    "cause": fe.cause,
-                    "detail": fe.detail,
-                }
+            # A flattened cross-seat VIEW of panel.seats[].fallback_events (closes G4) — a
+            # convenience projection of the canonical data above, not a second source.
+            "fallback_events": [
+                {"seat": s.seat, **_fallback_payload(fe)}
                 for s in seats
                 for fe in s.fallback_events
             ],
+            "failed_providers": dropped,
             "source": "record",
         },
         "artifacts": artifacts,
@@ -701,10 +781,18 @@ def save_verdict_package(
     run_id = transcript_path.stem  # council-out-<ts>-<mode>-<slug>
     base = run_id[len("council-out-"):]  # <ts>-<mode>-<slug>
     filename = f"council-verdict-{base}.json"
-    payload = _build_verdict_payload(result, run_id, base, filename, written or {})
+    verdict_dirs = _route_dirs(output_dir, secondary_dir, target_paths, return_dir)
+    payload = _build_verdict_payload(result, run_id, base, filename, written or {}, verdict_dirs)
     saved = _write_routed(
         json.dumps(payload, indent=2), filename, output_dir, secondary_dir, target_paths, return_dir
     )
+    # R4: the verdict is the caller's *required* deliverable. If an explicit --return-dir was
+    # requested but the package did not land there, fail loud rather than yield a bare exit 0.
+    # (Optional --target-project mirrors and the legacy secondary_dir stay best-effort.)
+    if return_dir is not None and not any(p.parent == return_dir for p in saved):
+        raise OutputRoutingError(
+            f"verdict package failed to reach required return-dir: {return_dir}"
+        )
     logger.info("Verdict package saved to: %s", saved[0])
     return saved
 
@@ -741,29 +829,7 @@ def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
     # Consumers never branch on backend: every seat gets a uniform entry (API seats carry
     # identity_channel="api-echo"). Model/seat/key values are names only, never secrets.
     if m.seats:
-        payload["seats"] = [
-            {
-                "seat": seat.seat,
-                "requested_backend": seat.requested_backend,
-                "actual_backend": seat.actual_backend,
-                "cli": seat.cli,
-                "requested_model": seat.requested_model,
-                "actual_model": seat.actual_model,
-                "identity_channel": seat.identity_channel,
-                "identity_readable": seat.identity_readable,
-                "fallback_events": [
-                    {
-                        "round": fe.round,
-                        "from_backend": fe.from_backend,
-                        "to_backend": fe.to_backend,
-                        "cause": fe.cause,
-                        "detail": fe.detail,
-                    }
-                    for fe in seat.fallback_events
-                ],
-            }
-            for seat in m.seats
-        ]
+        payload["seats"] = [_seat_payload(seat) for seat in m.seats]
     if result.synthesis_metrics is not None:
         s = result.synthesis_metrics
         payload["synthesis"] = {

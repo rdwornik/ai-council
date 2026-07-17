@@ -183,7 +183,9 @@ class CouncilRunner:
             )
 
         # Rama 4 (#15): emit dissent as a first-class artifact on a non-unanimous verdict,
-        # routed to the same destinations as the verdict (incl. any --return-dir).
+        # routed to the same destinations as the verdict (incl. any --return-dir). Share the
+        # transcript's exact <ts>-<mode>-<slug> so all of a run's artifacts are one matched set.
+        run_base = saved_paths[0].stem[len("council-out-"):]
         minority_paths = save_minority_report(
             result,
             output_dir,
@@ -191,6 +193,7 @@ class CouncilRunner:
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
             return_dir=request.return_dir,
+            stem_base=run_base,
         )
         if minority_paths:
             console.print(

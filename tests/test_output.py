@@ -599,6 +599,54 @@ def test_verdict_decision_strips_wrapping_emphasis(tmp_path, sample_question, sa
     assert data["decision"]["value"] == "Default to a monorepo with lightweight tooling."
 
 
+def test_verdict_judge_decision_is_overall_verdict_not_recommendations(
+    tmp_path, sample_question, sample_round
+):
+    """Judge mode: the decision must be ## Overall Verdict, not the first ## Recommendations item."""
+    synthesis = (
+        "## Overall Verdict\nThe design is sound and ready to ship.\n\n"
+        "## Recommendations\n- Add a retry budget\n- Document the timeout\n"
+    )
+    result = _pick_result(sample_question, sample_round, synthesis=synthesis, mode="judge")
+    data = _emit(result, tmp_path / "out")
+    assert data["decision"]["heading"] == "Overall Verdict"
+    assert data["decision"]["value"] == "The design is sound and ready to ship."
+
+
+def test_verdict_minority_pointer_uses_actual_emitted_filename(
+    tmp_path, sample_question, sample_round
+):
+    """Fix C: the minority pointer references the ACTUAL emitted file, even if its <ts> differs."""
+    result = _pick_result(sample_question, sample_round, synthesis=_DISSENT_SYNTHESIS)
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]
+    # a minority file whose <ts> deliberately differs from the transcript stem
+    minority = save_minority_report(result, out, stem_base="19990101_000000-pick-drift")
+    data = _load_verdict(
+        save_verdict_package(
+            result, out, transcript, written={"minority": minority}
+        )[0]
+    )
+    assert data["dissent"]["minority_artifact"] == minority[0].name
+    assert "19990101_000000-pick-drift" in data["dissent"]["minority_artifact"]
+
+
+def test_verdict_fails_loud_when_required_return_dir_unwritten(
+    tmp_path, sample_question, sample_round
+):
+    """Fix D / R4: a required --return-dir that cannot be written raises, not a silent exit 0."""
+    from ai_council.output import OutputRoutingError
+
+    result = _pick_result(sample_question, sample_round)
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]
+    # point return_dir at an existing FILE so its mkdir fails inside _write_routed
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+    with pytest.raises(OutputRoutingError):
+        save_verdict_package(result, out, transcript, return_dir=blocker)
+
+
 def test_verdict_dissent_unanimous(tmp_path, sample_question, sample_round):
     data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
     assert data["dissent"]["status"] == "unanimous"
@@ -670,8 +718,35 @@ def test_verdict_fallback_events_persisted_by_reference(tmp_path, sample_questio
     assert len(events) == 1
     assert events[0]["seat"] == "claude"
     assert events[0]["cause"] == "process-error"
-    assert data["panel"]["seats"][0]["requested_backend"] == "cli"
-    assert data["panel"]["seats"][0]["actual_backend"] == "api"
+    # panel.seats carries the FULL canonical L-CLI shape (no parallel subset schema): the
+    # same keys the _metrics.json sidecar emits via the shared _seat_payload serializer.
+    pseat = data["panel"]["seats"][0]
+    assert pseat["requested_backend"] == "cli"
+    assert pseat["actual_backend"] == "api"
+    assert pseat["cli"] == {"name": "claude", "version": "1.2.3"}
+    assert pseat["identity_channel"] == "stderr-banner"
+    assert pseat["fallback_events"][0]["cause"] == "process-error"
+
+
+def test_verdict_panel_seats_shape_matches_metrics_sidecar(tmp_path, sample_question, sample_round):
+    """The verdict panel.seats keys are identical to the _metrics.json seats[] keys (one source)."""
+    seat = SeatMetrics(
+        seat="openai",
+        requested_backend="api",
+        actual_backend="api",
+        requested_model="gpt-5.4",
+        actual_model="gpt-5.4",
+        identity_channel="api-echo",
+        identity_readable=True,
+    )
+    result = _pick_result(sample_question, sample_round, metrics=DebateMetrics(seats=[seat]))
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]  # also emits _metrics.json (seats[])
+    data = _load_verdict(save_verdict_package(result, out, transcript)[0])
+    metrics = json.loads(
+        (out / (transcript.stem + "_metrics.json")).read_text(encoding="utf-8")
+    )
+    assert data["panel"]["seats"][0].keys() == metrics["seats"][0].keys()
 
 
 def test_verdict_author_sourced_from_synthesis_metrics(tmp_path, sample_question, sample_round):
@@ -721,3 +796,7 @@ def test_verdict_artifacts_manifest_lists_run_outputs(tmp_path, sample_question,
     assert "verdict" in kinds
     transcript_entry = next(a for a in data["artifacts"] if a["kind"] == "transcript")
     assert transcript_entry["filename"] == saved_paths[0].name
+    # the verdict entry lists its own destinations too (manifest completeness)
+    verdict_entry = next(a for a in data["artifacts"] if a["kind"] == "verdict")
+    assert verdict_entry["paths"]
+    assert any(verdict_entry["filename"] in p for p in verdict_entry["paths"])
