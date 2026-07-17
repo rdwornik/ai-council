@@ -29,6 +29,11 @@ def build_call_metrics(
     output_tokens = response.output_tokens or 0
     # CLI (subscription-lane) calls are $0 marginal — never priced at API token rates
     # (L-CLI §2.1). Tokens are still recorded for transparency; only the cost is zeroed.
+    # ASSUMPTION (v1): a CLI seat is subscription-authed. Env-scrubbing forces the CLI off any
+    # API key in the environment, but a CLI whose OWN config store holds an API key could still
+    # be API-billed while recorded here as $0. Verifying each CLI's auth LANE (subscription vs
+    # API-key) is the doctor's CLI-fleet check — deferred to doctor-v2 (ADR-12 §Decision 3;
+    # this arc must not extend doctor). Until then the $0 recording trusts the subscription lane.
     if response.backend == "cli":
         cost = 0.0
     else:
