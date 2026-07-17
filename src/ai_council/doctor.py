@@ -59,28 +59,42 @@ class Check:
 def check_keys(config: AppConfig, shell_snapshot: dict[str, str | None]) -> list[Check]:
     """KEYS row: each configured api_key_env present & non-empty. NAME only, never values.
 
-    A key that was set-but-empty in the launching shell (env shadowing) is reported as a
-    non-fatal ADVISORY -- the doctor loaded global secrets with override, so the real value
-    is in use, but the poisoned shell is named.
+    Covers BOTH debate/synthesizer model keys and research-provider keys. Severity on
+    absence differs by role: a debate/synthesizer seat that cannot build is run-fatal (FAIL),
+    while a research-only key degrades gracefully (ADR-08 min-successful alarm), so its
+    absence is a non-fatal ADVISORY. A key set-but-empty in the launching shell (env
+    shadowing) is an ADVISORY -- the doctor loaded global secrets with override, so the real
+    value is in use, but the poisoned shell is named.
     """
-    env_to_seats: dict[str, list[str]] = {}
+    # env name -> {"model": [seats], "research": [seats]}
+    env_roles: dict[str, dict[str, list[str]]] = {}
     for name, model in config.models.items():
-        env_to_seats.setdefault(model.api_key_env, []).append(name)
+        env_roles.setdefault(model.api_key_env, {}).setdefault("model", []).append(name)
+    if config.research is not None:
+        for name, provider in config.research.providers.items():
+            env_roles.setdefault(provider.api_key_env, {}).setdefault("research", []).append(name)
 
     checks: list[Check] = []
-    for env, seats in sorted(env_to_seats.items()):
+    for env in sorted(env_roles):
+        model_seats = sorted(env_roles[env].get("model", []))
+        research_seats = sorted(env_roles[env].get("research", []))
+        # A name can be both a model and a same-named research provider (gemini, grok) --
+        # dedup for the label while keeping model-first ordering.
+        all_str = ", ".join(dict.fromkeys(model_seats + research_seats))
         value = os.environ.get(env, "").strip()
-        seats_str = ", ".join(sorted(seats))
         if value:
             if shell_snapshot.get(env) == "":
-                checks.append(Check(
-                    "key", env, ADVISORY,
-                    f"set-but-empty in shell; global secrets used ({seats_str})",
-                ))
+                checks.append(Check("key", env, ADVISORY,
+                                    f"set-but-empty in shell; global secrets used ({all_str})"))
             else:
-                checks.append(Check("key", env, PASS, f"present ({seats_str})"))
+                checks.append(Check("key", env, PASS, f"present ({all_str})"))
+        elif model_seats:
+            # A debate/synthesizer seat needs this key -> run-fatal.
+            checks.append(Check("key", env, FAIL, f"absent -- {', '.join(model_seats)} cannot run"))
         else:
-            checks.append(Check("key", env, FAIL, f"absent -- {seats_str} cannot run"))
+            # Research-only key -> research degrades (ADR-08), not run-fatal.
+            checks.append(Check("key", env, ADVISORY,
+                                f"absent -- research seat(s) {', '.join(research_seats)} unavailable"))
     return checks
 
 

@@ -151,6 +151,27 @@ def test_check_keys_present_absent_and_shadow(tmp_path: Path) -> None:
         assert absent[0].status == FAIL
 
 
+def test_check_keys_research_only_absent_is_advisory(tmp_path: Path) -> None:
+    """A missing research-only key is ADVISORY (research degrades), not FAIL; a missing
+    debate/synth model key stays FAIL."""
+    config = _make_config(tmp_path, with_research=True)  # claude->TEST_KEY, perplexity->PPLX_KEY
+    with patch.dict(os.environ, {"TEST_KEY": "sk-real"}, clear=True):  # PPLX_KEY absent
+        checks = check_keys(config, {})
+    by_env = {c.subject: c for c in checks}
+    assert by_env["TEST_KEY"].status == PASS
+    assert by_env["PPLX_KEY"].status == ADVISORY
+    assert evaluate_verdict(checks) == YELLOW  # advisory, not RED
+
+
+def test_check_keys_model_absent_is_fail_even_with_research(tmp_path: Path) -> None:
+    config = _make_config(tmp_path, with_research=True)
+    with patch.dict(os.environ, {"PPLX_KEY": "pk-real"}, clear=True):  # TEST_KEY (model) absent
+        checks = check_keys(config, {})
+    by_env = {c.subject: c for c in checks}
+    assert by_env["TEST_KEY"].status == FAIL
+    assert evaluate_verdict(checks) == RED
+
+
 def test_check_keys_never_prints_values(tmp_path: Path) -> None:
     config = _make_config(tmp_path)
     with patch.dict(os.environ, {"TEST_KEY": "super-secret-value"}, clear=False):

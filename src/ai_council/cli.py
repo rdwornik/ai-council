@@ -727,6 +727,8 @@ def doctor() -> None:
         console.print(f"[bold red]Config error:[/bold red] {exc}")
         sys.exit(1)
     key_envs = {model.api_key_env for model in config.models.values()}
+    if config.research is not None:
+        key_envs |= {provider.api_key_env for provider in config.research.providers.values()}
     shell_snapshot = {env: os.environ.get(env) for env in key_envs}
 
     # The doctor measures the REAL GLOBAL credentials regardless of shell state
