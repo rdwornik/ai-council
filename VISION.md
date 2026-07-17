@@ -1,7 +1,7 @@
 ---
 version: "1.0"
 owner: rob
-last_reviewed: "2026-07-05"
+last_reviewed: "2026-07-17"
 status: active
 ---
 
@@ -22,7 +22,7 @@ consumed by other repos via the `council` entry point.
 - **4 modes**: pick / ideas / judge / research
 - **CLI entry point**: `council`
 - **Synthesizer**: Gemini (deliberate selection, ADR-01)
-- **Output paths (dual)**: operational metrics + transcripts in `ai-council/output/`; curated transcripts in `.dev-knowledge/docs/decisions/transcripts/`
+- **Output paths**: local `ai-council/output/` is the always-written default (operational metrics + transcripts); the `.dev-knowledge/docs/decisions/transcripts/` hub mirror is **opt-in** per-invocation (ADR-43 `target-project` routing; ADR-10 `--return-dir`), never a silent default
 - Standalone tool — invoked by other repos, not embedded as a library
 
 ## Values
