@@ -536,3 +536,48 @@ def test_cli_multiple_target_projects(tmp_path: Path) -> None:
     assert len(paths) == 2
     assert paths[0] == tmp_path / ".dev-knowledge" / _transcripts
     assert paths[1] == tmp_path / "foo" / _transcripts
+
+
+# ---------------------------------------------------------------------------
+# A2: @click.group invocation surface (DefaultGroup preserves bare `council "q"`)
+# ---------------------------------------------------------------------------
+
+
+def test_group_exposes_run_and_doctor() -> None:
+    """main is a group with run + doctor subcommands (A2)."""
+    import click
+
+    assert isinstance(main, click.Group)
+    assert set(main.commands) == {"run", "doctor"}
+
+
+def test_bare_question_routes_to_run(tmp_path: Path) -> None:
+    """`council "q"` (no `run` token) still reaches the run path unchanged."""
+    config = _make_test_config(tmp_path)
+    with patch("ai_council.cli.load_config", return_value=config):
+        result = CliRunner().invoke(main, ["--skip-health-check", "bare question"])
+    # Reaches run and proceeds past arg-parsing (no click usage error / exit 2).
+    assert result.exit_code != 2
+
+
+def test_explicit_run_subcommand(tmp_path: Path) -> None:
+    """`council run "q"` is equivalent to the bare form."""
+    config = _make_test_config(tmp_path)
+    with patch("ai_council.cli.load_config", return_value=config):
+        result = CliRunner().invoke(main, ["run", "--skip-health-check", "explicit question"])
+    assert result.exit_code != 2
+
+
+def test_modes_flag_at_group_root() -> None:
+    """`council --modes` prints modes and exits without needing a subcommand."""
+    with patch("ai_council.cli.load_config", side_effect=Exception("no config")):
+        result = CliRunner().invoke(main, ["--modes"])
+    # eager --modes callback handled it (prints and exits); no crash routing to run.
+    assert result.exit_code == 0
+
+
+def test_group_help_lists_subcommands() -> None:
+    result = CliRunner().invoke(main, ["--help"])
+    assert result.exit_code == 0
+    assert "run" in result.output
+    assert "doctor" in result.output

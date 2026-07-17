@@ -297,7 +297,50 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
-@click.command(
+class _DefaultGroup(click.Group):
+    """Group that falls back to a default subcommand when the first token is not a
+    registered command -- preserves the bare ``council "question"`` invocation
+    (routed to ``run``) while also exposing ``council run`` / ``council doctor`` /
+    ``council --modes``. No new dependency; the whole shim is these two methods.
+    """
+
+    default_cmd = "run"
+
+    def _own_opt_names(self) -> set[str]:
+        """Option strings the GROUP itself owns (e.g. --modes, --help)."""
+        names = {"--help", "-h"}
+        for param in self.params:
+            names.update(param.opts)
+            names.update(param.secondary_opts)
+        return names
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        # No subcommand token -> run (preserves `council` -> "provide a question" path).
+        if not args:
+            args = [self.default_cmd]
+        # First token is neither a known subcommand nor a group-level option -> it is a
+        # positional question or a run-level option; route the whole tail through `run`.
+        elif args[0] not in self.commands and args[0] not in self._own_opt_names():
+            args = [self.default_cmd, *args]
+        return super().parse_args(ctx, args)
+
+
+@click.group(
+    cls=_DefaultGroup,
+    context_settings={"max_content_width": 120},
+    epilog=_EPILOG,
+)
+@click.option(
+    "--modes", is_flag=True, is_eager=True, expose_value=False,
+    callback=_print_modes_callback,
+    help="Print all debate modes with aliases and exit.",
+)
+def main() -> None:
+    """AI Council -- multi-model debate and research tool. Use --modes for mode details."""
+
+
+@main.command(
+    "run",
     context_settings={"max_content_width": 120},
     epilog=_EPILOG,
 )
@@ -343,11 +386,6 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     help="Debate mode: pick (default), ideas, or judge - or any alias. "
          "Skips auto-detection when set. Run --modes to see all aliases.",
 )
-@click.option(
-    "--modes", is_flag=True, is_eager=True, expose_value=False,
-    callback=_print_modes_callback,
-    help="Print all debate modes with aliases and exit.",
-)
 @click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging.")
 @click.option("--inbox", "use_inbox", is_flag=True, default=False, help="Process all .md files in the inbox folder.")
 @click.option(
@@ -375,7 +413,7 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
         "Must be a name in the config/settings.yaml target_projects list; path resolved under dev_root."
     ),
 )
-def main(
+def run(
     question: str | None,
     question_file: str | None,
     rounds: int | None,
@@ -667,6 +705,60 @@ def main(
         return_dir=effective_return_dir,
     )
     asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
+
+
+@main.command("doctor")
+def doctor() -> None:
+    """Liveness + config pre-flight: a GREEN/YELLOW/RED truth table over keys, seats, and
+    config. Writes a machine-readable record to output/health/. Never blocks a run."""
+    if sys.platform == "win32":
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+    from ai_council.doctor import run_doctor
+
+    # First load: learn the configured key-env NAMES and snapshot the launching shell's
+    # values for them, so a set-but-empty key (env shadowing) can be surfaced below.
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]Config error:[/bold red] {exc}")
+        sys.exit(1)
+    key_envs = {model.api_key_env for model in config.models.values()}
+    if config.research is not None:
+        key_envs |= {provider.api_key_env for provider in config.research.providers.values()}
+    shell_snapshot = {env: os.environ.get(env) for env in key_envs}
+
+    # The doctor measures the REAL GLOBAL credentials regardless of shell state
+    # (DRAFT-DOC-3 doctor stance): load ONLY the global secrets file, with override=True so
+    # it wins over a poisoned shell (e.g. an empty-but-set key). A repo-local .env is
+    # deliberately NOT consulted -- consulting it would let a forbidden repo-local secret
+    # (repo rule: global secrets only) mask a genuine global-config gap with a false GREEN.
+    # This is the doctor's OWN load -- the shared run-path loader is untouched.
+    _global_env = Path.home() / "Documents" / ".secrets" / ".env"
+    if _global_env.exists():
+        # A diagnostic must run even in a sick environment (L-DOC 2.3): an unreadable or
+        # corrupt secrets file warns loudly but does not abort -- the doctor then measures
+        # the current environment, and the seat pings report the real reachability.
+        try:
+            load_dotenv(_global_env, override=True)
+        except (OSError, UnicodeDecodeError) as exc:
+            console.print(
+                f"[yellow]WARNING:[/yellow] could not read global secrets file {_global_env}: "
+                f"{exc} -- measuring the current environment only."
+            )
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]Config error:[/bold red] {exc}")
+        sys.exit(1)
+
+    exit_code = run_doctor(
+        config, PROVIDER_CLASSES, shell_snapshot=shell_snapshot, console=console
+    )
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
