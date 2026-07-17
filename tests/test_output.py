@@ -655,14 +655,29 @@ def test_verdict_dissent_unanimous(tmp_path, sample_question, sample_round):
 
 
 def test_verdict_dissent_non_unanimous_points_to_minority(tmp_path, sample_question, sample_round):
+    """Orchestrator path: minority is emitted and passed, so the pointer resolves to it."""
     result = _pick_result(sample_question, sample_round, synthesis=_DISSENT_SYNTHESIS)
-    data = _emit(result, tmp_path / "out")
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]
+    run_base = transcript.stem[len("council-out-"):]
+    minority = save_minority_report(result, out, stem_base=run_base)
+    data = _load_verdict(
+        save_verdict_package(result, out, transcript, written={"minority": minority})[0]
+    )
     assert data["dissent"]["status"] == "non-unanimous"
-    assert data["dissent"]["minority_artifact"].startswith("council-minority-")
-    assert data["dissent"]["minority_artifact"].endswith(".md")
+    assert data["dissent"]["minority_artifact"] == minority[0].name
     # gist is the dissent CONTENT, not an echo of the section heading
     assert "crux" in data["dissent"]["gist"].lower()
     assert data["dissent"]["gist"] != "Unresolved Disagreements"
+
+
+def test_verdict_dissent_pointer_null_when_no_minority_emitted(tmp_path, sample_question, sample_round):
+    """A direct caller that emits no minority gets a null pointer, never a fabricated dangling name."""
+    result = _pick_result(sample_question, sample_round, synthesis=_DISSENT_SYNTHESIS)
+    data = _emit(result, tmp_path / "out")  # no written["minority"] supplied
+    assert data["dissent"]["status"] == "non-unanimous"
+    assert data["dissent"]["minority_artifact"] is None
+    assert data["dissent"]["gist"]  # dissent is still conveyed via the gist
 
 
 def test_verdict_contract_version_null_and_exit_zero(tmp_path, sample_question, sample_round):
@@ -785,10 +800,12 @@ def test_verdict_mirror_block_does_not_echo_question(tmp_path, sample_round):
 
 def test_verdict_artifacts_manifest_lists_run_outputs(tmp_path, sample_question, sample_round):
     result = _pick_result(sample_question, sample_round)
-    saved_paths = save_to_file(result, tmp_path / "out")
+    out = tmp_path / "out"
+    ret = tmp_path / "return"
+    saved_paths = save_to_file(result, out, return_dir=ret)
     written = {"transcript": saved_paths}
     verdict = save_verdict_package(
-        result, tmp_path / "out", saved_paths[0], written=written
+        result, out, saved_paths[0], written=written, return_dir=ret
     )
     data = _load_verdict(verdict[0])
     kinds = {a["kind"] for a in data["artifacts"]}
@@ -796,7 +813,21 @@ def test_verdict_artifacts_manifest_lists_run_outputs(tmp_path, sample_question,
     assert "verdict" in kinds
     transcript_entry = next(a for a in data["artifacts"] if a["kind"] == "transcript")
     assert transcript_entry["filename"] == saved_paths[0].name
-    # the verdict entry lists its own destinations too (manifest completeness)
+    # the verdict entry lists its GUARANTEED destinations (canonical + verified return_dir),
+    # and every listed path actually exists on disk (never a planned-but-failed claim)
     verdict_entry = next(a for a in data["artifacts"] if a["kind"] == "verdict")
-    assert verdict_entry["paths"]
-    assert any(verdict_entry["filename"] in p for p in verdict_entry["paths"])
+    assert len(verdict_entry["paths"]) == 2
+    assert all(Path(p).exists() for p in verdict_entry["paths"])
+
+
+def test_verdict_manifest_excludes_best_effort_target_mirrors(tmp_path, sample_question, sample_round):
+    """A best-effort --target mirror is NOT claimed in the verdict's own paths (no overclaim)."""
+    result = _pick_result(sample_question, sample_round)
+    out = tmp_path / "out"
+    target = tmp_path / "mirror"
+    transcript = save_to_file(result, out, target_paths=[target])[0]
+    data = _load_verdict(
+        save_verdict_package(result, out, transcript, target_paths=[target])[0]
+    )
+    verdict_entry = next(a for a in data["artifacts"] if a["kind"] == "verdict")
+    assert verdict_entry["paths"] == [str(out / verdict_entry["filename"])]  # canonical only

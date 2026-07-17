@@ -198,26 +198,6 @@ def _write_routed(
     return saved
 
 
-def _route_dirs(
-    output_dir: Path,
-    secondary_dir: Path | None,
-    target_paths: list[Path] | None,
-    return_dir: Path | None,
-) -> list[Path]:
-    """The directories `_write_routed` will target, in order (canonical first).
-
-    Mirrors `_write_routed`'s destination selection so a manifest can name every planned
-    path before the write; `secondary_dir` is included only when it exists (as the write is).
-    """
-    dirs = [output_dir]
-    if secondary_dir is not None and secondary_dir.exists():
-        dirs.append(secondary_dir)
-    if return_dir is not None:
-        dirs.append(return_dir)
-    dirs.extend(target_paths or [])
-    return dirs
-
-
 class OutputRoutingError(RuntimeError):
     """A required output destination (e.g. an explicit --return-dir) was not written.
 
@@ -663,12 +643,17 @@ def _verdict_summary_lines(result: DebateResult) -> list[str]:
 def _build_verdict_payload(
     result: DebateResult,
     run_id: str,
-    base: str,
     filename: str,
     written: dict[str, list[Path]],
-    verdict_dirs: list[Path],
+    guaranteed_dirs: list[Path],
 ) -> dict:
-    """Assemble the DRAFT-INT-1 field set, sourcing every field by reference."""
+    """Assemble the DRAFT-INT-1 field set, sourcing every field by reference.
+
+    ``guaranteed_dirs`` are the destinations known to receive the verdict when the call
+    returns normally (canonical, always written; and an explicit return_dir, which R4
+    verifies-or-raises). Best-effort mirrors are deliberately excluded so the manifest
+    never claims a path that a best-effort write may have skipped.
+    """
     sections = _split_sections(result.synthesis)
     seats = result.metrics.seats if result.metrics else []
 
@@ -681,16 +666,14 @@ def _build_verdict_payload(
     else:
         # Gist from the dissent section BODY (skip the heading, which extract_dissent re-emits).
         _, dissent_body = _first_by_priority(sections, _DISSENT_HEADING_MARKERS)
-        # Point at the ACTUAL emitted minority filename when the orchestrator supplied it
-        # (authoritative — save_minority_report mints its own <ts> and could differ by a
-        # rollover second); fall back to reconstruction only when it wasn't passed.
+        # Point ONLY at an ACTUAL emitted minority file (authoritative — save_minority_report
+        # mints its own <ts>). Never fabricate a name: if the caller emitted no minority
+        # report, the pointer is null (status + gist still convey the dissent) rather than a
+        # dangling path. The orchestrator always supplies it for a non-unanimous verdict.
         minority_written = written.get("minority")
-        minority_name = (
-            minority_written[0].name if minority_written else f"council-minority-{base}.md"
-        )
         dissent = {
             "status": "non-unanimous",
-            "minority_artifact": minority_name,
+            "minority_artifact": minority_written[0].name if minority_written else None,
             "gist": _one_line(dissent_body or "")[:280] or None,
             "source": "extraction",
         }
@@ -713,7 +696,7 @@ def _build_verdict_payload(
         {
             "kind": "verdict",
             "filename": filename,
-            "paths": [str(d / filename) for d in verdict_dirs],
+            "paths": [str(d / filename) for d in guaranteed_dirs],
         }
     )
 
@@ -781,8 +764,10 @@ def save_verdict_package(
     run_id = transcript_path.stem  # council-out-<ts>-<mode>-<slug>
     base = run_id[len("council-out-"):]  # <ts>-<mode>-<slug>
     filename = f"council-verdict-{base}.json"
-    verdict_dirs = _route_dirs(output_dir, secondary_dir, target_paths, return_dir)
-    payload = _build_verdict_payload(result, run_id, base, filename, written or {}, verdict_dirs)
+    # Destinations guaranteed once this call returns normally: canonical (always written) and
+    # an explicit return_dir (verified-or-raised below). Best-effort mirrors are excluded.
+    guaranteed_dirs = [output_dir] + ([return_dir] if return_dir is not None else [])
+    payload = _build_verdict_payload(result, run_id, filename, written or {}, guaranteed_dirs)
     saved = _write_routed(
         json.dumps(payload, indent=2), filename, output_dir, secondary_dir, target_paths, return_dir
     )
