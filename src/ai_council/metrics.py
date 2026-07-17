@@ -1,6 +1,6 @@
 """Cost and performance metric computation for debate runs."""
 
-from ai_council.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round
+from ai_council.models import DebateMetrics, ModelResponse, ProviderCallMetrics, Round, SeatMetrics
 from config.config_loader import ModelConfig
 
 
@@ -44,8 +44,12 @@ def build_debate_metrics(
     synthesis_call: ProviderCallMetrics,
     model_configs: dict[str, ModelConfig],
     total_duration_sec: float,
+    seats: list[SeatMetrics] | None = None,
 ) -> DebateMetrics:
-    """Aggregate metrics across all debate rounds plus synthesis."""
+    """Aggregate metrics across all debate rounds plus synthesis.
+
+    ``seats`` is the L-CLI per-seat backend/identity/fallback telemetry (seats[] sidecar).
+    """
     calls: list[ProviderCallMetrics] = []
     for rnd in rounds:
         for response in rnd.responses:
@@ -60,6 +64,7 @@ def build_debate_metrics(
 
     return DebateMetrics(
         calls=calls,
+        seats=seats or [],
         total_input_tokens=total_input,
         total_output_tokens=total_output,
         total_estimated_cost_usd=total_cost,

@@ -440,3 +440,48 @@ def test_return_dir_failure_canonical_still_written(tmp_path: Path, sample_debat
     assert len(saved) == 1
     assert saved[0].exists()
     assert any("Return-dir write failed" in r.message for r in caplog.records)
+
+
+def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):
+    """seats[] is emitted as an additive top-level namespace, keys/models by name only."""
+    import json as _json
+
+    from ai_council.models import (
+        DebateMetrics,
+        DebateResult,
+        FallbackEvent,
+        SeatMetrics,
+        SynthesisMetrics,
+    )
+    from ai_council.output import _save_metrics_json
+
+    seats = [
+        SeatMetrics(seat="claude", requested_backend="cli", actual_backend="cli",
+                    requested_model="opus", actual_model="claude-opus-4-8",
+                    identity_channel="modelUsage", identity_readable=True,
+                    cli={"name": "claude", "version": "2.1.212"}),
+        SeatMetrics(seat="openai", requested_backend="cli", actual_backend="api",
+                    requested_model="gpt-5.6-sol", actual_model="gpt-x",
+                    identity_channel="api-echo", identity_readable=True,
+                    fallback_events=[FallbackEvent(round=1, from_backend="cli",
+                                                   to_backend="api", cause="timeout",
+                                                   detail="CLI timed out after 30s")]),
+    ]
+    result = DebateResult(
+        question=sample_question, rounds=[sample_round], synthesis="s", synthesizer="gemini",
+        total_duration_sec=1.0, metrics=DebateMetrics(seats=seats),
+        synthesis_metrics=SynthesisMetrics("gemini", 10, 5, 0.5, "none"),
+    )
+    transcript = tmp_path / "council-out-test.md"
+    transcript.write_text("x", encoding="utf-8")
+    _save_metrics_json(result, transcript)
+
+    data = _json.loads((tmp_path / "council-out-test_metrics.json").read_text(encoding="utf-8"))
+    assert len(data["seats"]) == 2
+    by_seat = {s["seat"]: s for s in data["seats"]}
+    assert by_seat["claude"]["actual_backend"] == "cli"
+    assert by_seat["claude"]["identity_channel"] == "modelUsage"
+    assert by_seat["claude"]["cli"] == {"name": "claude", "version": "2.1.212"}
+    assert by_seat["openai"]["fallback_events"][0]["cause"] == "timeout"
+    # additive namespace: calls[] still present, seats[] alongside (not nested)
+    assert "calls" in data and "seats" in data

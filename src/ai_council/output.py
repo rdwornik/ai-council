@@ -471,6 +471,36 @@ def _save_metrics_json(result: DebateResult, transcript_path: Path) -> None:
             for c in m.calls
         ],
     }
+    # Sidecar extension mechanism (this arc is the first lander — L-CLI seam / ADR-12).
+    # The _metrics.json sidecar is extended by NAMESPACED, ADDITIVE top-level keys, one
+    # namespace owned by one lane: `seats` (L-CLI, per-seat backend/identity/fallback) and
+    # `synthesis` (L-EPI, below) — neither nests inside `calls`, neither extends the other.
+    # Consumers never branch on backend: every seat gets a uniform entry (API seats carry
+    # identity_channel="api-echo"). Model/seat/key values are names only, never secrets.
+    if m.seats:
+        payload["seats"] = [
+            {
+                "seat": seat.seat,
+                "requested_backend": seat.requested_backend,
+                "actual_backend": seat.actual_backend,
+                "cli": seat.cli,
+                "requested_model": seat.requested_model,
+                "actual_model": seat.actual_model,
+                "identity_channel": seat.identity_channel,
+                "identity_readable": seat.identity_readable,
+                "fallback_events": [
+                    {
+                        "round": fe.round,
+                        "from_backend": fe.from_backend,
+                        "to_backend": fe.to_backend,
+                        "cause": fe.cause,
+                        "detail": fe.detail,
+                    }
+                    for fe in seat.fallback_events
+                ],
+            }
+            for seat in m.seats
+        ]
     if result.synthesis_metrics is not None:
         s = result.synthesis_metrics
         payload["synthesis"] = {
