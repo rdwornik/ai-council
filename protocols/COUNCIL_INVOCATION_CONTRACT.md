@@ -75,8 +75,13 @@ Files in `~/Downloads` are recognized as council briefs by carrying ≥1 of thes
 Deterministic names in every destination (canonical `./output/` always written first;
 `--return-dir` and `--target-project` receive copies):
 
-- `council-out-<ts>-<mode>-<slug>.md` — verdict/transcript
+- `council-out-<ts>-<mode>-<slug>.md` — verdict/transcript (with a human-readable verdict mirror at the top)
+- `council-verdict-<ts>-<mode>-<slug>.json` — transcript-free **verdict package** (DRAFT-INT-1, #26):
+  decision, rationale, options, dissent pointer, panel/`seats[]`, verdict author, degradation — the
+  machine-authoritative deliverable a caller consumes without reading the transcript.
+  **Debate-path only** — research mode does not yet emit it (open parity gap, BACKLOG #34).
 - `council-out-<ts>-<mode>-<slug>_metrics.json` — per-provider cost/latency sidecar
+  (+ `seats[]` CLI-backend block and `synthesis` namespaced block, ADR-12/#16)
 - `council-minority-<ts>-<mode>-<slug>.md` — emitted only when the verdict is non-unanimous
   (substantive dissent detected in the synthesis)
 
