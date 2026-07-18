@@ -1,5 +1,7 @@
 # Code-Quality Audit — ai-council `src/` (implementation ground truth)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — SEED-1/2/3/4 shipped (#16/#22/#25/#26); open: #45–#48 (SEED-5/utcnow/dead-code/RunPolicy), #20. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Model:** Fable (severity calibration + whole-codebase judgment) · **Mode:** execution, READ-ONLY (this report is the only repo artifact) · **Effort:** high · **Verified against:** live `main` @ `796aa50` (branch point), first-hand reads + `radon`/`vulture`/`mypy`/`ast` on the checked-out tree · **Status:** committed record
 
 > **Companion to the intake.** The technical-architect intake (`2026-07-06-technical-architect-intake.md`) tells you WHAT to build. This tells you what you are building ON: is the code clean, consistent, readable, simple, efficient — or accreted and patched? **Zero refactoring was performed.** Findings are refactor *seeds* (§5) for the architect to fold into the backlog. This audit judges IMPLEMENTATION quality only; functional/design gaps live in the 07-04/07-05/07-06 lane docs and are referenced, never refiled (§6).

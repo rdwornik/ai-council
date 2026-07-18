@@ -1,5 +1,7 @@
 # Codex Review — audit-addendum-i7-i8
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `f094d08`/`baeb6bc`; I8 rename `2986ac0`. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-12
 **Branch:** `chore/audit-addendum-i7-i8`
 **HEAD:** `baeb6bc`

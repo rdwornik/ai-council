@@ -1,5 +1,7 @@
 # ADR-05: Research Mode Integration
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `research/runner.py` + providers + `cache.py`; `--deep` opt-in. No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-03-25
 **Status:** Accepted
 **Decision:** Option C staged approach — o4-mini as MVP, o3-deep as `--deep` only.

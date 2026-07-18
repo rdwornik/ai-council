@@ -1,5 +1,7 @@
 # ADR-12: Provider Backend Engine — CLI-subscription seats and two-lane cost policy
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — `seat_router.py` + `cli_base.py` live (`0cab825`/`39b3941`); §5 default-flip evidence-gated; open: #27, #32, #43. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-05
 **Status:** Accepted (ratified 2026-07-05 — operator ratification decision; drafted 2026-07-04 in the Fable architecture audit; fleet-recon markup of 2026-07-05 applied). The §5 default-flip clause remains evidence-gated.
 

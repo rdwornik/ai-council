@@ -1,5 +1,7 @@
 # ADR-06: Cost Optimization Strategy
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — cost tracking (`metrics.py`); Qwen/OpenRouter deferred by decision. No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-03-29
 **Status:** Revised 2026-05-11 (Qwen trial deferred/abandoned)
 **Decision:** Switch synthesizer to Sonnet 4.6; trial Qwen via OpenRouter as DeepSeek alternative.

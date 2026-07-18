@@ -1,5 +1,7 @@
 # Hub feedback — Codex producer-lane vs the global read-only policy (NEEDS-RULING)
 
+> **Deployment-Status (2026-07-18 inventory):** HUB-OWNED — NEEDS-RULING filed to hub (`321fa76`); interim operator ruling in force; no local mechanism. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17 · **From:** ai-council (consumer) · **To:** hub (`.dev-knowledge`), Codex-lane (EPIC-H)
 · **Channel:** consumer `docs/intake/` NEEDS-RULING note; operator carries to the hub (precedent:
 `docs/intake/2026-07-08-runbook-gap-notes.md`). Do **not** edit hub/global infra from a consumer

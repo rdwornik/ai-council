@@ -1,5 +1,7 @@
 # L-EPI — Epistemic Quality / Bias Reduction: Functional Design
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — EPI-1 pack + visible author line shipped (#24 closed by ruling); open: #18, #19, #9, #49 (EPI-2). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Lane:** L-EPI (pillar 1 — the mission) · **Mode:** DESIGN — functional architecture only; zero source/config changes; no ADR numbers claimed
 **Designer:** Fable 5 (one of five parallel lane sessions; worktree `lane-epi`)
 **Base state:** ratified merge `5c81e71` (ADR-11 + ADR-12 Accepted; `COUNCIL_INVOCATION_CONTRACT.md` live; Wave-0 GUIDE fixes)

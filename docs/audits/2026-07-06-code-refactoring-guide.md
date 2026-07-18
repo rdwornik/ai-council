@@ -1,5 +1,7 @@
 # Technical Refactoring Guide — ai-council `src/` (the how, at code level)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — A1 `fa4c1b5`, A3 `3583ae5`, A4/B3 `0ae7429` shipped; open: #45–#48 (A5/B2/B4/B7), #20. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Companion to:** `docs/audits/2026-07-06-code-quality-audit.md` · **Model:** Fable · **Mode:** READ-ONLY (this document is the only artifact — **no code was changed**) · **Verified against:** live `main` @ `ee8a323`
 
 > **Why this exists.** The code-quality audit answers *is the code clean?* at verdict altitude (SOLID / WORKABLE / REFACTOR-FIRST per surface). It is deliberately functional. **This document is the engineer's companion:** for each thing the audit flagged, the exact file, the exact current code, the exact target code, and the steps to get there. Every `Now`/`Target` block is faithful to live `main`.

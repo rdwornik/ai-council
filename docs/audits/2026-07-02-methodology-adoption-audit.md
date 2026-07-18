@@ -1,5 +1,7 @@
 # ai-council — Methodology-Adoption & Hygiene Audit
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — §4 fixes direct (`8361660`; INSTALL resync `288f256`, #315); residual: egg-info dup (harmless) + `.env` verify untracked nits. _(Additive inventory stamp; body below unchanged.)_
+
 > **Date:** 2026-07-02
 > **Auditor:** Claude Code (Opus), read-live audit — no files changed.
 > **Audience:** the incoming ai-council architect (post-handoff).

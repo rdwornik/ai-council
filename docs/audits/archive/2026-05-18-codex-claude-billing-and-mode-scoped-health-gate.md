@@ -1,5 +1,7 @@
 # Codex Review — claude-billing-and-mode-scoped-health-gate
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — merge `be58c36`; billing category (`base.py:29`) + mode-scoped health targets. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-18
 **Branch:** `fix/claude-provider-400-and-research-gating`
 **HEAD:** `d511b26`

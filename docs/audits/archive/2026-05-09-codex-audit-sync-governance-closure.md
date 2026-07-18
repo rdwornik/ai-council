@@ -1,5 +1,7 @@
 # Codex Review — audit-sync-governance-closure
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — review `3270576`; sync-governance closure. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-09
 **Branch:** `docs/audit-sync-2026-05-09`
 **HEAD:** `9ff0391`

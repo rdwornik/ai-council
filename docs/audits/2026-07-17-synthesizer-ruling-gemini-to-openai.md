@@ -1,5 +1,7 @@
 # Operator ruling — synthesizer gemini → openai (G3 / Epic-B gate event)
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `settings.yaml` `synthesizer: openai`; #2 Branch A shipped 2026-07-18; #24 closed; residual: #2/#3 (ADR-01 amendment, landed this session). _(Additive inventory stamp; body below unchanged.)_
+
 **Class:** audits (governance ruling record) · **Date:** 2026-07-17 · **Status:** RULED (operator authority) · **Filing only** — no durable config change tonight.
 **Recorded by:** Claude Code (night batch), from the architect's commission on the operator's authority. This note records a ruling the operator issued; it does not make the decision.
 

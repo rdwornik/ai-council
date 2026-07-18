@@ -1,5 +1,7 @@
 # ADR-01: Synthesizer Selection
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `pick_synthesizer()`/`exclude_synthesizer_from_panel()` (`runner.py`); default openai per Revised 2026-07-18 (`settings.yaml`); residual: #2/#3 (amendment codification). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-02-25
 **Status:** Revised (2026-07-18)
 **Decision:** Gemini as default non-participating synthesizer.

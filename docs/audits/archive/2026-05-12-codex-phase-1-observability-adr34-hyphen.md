@@ -1,5 +1,7 @@
 # Codex Review — phase-1-observability-adr34-hyphen
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — ADR-34 hyphen `3466a53`; Phase-1 observability. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-12
 **Branch:** `feat/phase-1-and-hyphen-cli`
 **HEAD:** `9baf8d4`

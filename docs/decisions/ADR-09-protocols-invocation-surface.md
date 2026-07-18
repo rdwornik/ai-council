@@ -1,5 +1,7 @@
 # ADR-09: protocols/ as the invocation surface
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `protocols/*.md` shipped (`0966c2a`, #12). No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-02
 **Status:** Accepted (2026-07-17)
 

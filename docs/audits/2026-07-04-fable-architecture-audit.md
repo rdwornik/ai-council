@@ -1,5 +1,7 @@
 # ai-council — Architecture Audit, Gap Analysis vs Consolidation Brief, ADR Drafts
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — ADR-11/12 ratified (`c11fb42`), ADR-13 ratified this session; D2 #22/#23, D6 #16; open: #27, #9, #18, #34, #35, #43. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-04 · **Mode:** PLAN — review artifact only, zero implementation, zero commits
 **Status:** Draft — ADR seed (pre-decision). Audit ran in the `fable-audit` worktree under MODE PLAN (no repo changes); persisted to `docs/audits/` the same day on operator instruction. The ADR-11/12/13 texts inside are **drafts** — nothing is ratified by this document; `docs/decisions/` is unchanged.
 **Auditor:** Fable 5 (single-model audit + synthesis, per operator instruction)

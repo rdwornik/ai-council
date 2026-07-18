@@ -1,5 +1,7 @@
 # ADR-02: Default Panel Composition
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `determine_panel()` (`runner.py`); `--lite`/`--full`. No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-03-20
 **Status:** Revised (2026-05-11)
 **Decision:** Default 5-model panel: Claude + Gemini + OpenAI + Grok + DeepSeek.

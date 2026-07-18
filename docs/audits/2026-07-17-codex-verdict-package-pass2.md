@@ -1,5 +1,7 @@
 # Codex Review — verdict-package-pass2
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — pass-2 fixes `caa395f` (strictly reductive, unit-tested); open: #33 (pass-3 terra WAIVED to 2026-07-23). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17
 **Branch:** `feat/verdict-package`
 **HEAD:** `7df9092`

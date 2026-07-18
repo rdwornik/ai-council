@@ -1,5 +1,7 @@
 # Root-surface parity disposition — ai-council
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — ADR-101 root-parity backfill; CLAUDE.md v2.7; #326 consumer-leg verified no-op. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-11
 **Status:** applied (session-ruled rows) + proposals (all others)
 **Owner:** Rob
@@ -29,7 +31,7 @@
 | 12 | `.gitattributes` | present (`* text=auto eol=lf`) | uniform fleet-wide | **LOCAL (parity met)** | none — conforms. |
 | 13 | `protocols/` | present; project-local Council-domain (#314, `153b6b2`) | #314 ruled a methodology-mandated genre; ai-council owns a project-local instance | **LOCAL** | none — corp references the hub `protocols/`; ai-council owns its own. **Genre may be re-classified by #327 (protocols-as-interface ruling).** |
 | 14 | UPPERCASE living docs (`VISION` `BACKLOG` `JOURNAL` `LESSONS` `CONTRIBUTING`) + `pyproject.toml` + `.gitignore` + `.ai-council.code-workspace` + `config/` `src/` `tests/` `scripts/` `docs/` `.claude/` | present, conform (`.claude/` gitignored except the allow-listed floor + sidecar + `check_floor_hash.py` + `commands/override.md`) | methodology-generic core set | **LOCAL (parity met)** | none — already conform. |
-| 15 | **This artifact's filename** | `docs/audits/2026-07-11-technical-root-parity-disposition.md` (hub lowercase class-token form) | — | **LOCAL (decision recorded)** | audit filename convention: hub form used pending the fleet ruling (register item: corp uppercase `_AUDIT_` vs hub lowercase class-token). Corp's `2026-07-11_AUDIT_…` form deliberately **not** adopted — propagating one side to a third repo would widen the open register item. |
+| 15 | **This artifact's filename** | `docs/audits/archive/2026-07-11-technical-root-parity-disposition.md` (hub lowercase class-token form; relocated to the preservation archive 2026-07-18) | — | **LOCAL (decision recorded)** | audit filename convention: hub form used pending the fleet ruling (register item: corp uppercase `_AUDIT_` vs hub lowercase class-token). Corp's `2026-07-11_AUDIT_…` form deliberately **not** adopted — propagating one side to a third repo would widen the open register item. |
 
 ## Applied this session (branch `docs/adr-101-root-parity`)
 

@@ -1,5 +1,7 @@
 # Codex Review — research-degradation-alarm
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — merge `c7d41f7`; degraded/failed_count persisted; inbox exit-3. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-18
 **Branch:** `fix/research-panel-degradation-alarm`
 **HEAD:** `c81e840`

@@ -1,5 +1,7 @@
 # ai-council — Fleet Recon, Liveness, Audit Reconciliation & Process Design
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — doctor #25, CLI #16, ADR-11, grok #28 shipped; open: #27, #32, #43, #34, #18, #19. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-05 · **Mode:** Recon + synthesis — repo read-only, zero commits (this file is the only repo artifact; left UNCOMMITTED for operator review)
 **Auditor:** Fable 5 · **Operator approval:** probe matrix approved with 4 amendments (canary-prompt fix, non-default pins, GM-1 included, verbatim settings.yaml pins — all applied)
 **Evidence base:** live probes on THIS machine (probe IDs `CL/CX/AG/GR/DC/GM-*`, raw captures in scratch — see §9 manifest), live API calls (all keys from `~/Documents/.secrets/.env`, names only), live repo/hub file reads. **Zero press/browser claims presented as fact** — every fleet cell is `witnessed(probe-id)` or `SKIPPED(reason)`.

@@ -1,5 +1,7 @@
 # GOV-1 Operator Rulings Register — RULED
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — 15 rulings applied; ADR-09/10 Accepted, DRAFT-GOV-1 ratified as ADR-14 (`85a692f`). No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17 · **Status:** RULED · **Branch:** `docs/gov1-consolidation` · **Gate:** G1 → G2 (#31)
 
 **Acceptance scope (operator, 2026-07-17):** *ACCEPT ALL over the lane-doc §6 primary set as
@@ -99,7 +101,7 @@ addendum entry**, and un-gates the Epic-B items (#18/#19/#9 + the v2 resolver). 
 
 ## Note — intake §5 label drift (superseded, per the acceptance scope above)
 
-The `docs/intake/2026-07-06-technical-architect-intake.md` §5 "Operator rulings register" paragraph
+The `docs/intake/archive/2026-07-06-technical-architect-intake.md` §5 "Operator rulings register" paragraph
 listed 14 topic **labels** that drifted from the actual §6 rulings: the labels *"F10 visible-author
 close"*, *"corpus scope"*, and *"secrets rule"* have **no §6 operator-ruling counterpart** (they
 name, respectively, an EPI functional requirement, a settled scope item, and a DOC inputs-forward
