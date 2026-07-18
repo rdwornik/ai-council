@@ -6,7 +6,10 @@ defaults:
   # `target-project` frontmatter or `--target-project` CLI flag (see Transcript Routing in CLAUDE.md).
   secondary_output_dir: "~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts"
   secondary_output_enabled: false
-  synthesizer: "gemini"
+  # Default verdict author. gemini -> openai ratified 2026-07-18 on the night-batch 4/4
+  # evidence (operator ruling: docs/audits/2026-07-17-synthesizer-ruling-gemini-to-openai.md).
+  # API-lane only (synthesizer-never-CLI guard). EPI-1 pack retained as the reversible instrument.
+  synthesizer: "openai"
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
