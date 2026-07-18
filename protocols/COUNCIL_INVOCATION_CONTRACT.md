@@ -30,7 +30,7 @@ reads the exit code, and consumes artifacts from `<dir>`.
 `council --inbox`. Fire-and-forget; results land per the same output rules; processed files
 are archived. The interaction model stays batch — no context-pull or interactive concepts.
 
-One brief format serves both lanes (ADR-11 §2; see §7 Known deviations).
+One brief format serves both lanes (ADR-11 §2).
 
 ## 2. Flag set (the committed surface)
 
@@ -101,13 +101,9 @@ consumption; artifacts are still written.
 
 ## 7. Known deviations (until the D2 parity fixes land)
 
-Committed contract, **currently deviating** — both are ADR-11 decisions whose code has not
-shipped yet (the fixes are a separate, pause-gated session):
+Committed contract, **currently deviating** — an ADR-11 decision whose code has not
+shipped yet (the fix is a separate, pause-gated session):
 
-1. **`--file` does not yet parse frontmatter.** On Lane A the YAML block currently leaks
-   into the question text sent to panelists. Until fixed: keep Lane A briefs
-   frontmatter-free and pass overrides as CLI flags (which the contract's precedence order
-   already prefers).
 2. **Research mode currently ignores `--return-dir`.** A research commission returns only
    to canonical `./output/` (and `--target-project` mirrors). Until fixed: Lane A research
    callers must collect from `./output/`.
@@ -116,8 +112,8 @@ shipped yet (the fixes are a separate, pause-gated session):
 
 1. **Commission** — the caller repo hits an ADR-67 convene threshold (hub-owned judgment).
 2. **Author** — write the brief per `COUNCIL_QUESTION_GUIDE.md` (ADR-95 lane discipline:
-   architect frames substance; CC expands mechanically). Until deviation #1 closes: no
-   frontmatter on Lane A; use flags.
+   architect frames substance; CC expands mechanically). Frontmatter or CLI flags both
+   carry overrides (flag > frontmatter > config default).
 3. **Pre-flight (optional)** — health/liveness check before an important run.
 4. **Invoke** — `council --file <brief.md> --return-dir <caller>/docs/decisions/inbox
    [--format json] [flags]` from the caller's own cwd.
