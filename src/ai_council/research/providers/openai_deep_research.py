@@ -98,7 +98,10 @@ class OpenAIDeepResearchProvider(ResearchProvider):
         )
 
     async def _call(self, client: AsyncOpenAI, query: str):
-        return await client.responses.create(
+        # openai 2.x SDK narrowed responses.create overloads (gpt-5.2 rollout); the
+        # existing kwargs no longer match a single overload. Stopgap until the 2.x
+        # typing migration (BACKLOG #20). Runtime is unaffected.
+        return await client.responses.create(  # type: ignore[call-overload]
             model=self._model,
             input=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
@@ -151,7 +154,8 @@ class OpenAIDeepResearchProvider(ResearchProvider):
     ) -> None:
         if not annotations:
             return
-        for ann in annotations:
+        # openai 2.x SDK types the annotations container as `object` (BACKLOG #20).
+        for ann in annotations:  # type: ignore[attr-defined]
             url = getattr(ann, "url", None)
             title = getattr(ann, "title", None)
             if url and url not in seen:

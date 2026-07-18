@@ -153,7 +153,8 @@ class OpenAIMiniResearchProvider(ResearchProvider):
     ) -> None:
         if not annotations:
             return
-        for ann in annotations:
+        # openai 2.x SDK types the annotations container as `object` (BACKLOG #20).
+        for ann in annotations:  # type: ignore[attr-defined]
             url = getattr(ann, "url", None)
             title = getattr(ann, "title", None)
             if url and url not in seen:
