@@ -1,6 +1,6 @@
 # Council Invocation Contract
 
-**Date:** 2026-07-05 · **Authority:** ADR-11 (Accepted) · **Compatibility:** the surface named here is a versioned commitment — breaking changes require an ADR (ADR-11 §5).
+**Date:** 2026-07-05 · **Contract-Version:** 1.0 · **Authority:** ADR-11 (Accepted) · **Compatibility:** the surface named here is a versioned commitment — breaking changes require an ADR (ADR-11 §5).
 
 The machine-facing contract for commissioning the Council. Audience: a delegating agent
 (typically a Claude Code session in another repo under `Dev/`) and any automation harness.
@@ -99,10 +99,11 @@ consumption; artifacts are still written.
 - **Health gate:** providers are pinged at startup; failures are reported per provider with
   a classified cause (auth / billing / timeout / …). `--skip-health-check` bypasses.
 
-## 7. Known deviations (until the D2 parity fixes land)
+## 7. Known deviations
 
-Committed contract, **currently deviating** — an ADR-11 decision whose code has not
-shipped yet (the fix is a separate, pause-gated session):
+None. The D2 parity fixes have landed — `--file` parses frontmatter (#22) and
+research honors `--return-dir` (#23). Both ADR-11 decisions are shipped, so the
+contract is stamped **Contract-Version 1.0** (DRAFT-INT-2).
 
 ## 8. Caller walkthrough (Lane A lifecycle)
 

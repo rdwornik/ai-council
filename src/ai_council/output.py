@@ -721,9 +721,9 @@ def _build_verdict_payload(
     return {
         "run_id": run_id,
         "timestamp": _iso_now(),
-        # No Contract-Version is stamped until the D2 deviations empty (Q7/DRAFT-INT-2, P6);
-        # emit null rather than inventing one — a caller records "unversioned" honestly.
-        "contract_version": None,
+        # Contract-Version 1.0: stamped once the D2 deviations emptied — --file frontmatter
+        # (#22) + research --return-dir (#23) shipped, so CONTRACT §7 is empty (Q7/DRAFT-INT-2).
+        "contract_version": "1.0",
         "question": result.question.text,
         "mode": result.mode,
         # A completed debate returns exit 0 even on a shrunk panel (ADR-08/§1 finding); the
