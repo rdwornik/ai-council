@@ -1,5 +1,7 @@
 # Wave-1 onboarding — runbook gap-notes (ai-council, n=1)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — local fixes landed (G8 pin, G3 handoffs, G4 codemap `d5c4e25`); hub gaps G1/G2/G6/G7/G9 forwarded (hub-scoped, untracked locally by design). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-08 · **Arc:** Wave-1 onboarding pilot (hub #131 pilot / #215 conformance) ·
 **Produced by:** ai-council's dedicated chat (ADR-41) · **Routing:** text artifact for the operator
 to file into `.dev-knowledge` — **no hub write was made from this consumer chat.**

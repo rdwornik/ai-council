@@ -1,5 +1,7 @@
 # Audit — Research-Provider Health Check
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — openai web_search migration + grok pin 0309; open: #54 (`"incomplete"`-terminal nuance). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-18
 **Branch:** `docs/research-provider-health-check`
 **HEAD (audit-time):** `bba023c18fe4674468dcb2cf8a9151ef0078bcd3`

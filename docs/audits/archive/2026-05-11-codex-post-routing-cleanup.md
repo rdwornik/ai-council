@@ -1,5 +1,7 @@
 # Codex Review — post-routing-cleanup
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — review `5b4db15`; post-routing cleanup applied. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-11
 **Branch:** `chore/post-routing-cleanup`
 **HEAD:** `0416a3f`

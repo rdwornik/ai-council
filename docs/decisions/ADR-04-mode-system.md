@@ -1,5 +1,7 @@
 # ADR-04: Mode System (pick/ideas/judge/research)
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `detect_mode()` (`mode_detector.py:25`); modes block in `settings.yaml`. No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-03-22
 **Status:** Accepted
 **Decision:** Four debate modes with auto-detection from question text.

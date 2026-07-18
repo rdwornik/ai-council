@@ -1,5 +1,7 @@
 # Codex Review — transcript-routing
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — ADR-43 `TargetResolver` live (`routing.py`). No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-11
 **Branch:** `feat/transcript-routing`
 **HEAD:** `d2d20dc`

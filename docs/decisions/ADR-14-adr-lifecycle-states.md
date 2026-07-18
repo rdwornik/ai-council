@@ -1,5 +1,7 @@
 # ADR-14: ADR lifecycle states
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED (process) — ratifies DRAFT-GOV-1; enforced this session (ADR-01/13 status edits); open: #51 (header↔index sync mechanization). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17
 **Status:** Accepted (2026-07-17)
 
@@ -12,7 +14,7 @@ convention governed (a) when `Proposed` must flip to `Accepted`, (b) the line be
 sync with the `docs/decisions/README.md` index row. This ADR ratifies **DRAFT-GOV-1** (functional
 design in `docs/intake/2026-07-06-lane-gov-functional-design.md` §4), the lifecycle convention
 that closes those gaps. Ratified per the operator's GOV-1 ruling (rulings register
-`docs/intake/2026-07-17-gov1-rulings-register.md`, L-GOV §6 Q2); the in-place status-line edits it
+`docs/intake/archive/2026-07-17-gov1-rulings-register.md`, L-GOV §6 Q2); the in-place status-line edits it
 authorizes are permitted by ADR-94 (ratification status-line exception).
 
 ## Decision
@@ -58,5 +60,5 @@ the crux-resolver draft; this ADR took the next free number, ADR-14).
 
 - **DRAFT-GOV-1** — `docs/intake/2026-07-06-lane-gov-functional-design.md` §4 (the ratified design)
 - **ADR-94** (hub) — ratification status-line-in-place exception (authorizes the header flips)
-- Rulings register — `docs/intake/2026-07-17-gov1-rulings-register.md` (L-GOV §6 Q2 = the ruling)
+- Rulings register — `docs/intake/archive/2026-07-17-gov1-rulings-register.md` (L-GOV §6 Q2 = the ruling)
 - ADR-09, ADR-10 — the two ADRs flipped to `Accepted` under this ADR's immediate disposition

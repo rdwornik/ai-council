@@ -1,5 +1,7 @@
 # L-DOC Functional Design — Liveness / Doctor
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — `council doctor` #25 (`6e0782e`) + secrets rule #30 (`7e6a5e3`) shipped; open: #32, #52. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Lane:** L-DOC (pillars 2+3 — "życie projektu") · **Mode:** FUNCTIONAL design — no code, no config edits, no backlog items
 **Author:** Fable 5 (one of five parallel lane sessions; integration serialized through the primary checkout)
 **Sources:** fleet-recon audit 2026-07-05 (§3 liveness matrix, §4 currency table, §6 P1 spec, §8 forks F1/F2/F5/F12), Fable architecture audit 2026-07-04, ratified state at `5c81e71` (ADR-11/ADR-12 Accepted, `COUNCIL_INVOCATION_CONTRACT.md`), `src/ai_council/healthcheck.py`, `src/ai_council/cli.py`, `config/settings.yaml`

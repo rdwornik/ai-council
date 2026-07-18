@@ -1,5 +1,7 @@
 # ADR-07: Dual Output Paths
 
+> **Deployment-Status (2026-07-18 inventory):** SUPERSEDED by ADR-43 (opt-in `target-project` routing); `secondary_output_enabled: false` retained-off. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-04-28
 **Status:** Superseded by ADR-43 (opt-in `target-project` routing replaces always-on secondary write)
 

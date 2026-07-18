@@ -1,5 +1,7 @@
 # ADR-03: Blind Voting in Round 2
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `_anonymize_responses()` (`debate.py:20`). No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-02-25
 **Status:** Accepted
 **Decision:** Anonymize Round 1 responses before Round 2 critique to eliminate anchoring bias.

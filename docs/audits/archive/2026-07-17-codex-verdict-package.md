@@ -1,5 +1,7 @@
 # Codex Review — verdict-package
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — #26 verdict package shipped `fd40585`; terra fixes `7df9092`. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17
 **Branch:** `feat/verdict-package`
 **HEAD:** `4de0734`

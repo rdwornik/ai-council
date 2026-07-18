@@ -1,5 +1,7 @@
 # F3 grok cost lane — re-probe disposition (#28)
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — #28 closed; grok OAuth subscription lane witnessed (`~/.grok/auth.json`); open: #27 (grok seat deferred to parity). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17 · **Class:** audits (immutable) · **Task:** BACKLOG #28 (F3 grok cost lane)
 **Refs:** fleet-recon `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` §8 F3;
 ADR-12 §Decision 2/§4 (cost lanes, quota gradient); L-CLI functional design

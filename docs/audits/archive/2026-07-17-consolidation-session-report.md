@@ -1,5 +1,7 @@
 # Consolidation Session Report — 2026-07-17
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — GOV-1 #31 delivered; ADR-09/10 Accepted; DRAFT-GOV-1 ratified as ADR-14. No open remainder (#31 struck). [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Scope:** Day session following the 2026-07-16 night batch. Executed **Beat 2** (GOV-1 consolidation,
 gate G1→G2), **Beat 3** (Leg C unlocks #29/#30), and the **EPI-1 workspace relocation**. **Beat 1**
 (EPI-1 report + ruling) was **deferred** by operator decision. Plan of record:
@@ -20,7 +22,7 @@ gate G1→G2), **Beat 3** (Leg C unlocks #29/#30), and the **EPI-1 workspace rel
 
 | Item | Result |
 |---|---|
-| 15 lane-doc §6 rulings + FORK_RULING(a) → RULED | `docs/intake/2026-07-17-gov1-rulings-register.md` (`ec406a4`) |
+| 15 lane-doc §6 rulings + FORK_RULING(a) → RULED | `docs/intake/archive/2026-07-17-gov1-rulings-register.md` (`ec406a4`) |
 | ADR-09/10 → Accepted (header **and** index, same commit) | `85a692f` |
 | DRAFT-GOV-1 ratified → **ADR-14** (ADR-13 reserved) | `85a692f` |
 | CLAUDE.md §11 extended ADR-08 → 09/10/11/12+14; re-stamped | `8bde22d` |

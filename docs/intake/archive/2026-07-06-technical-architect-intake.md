@@ -1,5 +1,7 @@
 # Technical Architect Intake — ai-council entry-point document
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — ratification waves + BACKLOG realized (`6a5e595`); register-of-record consumed. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Content authored by:** the functional architect (authoritative) · **Assembled + path/section-verified by:** Claude Code (Fable), against live `main` @ `42e72a2`, 2026-07-06 · **Status:** committed record
 
 ---

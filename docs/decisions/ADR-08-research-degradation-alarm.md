@@ -1,5 +1,7 @@
 # ADR-08: Research-panel degradation alarm
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `min_successful_providers: 3` (`settings.yaml`); `sys.exit(3)` (`cli.py`). No open remainder. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-18
 **Status:** Accepted
 

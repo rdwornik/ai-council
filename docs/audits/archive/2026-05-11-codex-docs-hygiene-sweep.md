@@ -1,5 +1,7 @@
 # Codex Review — docs-hygiene-sweep
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — review `f581df8`; docs-hygiene sweep applied. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-11
 **Branch:** `chore/docs-hygiene`
 **HEAD:** `d74dc8b`

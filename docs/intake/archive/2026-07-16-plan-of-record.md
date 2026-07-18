@@ -1,8 +1,10 @@
 # Plan of Record — ai-council build program
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — P0–P6 executed; Contract 1.0 (`5dd4782`). No open remainder (downstream tracked under own #ids). [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-16 · **Status:** committed record (operator's frozen phase plan, materialized) · **Authored by:** operator (phase plan, verbatim) + Claude Code (Fable) (task mapping, this arc) · **Branch:** `docs/plan-of-record`
 
-**Sources:** `docs/intake/2026-07-06-technical-architect-intake.md` (entry hub; §3 seam contracts, §5 rulings register) · the five lane functional designs `docs/intake/2026-07-06-lane-{cli,doc,epi,gov,int}-functional-design.md` · `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` (§8 fork list F1–F12) · `docs/audits/2026-07-06-code-refactoring-guide.md` (A1–A5/B1–B7) · ADR-11, ADR-12 · `protocols/COUNCIL_INVOCATION_CONTRACT.md` §7 (Known deviations) · `BACKLOG.md` (reconciled this arc: #22–#31, [E7], [S10]–[S12]).
+**Sources:** `docs/intake/archive/2026-07-06-technical-architect-intake.md` (entry hub; §3 seam contracts, §5 rulings register) · the five lane functional designs `docs/intake/2026-07-06-lane-{cli,doc,epi,gov,int}-functional-design.md` · `docs/audits/2026-07-05-fleet-recon-liveness-and-process-design.md` (§8 fork list F1–F12) · `docs/audits/2026-07-06-code-refactoring-guide.md` (A1–A5/B1–B7) · ADR-11, ADR-12 · `protocols/COUNCIL_INVOCATION_CONTRACT.md` §7 (Known deviations) · `BACKLOG.md` (reconciled this arc: #22–#31, [E7], [S10]–[S12]).
 
 ---
 
@@ -30,7 +32,7 @@ G2 gates the build wave (P4) and the post-pause quick unlock (DOC-3). G3 gates o
 
 **Sidecar seam rule (frozen, verbatim):** *first lane defines the extension mechanism, never built concurrently.* Concretely: `seats[]` (L-CLI) and `synthesis` (L-EPI) both extend the `_metrics.json` sidecar — whichever lands first defines how the sidecar is extended; the second conforms. Serialize; never build both extensions in parallel sessions.
 
-The five cross-lane seam contracts are canonical in the intake doc §3 (`docs/intake/2026-07-06-technical-architect-intake.md`) — **design against, never redesign**: (1) metrics sidecar namespacing, (2) doctor ownership (L-DOC owns; L-INT consumes as optional pre-flight; L-CLI contributes exactly the identity re-probe), (3) Epic B gate (L-EPI owns), (4) parity evidence (L-CLI owns; only CLI-4 results ratify the ADR-12 §5 flip), (5) enforcement (L-GOV owns; hub-carrier work is a hub arc).
+The five cross-lane seam contracts are canonical in the intake doc §3 (`docs/intake/archive/2026-07-06-technical-architect-intake.md`) — **design against, never redesign**: (1) metrics sidecar namespacing, (2) doctor ownership (L-DOC owns; L-INT consumes as optional pre-flight; L-CLI contributes exactly the identity re-probe), (3) Epic B gate (L-EPI owns), (4) parity evidence (L-CLI owns; only CLI-4 results ratify the ADR-12 §5 flip), (5) enforcement (L-GOV owns; hub-carrier work is a hub arc).
 
 Additional seam note (L-INT): the verdict package is **not** a sidecar extension — it is a separate caller-facing artifact (the sidecar is telemetry; the package is the deliverable). It consumes `seats[]`/`synthesis` facts by reference and designs neither.
 

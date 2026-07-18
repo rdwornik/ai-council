@@ -1,5 +1,7 @@
 # ADR-10: Output routing — local default + return-dir override
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — `--return-dir` CLI live (`bfc268f`); open: `~/.claude` `council.return_dir` reader deferred to #9. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-02
 **Status:** Accepted (2026-07-17)
 

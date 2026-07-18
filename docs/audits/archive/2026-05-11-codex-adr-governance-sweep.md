@@ -1,5 +1,7 @@
 # Codex Review — adr-governance-sweep
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — ADR-34 hyphen naming shipped `3466a53`. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-11
 **Branch:** `chore/adr-sweep`
 **HEAD:** `284d566`

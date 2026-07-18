@@ -1,5 +1,7 @@
 # Hub feedback — session-close gate must mechanically block handoff regen; consumer hub-write guard (NEEDS-RULING)
 
+> **Deployment-Status (2026-07-18 inventory):** HUB-OWNED — NEEDS-RULING filed to hub (`3d39db9`); no local mechanism. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-17 · **From:** ai-council (consumer) · **To:** hub (`.dev-knowledge`), governance/lifecycle lane
 · **Channel:** consumer `docs/intake/` NEEDS-RULING note; operator carries to the hub (precedent:
 `docs/intake/2026-07-17-hub-feedback-codex-producer-lane.md`, `docs/intake/2026-07-08-runbook-gap-notes.md`).

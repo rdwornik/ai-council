@@ -1,5 +1,7 @@
 # Codex Review — f0-transcript-preserve-question
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — merge `b9b30b5` (fix `d00989f`); Source<Question<Round-1 asserted by test. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-17
 **Branch:** `fix/transcript-preserve-full-question`
 **HEAD:** `e2b5f7b`

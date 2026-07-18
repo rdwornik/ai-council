@@ -1,5 +1,7 @@
 # L-INT — Delegation Interface: Functional Design (pillar 4, "the window on the world")
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — verdict package #26 (`fd40585`) + D2 parity #22/#23; DRAFT-INT-2 ratified as ADR-13 this session; open: #34, #35, #38. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Lane:** L-INT (`int`) · **Mode:** DESIGN — functional architecture only; zero source/config changes; drafts stay drafts (no ADR numbers claimed)
 **Author:** Fable 5 (CC), one of five concurrent lane sessions · **Frame:** `CC-MASTER-lane-functional-design-sessions.md`
 **Sources verified live at `5c81e71`:** ADR-11/12 (Accepted), `protocols/COUNCIL_INVOCATION_CONTRACT.md`, fleet-recon audit 2026-07-05 (P3, F6–F8), Fable audit 2026-07-04 (D1/D2/D8), GUIDE, BACKLOG.

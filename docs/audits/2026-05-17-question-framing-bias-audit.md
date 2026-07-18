@@ -1,5 +1,7 @@
 # Audit — Question-Framing Bias in Past Council Debates
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — F-0 fixed `d00989f`; bias-rubric in `COUNCIL_QUESTION_GUIDE.md`; open: #19, #53. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-17
 **Branch:** `docs/question-framing-bias-audit`
 **HEAD (audit-time):** `1527c9769d07ffda1edcbd4921ca37e2daf4f720`

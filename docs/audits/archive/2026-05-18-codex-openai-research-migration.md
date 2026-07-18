@@ -1,5 +1,7 @@
 ﻿# Codex Review â€” openai-research-migration
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — merge `f471e67`; timeout + max_retries=1 in openai research providers. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-18
 **Branch:** `fix/openai-research-provider-migration`
 **HEAD:** `c1c1212`

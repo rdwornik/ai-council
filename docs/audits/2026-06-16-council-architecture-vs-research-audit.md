@@ -1,5 +1,7 @@
 # Audit — Does AI Council embody what the multi-agent-debate research shows *works*?
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — ADR-seed (never ratified); G7 to #15, G6 to #18, G5 to #55 filed; G1–G4 closed as superseded-brainstorm (2026-07-18); open: #55, #18. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-06-16
 **Branch:** `docs/audit-council-vs-research`
 **HEAD (audit-time):** `9eeedfc`

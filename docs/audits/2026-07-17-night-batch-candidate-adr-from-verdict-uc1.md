@@ -1,5 +1,7 @@
 # Consumption test — candidate ADR drafted from a verdict package ALONE (UC1 / Rama 1)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — DRAFT-INT-1 validated; DRAFT-INT-2 ratified as ADR-13 this session; open: #18 (crux-check), #38 (verdict→ADR read-back). _(Additive inventory stamp; body below unchanged.)_
+
 **Class:** audits (night-batch artifact, NOT a `docs/decisions/` ADR) · **Date:** 2026-07-17
 **Method (amendment 2):** this ADR was drafted **solely** from `output/council-verdict-20260717_230406-pick-uc1-rama1-crux-grounding.json`. The transcript (`council-out-…-uc1-…md`) and the minority report were **deliberately NOT read**. The purpose is to measure the transcript-free contract (DRAFT-INT-1, L-INT R2) empirically and feed #38 (verdict→ADR read-back guide).
 

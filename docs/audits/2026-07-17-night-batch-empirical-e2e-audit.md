@@ -1,5 +1,7 @@
 # Night Batch — Unattended Empirical E2E Audit (2026-07-17)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — #39/#40/#41 shipped, #42 struck; open: #43, #18, #19. _(Additive inventory stamp; body below unchanged.)_
+
 **Class:** audits · **Status:** LIVE (night log, appended as legs complete) · **Author:** Claude Code (Opus 4.8, xhigh), on the architect's commission, operator pre-authorized
 **Doctrine:** serial legs · hard stop conditions · **NO code edits · NO durable config edits · NO merges · NO ADR filings** · outputs = run artifacts + this one audits-class report
 **Deliverable role:** this file is the morning report AND the intake for the next planning session.

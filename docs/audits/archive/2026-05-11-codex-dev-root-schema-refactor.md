@@ -1,5 +1,7 @@
 # Codex Review — dev-root-schema-refactor
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — review `6b87a7d`; dev-root schema refactor applied. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-11
 **Branch:** `refactor/dev-root-schema`
 **HEAD:** `43608e4`

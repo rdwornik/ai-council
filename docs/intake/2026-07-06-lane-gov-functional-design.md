@@ -1,5 +1,7 @@
 # ai-council — L-GOV Functional Design: Record & Governance Hygiene (pillar 5)
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — DRAFT-GOV-1 ratified as ADR-14 (`85a692f`), currency pass #31; open: #50 (DRAFT-GOV-2 Watches). _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Mode:** DESIGN — functional architecture only; zero source/config changes; this document is the lane's sole repo artifact
 **Author:** Fable 5 (L-GOV lane session, one of five parallel worktree lanes; parallel-mode wrap — committed on the worktree branch, integration serialized by the primary)
 **Sources verified live:** fleet-recon audit (`2593075`), Fable architecture audit (`cd4a5e1` copy), ratified state at merge `5c81e71` (ADR-11/12 Accepted, CONTRACT, Wave-0), `docs/decisions/ADR-01..12`, `BACKLOG.md`, `.pre-commit-config.yaml`, `.claude/settings.json`, `~/.claude/settings.json`, `scripts/session_end_backpressure.py`, `scripts/canonical_freshness_gate.py`, JOURNAL 2026-07-05 entries

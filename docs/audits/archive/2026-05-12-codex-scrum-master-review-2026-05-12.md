@@ -1,5 +1,7 @@
 # Codex Review — scrum-master-review-2026-05-12
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — review `d106697`; implementation `55c393e`. No open remainder. [ARCHIVED 2026-07-18] _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-05-12
 **Branch:** `chore/scrum-master-review-2026-05-12`
 **HEAD:** `55c393e`

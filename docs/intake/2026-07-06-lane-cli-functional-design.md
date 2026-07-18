@@ -1,5 +1,7 @@
 # L-CLI — CLI Backend & Cost Lanes: Functional Design
 
+> **Deployment-Status (2026-07-18 inventory):** PARTIAL — CLI seats claude+codex shipped #16 (`5d601f4`); open: #27, #43, #32. _(Additive inventory stamp; body below unchanged.)_
+
 **Date:** 2026-07-06 · **Lane:** L-CLI (pillar 3, economics) · **Mode:** DESIGN — functional architecture only; no code, no config, no backlog items
 **Author:** Fable 5 (functional-architect session, one of five parallel lane sessions)
 **Authority context:** ADR-12 Accepted (ratified 2026-07-05); this document designs *within* it — nothing here reopens §B of the lane frame.

@@ -9,6 +9,8 @@ owner: Rob
 
 # QA lived exercise — does the deployed methodology actually bite?
 
+> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — F1 block-ff-push live (v1.3.1); gates witnessed blocking; residual: F2/F3 self-heal untracked. _(Additive inventory stamp; body below unchanged.)_
+
 > **First QA-class audit in this repo.** Its existence seeds the audit-class
 > taxonomy question (is `qa-audit` a distinct `docs/audits/` kind vs the existing
 > code/architecture/methodology audits?) — **routed to the hub hermetization ADR**;
