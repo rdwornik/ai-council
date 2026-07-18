@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -409,6 +410,11 @@ def main() -> None:
     help="Output directory for saved transcripts (default: ./output).",
 )
 @click.option(
+    "--no-persist", "no_persist", is_flag=True, default=False,
+    help="Write artifacts to a scratch temp dir instead of ./output/, so witness/dev "
+         "runs leave the canonical output/ untouched (#39).",
+)
+@click.option(
     "--return-dir", "return_dir",
     default=None,
     help="ADR-10 deterministic return: also route the verdict (and any minority report) "
@@ -460,6 +466,7 @@ def run(
     use_full_panel: bool,
     lite: bool,
     output_path: str | None,
+    no_persist: bool,
     return_dir: str | None,
     synthesizer: str | None,
     mode_arg: str | None,
@@ -506,7 +513,19 @@ def run(
         load_dotenv(override=False)
         config = load_config()
 
-    effective_output = Path(output_path) if output_path else config.defaults.output_dir
+    # Output-dir resolution (#39). Precedence, highest first: --output flag >
+    # --no-persist (scratch temp, canonical output/ untouched) > AICOUNCIL_OUTPUT_DIR
+    # env override > config default. No routing redesign — this only chooses the
+    # canonical dir that _write_routed already writes to.
+    _env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
+    if output_path:
+        effective_output = Path(output_path)
+    elif no_persist:
+        effective_output = Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
+    elif _env_output:
+        effective_output = Path(_env_output).expanduser()
+    else:
+        effective_output = config.defaults.output_dir
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
     # ADR-10 deterministic return directory. Precedence (highest first):

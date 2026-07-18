@@ -691,3 +691,78 @@ def test_file_target_project_frontmatter_resolved(tmp_path: Path) -> None:
     captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
     assert len(captured[0].target_paths) == 1
     assert ".dev-knowledge" in str(captured[0].target_paths[0])
+
+
+# ---------------------------------------------------------------------------
+# #39: --no-persist + AICOUNCIL_OUTPUT_DIR output-dir resolution
+# ---------------------------------------------------------------------------
+
+def _capture_output_dir(config: AppConfig, args: list[str]):
+    """Invoke the CLI and capture the output_dir passed to CouncilRunner.run."""
+    fake_provider = MockProvider("claude")
+    fake_result = DebateResult(
+        question=Question(text="test", source="cli"),
+        rounds=[Round(number=1, responses=[])],
+        synthesis="Result",
+        synthesizer="claude",
+        total_duration_sec=1.0,
+        panel_mode="custom",
+    )
+    captured: dict = {}
+
+    async def _fake_run(request, output_dir=None, output_format="text"):
+        captured["output_dir"] = output_dir
+        return fake_result
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _fake_run
+        CliRunner().invoke(main, args)
+    return captured.get("output_dir")
+
+
+def test_no_persist_routes_to_scratch_temp(tmp_path, monkeypatch):
+    """#39: --no-persist writes to a scratch temp dir, leaving config output/ untouched."""
+    import shutil
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    out = _capture_output_dir(config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"])
+    assert out is not None
+    assert out != config.defaults.output_dir
+    assert "aicouncil-scratch-" in out.name
+    shutil.rmtree(out, ignore_errors=True)  # no leftovers
+
+
+def test_env_output_dir_override(tmp_path, monkeypatch):
+    """#39: AICOUNCIL_OUTPUT_DIR overrides the config default when no flag is given."""
+    env_dir = tmp_path / "env_out"
+    monkeypatch.setenv("AICOUNCIL_OUTPUT_DIR", str(env_dir))
+    config = _make_test_config(tmp_path)
+    out = _capture_output_dir(config, ["--skip-health-check", "--mode", "pick", "q"])
+    assert out == env_dir
+
+
+def test_output_flag_beats_no_persist_and_env(tmp_path, monkeypatch):
+    """#39: precedence --output > --no-persist > AICOUNCIL_OUTPUT_DIR > config default."""
+    monkeypatch.setenv("AICOUNCIL_OUTPUT_DIR", str(tmp_path / "env_out"))
+    explicit = tmp_path / "explicit"
+    config = _make_test_config(tmp_path)
+    out = _capture_output_dir(
+        config,
+        ["--skip-health-check", "--mode", "pick", "--no-persist", "--output", str(explicit), "q"],
+    )
+    assert out == explicit
+
+
+def test_no_persist_beats_env(tmp_path, monkeypatch):
+    """#39: --no-persist wins over the env override (both below --output)."""
+    import shutil
+    monkeypatch.setenv("AICOUNCIL_OUTPUT_DIR", str(tmp_path / "env_out"))
+    config = _make_test_config(tmp_path)
+    out = _capture_output_dir(config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"])
+    assert "aicouncil-scratch-" in out.name
+    assert out != tmp_path / "env_out"
+    shutil.rmtree(out, ignore_errors=True)

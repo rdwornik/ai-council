@@ -411,3 +411,36 @@ def test_doctor_subcommand_survives_unreadable_secrets_file(tmp_path: Path) -> N
         result = runner.invoke(main, ["doctor"])
     assert result.exit_code == 0
     assert "WARNING" in result.output and "COUNCIL DOCTOR" in result.output
+
+
+# ---------------------------------------------------------------------------
+# #39: bounded retention for output/health/ doctor records
+# ---------------------------------------------------------------------------
+
+def test_prune_health_records_keeps_recent_n(tmp_path):
+    """#39: only the most recent N timestamped records survive; doctor-latest.json is kept."""
+    health = tmp_path / "health"
+    health.mkdir()
+    for i in range(15):
+        (health / f"doctor-20260718_{i:06d}.json").write_text("{}", encoding="utf-8")
+    (health / "doctor-latest.json").write_text("{}", encoding="utf-8")
+
+    doc._prune_health_records(health, keep=10)
+
+    remaining = sorted(
+        p.name for p in health.glob("doctor-*.json") if p.name != "doctor-latest.json"
+    )
+    assert len(remaining) == 10
+    assert remaining[0] == "doctor-20260718_000005.json"  # oldest kept (records 05..14)
+    assert (health / "doctor-latest.json").exists()  # never pruned
+
+
+def test_write_record_prunes_to_retention(tmp_path):
+    """#39: write_record applies the bounded retention on each write."""
+    out = tmp_path / "out"
+    for i in range(12):
+        doc.write_record({"n": i}, out, f"20260718_{i:06d}")
+    health = out / "health"
+    records = [p for p in health.glob("doctor-*.json") if p.name != "doctor-latest.json"]
+    assert len(records) == doc._HEALTH_RETENTION
+    assert (health / "doctor-latest.json").exists()
