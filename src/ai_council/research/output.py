@@ -1,6 +1,5 @@
 """Research output: save markdown report to disk and print console summary."""
 
-import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.rule import Rule
 
+from ai_council.output import _write_routed
 from ai_council.research.models import MergedResearchReport
 
 
@@ -32,14 +32,17 @@ def save_research_to_file(
     from_cache: bool = False,
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
 ) -> list[Path]:
-    """Save merged research report as markdown. Returns list of paths written."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Save merged research report as markdown. Returns list of paths written.
 
+    Routing (canonical always first, then secondary / return-dir / target copies)
+    is delegated to the shared debate-path writer so research honors --return-dir
+    identically to the debate path (#23).
+    """
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = _slug(report.query)
     filename = f"council-out-{ts}-research-{slug}.md"
-    file_path = output_dir / filename
 
     lines: list[str] = [
         "# Research Report\n",
@@ -86,32 +89,7 @@ def save_research_to_file(
     lines.append(report.merged_report)
 
     content = "\n".join(lines)
-    file_path.write_text(content, encoding="utf-8")
-    saved = [file_path]
-
-    if secondary_dir is not None:
-        if secondary_dir.exists():
-            secondary_path = secondary_dir / filename
-            secondary_path.write_text(content, encoding="utf-8")
-            saved.append(secondary_path)
-        else:
-            logging.getLogger(__name__).warning(
-                "Secondary output dir not found: %s — research report saved to primary only.",
-                secondary_dir,
-            )
-
-    _logger = logging.getLogger(__name__)
-    for target_dir in target_paths or []:
-        try:
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_path = target_dir / filename
-            target_path.write_text(content, encoding="utf-8")
-            _logger.info("Research report mirrored to: %s", target_path)
-            saved.append(target_path)
-        except Exception as exc:
-            _logger.warning("Mirror write failed for %s: %s", target_dir, exc)
-
-    return saved
+    return _write_routed(content, filename, output_dir, secondary_dir, target_paths, return_dir)
 
 
 def print_research_summary(

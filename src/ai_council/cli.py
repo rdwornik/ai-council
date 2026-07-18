@@ -6,11 +6,15 @@ import os
 import sys
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.logging import RichHandler
+
+if TYPE_CHECKING:
+    from ai_council.research.models import MergedResearchReport
 
 from ai_council.healthcheck import run_health_checks
 from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
@@ -71,6 +75,41 @@ def _strip_empty_api_keys(config: AppConfig) -> list[str]:
     for var in stripped:
         del os.environ[var]
     return stripped
+
+
+def _run_research_dispatch(
+    *,
+    query: str,
+    config: AppConfig,
+    output_dir: Path,
+    deep: bool,
+    no_cache: bool,
+    console: Console,
+    output_format: str,
+    models_filter: list[str] | None,
+    target_paths: list[Path] | None,
+    return_dir: Path | None,
+) -> "MergedResearchReport | None":
+    """Single dispatch point for a research commission — collapses the Lane A / Lane B
+    call-sites into one and threads ``--return-dir`` through to ``run_research`` so a
+    research run honors the caller's return dir identically to the debate path (#23,
+    the A2-narrowing dispatch slice). Callers own their own pre/post handling (inbox
+    archive vs interactive exit codes)."""
+    from ai_council.research.runner import run_research
+    return asyncio.run(
+        run_research(
+            query=query,
+            config=config,
+            output_dir=output_dir,
+            deep=deep,
+            no_cache=no_cache,
+            console=console,
+            output_format=output_format,
+            models_filter=models_filter,
+            target_paths=target_paths,
+            return_dir=return_dir,
+        )
+    )
 
 
 def _check_and_filter_providers(
@@ -569,20 +608,18 @@ def run(
                     logger.error("No research config in settings.yaml -- skipping %s", file_path.name)
                     archive_file(file_path, archive_dir, failed=True)
                     continue
-                from ai_council.research.runner import run_research
                 try:
-                    fm_report = asyncio.run(
-                        run_research(
-                            query=question_text,
-                            config=config,
-                            output_dir=effective_output,
-                            deep=deep,
-                            no_cache=no_cache,
-                            console=console,
-                            output_format=output_format,
-                            models_filter=[m.strip() for m in fm_models.split(",")] if fm_models else None,
-                            target_paths=fm_target_paths or None,
-                        )
+                    fm_report = _run_research_dispatch(
+                        query=question_text,
+                        config=config,
+                        output_dir=effective_output,
+                        deep=deep,
+                        no_cache=no_cache,
+                        console=console,
+                        output_format=output_format,
+                        models_filter=[m.strip() for m in fm_models.split(",")] if fm_models else None,
+                        target_paths=fm_target_paths or None,
+                        return_dir=effective_return_dir,
                     )
                     if fm_report is not None and fm_report.degraded:
                         inbox_any_degraded = True
@@ -694,20 +731,18 @@ def run(
         if config.research is None:
             console.print("[bold red]Error:[/bold red] No research config in settings.yaml.")
             sys.exit(1)
-        from ai_council.research.runner import run_research
         try:
-            report = asyncio.run(
-                run_research(
-                    query=question_text,
-                    config=config,
-                    output_dir=effective_output,
-                    deep=deep,
-                    no_cache=no_cache,
-                    console=console,
-                    output_format=output_format,
-                    models_filter=[m.strip() for m in eff_models.split(",")] if eff_models else None,
-                    target_paths=eff_target_paths or None,
-                )
+            report = _run_research_dispatch(
+                query=question_text,
+                config=config,
+                output_dir=effective_output,
+                deep=deep,
+                no_cache=no_cache,
+                console=console,
+                output_format=output_format,
+                models_filter=[m.strip() for m in eff_models.split(",")] if eff_models else None,
+                target_paths=eff_target_paths or None,
+                return_dir=effective_return_dir,
             )
         except RuntimeError as exc:
             console.print(f"[bold red]Research error:[/bold red] {exc}")

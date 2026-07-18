@@ -137,3 +137,39 @@ def test_research_both_files_identical(tmp_path, sample_research_report):
         sample_research_report, tmp_path / "primary", secondary_dir=secondary
     )
     assert saved[0].read_text(encoding="utf-8") == saved[1].read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# #23: research honors --return-dir (canonical ./output/ always written)
+# ---------------------------------------------------------------------------
+
+def test_research_return_dir_written(tmp_path, sample_research_report):
+    """#23: a research commission lands a copy in the caller's return dir (auto-mkdir)."""
+    primary = tmp_path / "primary"
+    return_dir = tmp_path / "caller_return"  # does not exist yet -> best-effort mkdir
+    saved = save_research_to_file(sample_research_report, primary, return_dir=return_dir)
+
+    # canonical is always written first and present
+    assert saved[0].parent == primary
+    assert saved[0].exists()
+
+    # the return-dir copy is present, same filename, identical content
+    return_paths = [p for p in saved if p.parent == return_dir]
+    assert len(return_paths) == 1
+    assert return_paths[0].exists()
+    assert return_paths[0].name == saved[0].name
+    assert return_paths[0].read_text(encoding="utf-8") == saved[0].read_text(encoding="utf-8")
+
+
+def test_research_return_dir_is_additive_canonical_unchanged(tmp_path, sample_research_report):
+    """#23: return-dir is a copy, never a replacement — canonical ./output/ is unchanged."""
+    primary = tmp_path / "primary"
+    return_dir = tmp_path / "caller_return"
+    saved = save_research_to_file(sample_research_report, primary, return_dir=return_dir)
+
+    # canonical file exists in the primary dir regardless of return_dir
+    canonical = [p for p in saved if p.parent == primary]
+    assert len(canonical) == 1
+    assert canonical[0].exists()
+    # exactly canonical + return-dir here (no secondary/targets configured)
+    assert len(saved) == 2
