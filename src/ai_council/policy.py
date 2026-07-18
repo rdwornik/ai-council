@@ -27,3 +27,13 @@ class RunPolicy:
     def default(cls) -> "RunPolicy":
         """Standard production policy."""
         return cls()
+
+    @classmethod
+    def from_config(cls, raw: dict[str, int] | None) -> "RunPolicy":
+        """Build from a settings.yaml ``policy:`` block (B7).
+
+        ``raw`` is the parsed mapping (or None/empty when the block is absent); the
+        code defaults on the fields above are the fallback. Config strings live in
+        settings.yaml, never hardcoded here (CLAUDE.md §5 item 8).
+        """
+        return cls(**raw) if raw else cls()

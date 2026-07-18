@@ -571,7 +571,7 @@ def run(
             _check_summarizer_health(check_targets, missing_name=missing_summarizer)
 
     runner = CouncilRunner(all_providers, config)
-    policy = RunPolicy.default()
+    policy = RunPolicy.from_config(config.policy)
 
     if use_inbox:
         inbox_dir = Path(inbox_dir_override) if inbox_dir_override else config.inbox.dir

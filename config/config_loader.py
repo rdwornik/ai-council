@@ -127,6 +127,8 @@ class AppConfig:
     research: ResearchConfig | None = None
     dev_root: Path | None = None
     target_projects: list[str] = field(default_factory=list)
+    # Raw RunPolicy `policy:` block (B7); None when absent → RunPolicy code defaults apply.
+    policy: dict[str, int] | None = None
 
 
 def resolve_mode(mode_arg: str, modes: dict[str, ModeConfig]) -> str:
@@ -350,6 +352,13 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
             )
         dev_root = dev_root_path
 
+    # Parse the RunPolicy block (optional). Coerce to int so RunPolicy.from_config
+    # gets a clean dict[str, int]; absent block → None → RunPolicy code defaults.
+    policy_raw = raw.get("policy")
+    policy: dict[str, int] | None = (
+        {k: int(v) for k, v in policy_raw.items()} if policy_raw else None
+    )
+
     return AppConfig(
         defaults=defaults,
         models=models,
@@ -361,6 +370,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         research=research,
         dev_root=dev_root,
         target_projects=target_projects,
+        policy=policy,
     )
 
 
