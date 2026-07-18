@@ -5,6 +5,14 @@ KEYS -> SEATS -> CONFIG and writes a versioned machine-readable verdict record
 to ``<output_dir>/health/``. It NEVER blocks a subsequent council run -- enforcement
 stays with the run-time health gate (cli.py) and Lane-A caller obligations.
 
+Retention (ops, #39): each run writes a timestamped ``doctor-<ts>.json`` plus a
+rewritten ``doctor-latest.json`` under ``<output_dir>/health/``. To stop dev/witness
+runs accumulating stale records (the night-batch audit found ~15 un-cleaned
+``doctor-*.json``), ``write_record`` prunes the timestamped set to the most recent
+``_HEALTH_RETENTION`` (=10) on every write; ``doctor-latest.json`` is always kept.
+Witness/dev runs that shouldn't touch canonical ``output/`` at all use ``council
+--no-persist`` (scratch temp dir) or the ``AICOUNCIL_OUTPUT_DIR`` env override.
+
 v1 scope is liveness + static config validation. Deferred to follow-on arcs:
 pin-currency sweep (DRAFT-DOC-2), CLI-fleet / identity-channel --smoke re-probe
 (the L-CLI seam contribution), and advisory first_seen aging.
@@ -255,9 +263,29 @@ def build_record(checks: list[Check], verdict: str, generated_at: str) -> dict:
     }
 
 
+# Bounded retention for the timestamped doctor-<ts>.json records (#39): keep the most
+# recent N so witness/dev runs don't accumulate stale records. doctor-latest.json is
+# always retained (it is not a timestamped record and is excluded from the prune).
+_HEALTH_RETENTION = 10
+
+
+def _prune_health_records(health_dir: Path, keep: int = _HEALTH_RETENTION) -> None:
+    """Delete all but the most recent ``keep`` ``doctor-<ts>.json`` records. Filenames
+    embed a lexically-sortable timestamp, so a name sort is chronological. Best-effort:
+    a record that cannot be removed is skipped, never fatal."""
+    records = sorted(
+        p for p in health_dir.glob("doctor-*.json") if p.name != "doctor-latest.json"
+    )
+    for stale in records[:-keep] if keep > 0 else records:
+        try:
+            stale.unlink()
+        except OSError:
+            pass
+
+
 def write_record(record: dict, output_dir: Path, filestamp: str) -> Path:
     """Write ``doctor-<ts>.json`` + rewrite ``doctor-latest.json`` (a full copy, not a
-    symlink -- Windows). Returns the timestamped record path."""
+    symlink -- Windows), then prune to the bounded retention. Returns the record path."""
     health_dir = Path(output_dir) / "health"
     health_dir.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(record, indent=2) + "\n"
@@ -265,6 +293,7 @@ def write_record(record: dict, output_dir: Path, filestamp: str) -> Path:
     record_path = health_dir / f"doctor-{filestamp}.json"
     record_path.write_text(payload, encoding="utf-8")
     (health_dir / "doctor-latest.json").write_text(payload, encoding="utf-8")
+    _prune_health_records(health_dir)
     return record_path
 
 
