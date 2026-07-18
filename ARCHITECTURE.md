@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-11
+last_reviewed: 2026-07-18
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-11` (`#326 consumer leg verified no-op — already converted under #262 (2026-07-08); ASCII Data-Flow block retained (out of ruled scope)`)
+> Last updated: `2026-07-18` (`currency pass after the P4 build wave: doctor (#25), CLI-subscription seats (#16), verdict package (#26); synthesizer default gemini->openai; +ADR-11/12/14`)
 
 ## Purpose [CORE]
 
@@ -34,9 +34,11 @@ Modules (source root: `src/ai_council/`; layer per the layer model below):
 | inbox | interface | src/ai_council/inbox.py |
 | orchestrator | orchestration | src/ai_council/orchestrator.py |
 | runner | orchestration | src/ai_council/runner.py |
+| doctor | orchestration | src/ai_council/doctor.py |
 | debate | core | src/ai_council/debate.py |
 | synthesis | core | src/ai_council/synthesis.py |
 | mode_detector | core | src/ai_council/mode_detector.py |
+| seat_router | core | src/ai_council/seat_router.py |
 | providers | core | src/ai_council/providers/ |
 | research | core | src/ai_council/research/ |
 | output | output | src/ai_council/output.py |
@@ -49,8 +51,11 @@ Modules (source root: `src/ai_council/`; layer per the layer model below):
 
 Dependencies (`from -> to`):
 - cli -> orchestrator
+- cli -> doctor
 - inbox -> orchestrator
 - orchestrator -> runner
+- orchestrator -> seat_router
+- doctor -> healthcheck
 - runner -> mode_detector
 - runner -> healthcheck
 - runner -> debate
@@ -58,6 +63,10 @@ Dependencies (`from -> to`):
 - debate -> providers
 - debate -> synthesis
 - debate -> models
+- debate -> seat_router
+- seat_router -> providers
+- seat_router -> models
+- seat_router -> config
 - synthesis -> models
 - synthesis -> output
 - output -> routing
@@ -68,14 +77,16 @@ Dependencies (`from -> to`):
 
 | Module | Layer | Responsibility |
 |--------|-------|----------------|
-| `cli.py` | interface | CLI entry; Click args → RunRequest; health-check gate |
+| `cli.py` | interface | CLI entry; `@click.group` with `run` + `doctor` subcommands (`_DefaultGroup` routes bare `council "q"` → `run`); Click args → RunRequest; health-check gate |
 | `inbox.py` | interface | File-based batch input; YAML frontmatter; archive |
 | `orchestrator.py` | orchestration | CouncilRunner; debate lifecycle coordinator |
 | `runner.py` | orchestration | Panel selection; provider init; mode resolution |
+| `doctor.py` | orchestration | `council doctor` liveness + config truth table (GREEN/YELLOW/RED over keys/seats/config); advisory-only (never blocks a run); writes `output/health/doctor-*.json` (#25/ADR-08 exit convention) |
 | `debate.py` | core | Parallel debate rounds; blind-vote critique; retry |
 | `synthesis.py` | core | Final synthesis; transcript assembly; DebateResult build |
 | `mode_detector.py` | core | LLM-based question classification (pick/ideas/judge) |
-| `providers/` | core | 5 debate-provider implementations: `base.py` (AIProvider ABC), `anthropic.py`, `openai_provider.py`, `gemini.py`, `xai.py`, `deepseek.py` |
+| `seat_router.py` | core | CLI-seat admission gate + same-seat API fallback; one `SeatMetrics` per seat → the `seats[]` sidecar (ADR-12, #16) |
+| `providers/` | core | 5 debate-provider implementations + CLI-subscription adapters: `base.py` (AIProvider ABC), `anthropic.py`, `openai_provider.py`, `gemini.py`, `xai.py`, `deepseek.py`, `cli_base.py` (`CliProvider` + `ClaudeCliProvider`/`CodexCliProvider` — subscription backend behind the ABC, ADR-12) |
 | `research/` | core | Research-mode subsystem (isolated code path): `runner.py`, `provider.py` (ABC), `cache.py`, `merger.py`, `models.py`, `display.py`, `output.py`, `providers/` (5 research providers) |
 | `output.py` | output | Rich console render + markdown archive write |
 | `routing.py` | output | TargetResolver; secondary transcript routing (ADR-43) |
@@ -101,8 +112,8 @@ Layers (dependency order; `output` is cross-cutting, written by `core`):
 | layer | modules |
 |---|---|
 | interface | cli, inbox |
-| orchestration | orchestrator, runner |
-| core | debate, synthesis, mode_detector, providers, research |
+| orchestration | orchestrator, runner, doctor |
+| core | debate, synthesis, mode_detector, seat_router, providers, research |
 | foundation | models, metrics, healthcheck, policy, config |
 | output (cross-cutting) | output, routing |
 
@@ -121,8 +132,8 @@ Layer edges (`from -> to`):
 | Layer | Modules |
 |-------|---------|
 | `interface` | `cli.py`, `inbox.py` |
-| `orchestration` | `orchestrator.py`, `runner.py` |
-| `core` | `debate.py`, `synthesis.py`, `mode_detector.py`, `providers/`, `research/` |
+| `orchestration` | `orchestrator.py`, `runner.py`, `doctor.py` |
+| `core` | `debate.py`, `synthesis.py`, `mode_detector.py`, `seat_router.py`, `providers/`, `research/` |
 | `foundation` | `models.py`, `metrics.py`, `healthcheck.py`, `policy.py`, `config/` |
 | `output` (cross-cutting) | `output.py`, `routing.py` |
 
@@ -159,12 +170,17 @@ End-to-end debate pipeline:
        |
 6. synthesis.py calls non-participating synthesizer on full transcript; builds DebateResult
        |
-7. output.py writes Rich console display + markdown archive → ai-council/output/
+7. output.py writes Rich console display + the transcript (`council-out-*.md`, with a
+   human-readable verdict mirror), the machine-authoritative **verdict package**
+   (`council-verdict-*.json`, DRAFT-INT-1/#26), the metrics sidecar (`*_metrics.json` with the
+   `seats[]` + `synthesis` namespaced blocks), and `council-minority-*.md` when dissent → ai-council/output/
        |
 8. routing.py optionally copies curated transcript to target project dir (ADR-43)
 ```
 
-Research mode branches at step 2: `research/runner.py` → cache check → parallel provider calls → `research/merger.py` → `research/output.py`. If fewer than 3 providers succeed, run continues but exits with code 3 and an alarm banner (ADR-08).
+Research mode branches at step 2: `research/runner.py` → cache check → parallel provider calls → `research/merger.py` → `research/output.py`. If fewer than 3 providers succeed, run continues but exits with code 3 and an alarm banner (ADR-08). (Research emits the report only — no verdict package yet; that parity is BACKLOG #34.)
+
+**CLI-subscription seats (ADR-12, #16):** when a panel seat is configured `backend: cli`, `seat_router.py` runs it via the `claude`/`codex` subscription CLI ($0 marginal) between transport and round entry (step 4), with a same-seat API fallback recorded in the `seats[]` sidecar; the synthesizer is always API. **`council doctor`** (#25) is a separate advisory pre-flight (keys/seats/config truth table) and is never on the debate path.
 
 ---
 
@@ -172,10 +188,12 @@ Research mode branches at step 2: `research/runner.py` → cache check → paral
 
 - **Panel system**: `determine_panel()` in `runner.py`; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is the default; `--lite` uses 3-model panel; `--full` is a no-op kept for backward compat.
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden during critique rounds (ADR-03).
-- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default `gemini`; falls back with `is_participant=True` if none available.
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default `openai` (ratified 2026-07-18; was `gemini` — ADR-01 amendment text pending #2); falls back with `is_participant=True` if none available. Always API-lane (synthesizer-never-CLI guard).
 - **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `config/settings.yaml` — none hard-coded.
 - **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`.
 - **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()` + progressive display; merges results; summarizes via LLM; file cache under `~/.ai-council/research_cache/` with 7-day TTL.
+- **CLI-subscription backend (ADR-12, #16)**: a panel seat may run on a subscription CLI (`claude`/`codex`) instead of an API endpoint (`backend: cli` per model in `settings.yaml`); `seat_router.py` gates admission on a witnessed served identity and falls back to the same-seat API on any CLI failure, recording `seats[].fallback_events[]`. CLI calls are $0 marginal; the default backend stays `api` (the §5 flip is evidence-gated on the #27 parity run).
+- **Verdict package (DRAFT-INT-1, #26)**: every debate run emits `council-verdict-<ts>-<mode>-<slug>.json`, a transcript-free decision record (decision, rationale, options, dissent pointer, panel/seats, verdict author, degradation) to every destination — the machine-authoritative deliverable a Lane-A caller consumes without reading the transcript. Research-path parity is pending (#34).
 
 ---
 
@@ -237,7 +255,7 @@ Missing API keys are silently skipped — remaining providers still run.
 | `scripts/` | `check.ps1` and utility scripts |
 | `protocols/` | Outward-facing invocation specs (SCREAMING_SNAKE): `COUNCIL_QUESTION_GUIDE.md`, `SYNTHESIS_QUALITY_RUBRIC.md` — ai-council's delegation surface, mirroring the hub's `protocols/` (ADR-09, local) |
 | `docs/` | `decisions/` (ADRs + `transcripts/`), `audits/` (reports; pre-ADR-34 in `audits/archive/legacy/`), `archive/` — ADR-60 child-repo taxonomy (no `handoffs/`; those centralize in `.dev-knowledge`). Invocation specs live in `protocols/`, not here (ADR-09) |
-| `output/` | Gitignored; debate transcripts, research reports, and `council-minority-*` dissent artifacts (#15). Canonical write; `--return-dir` additionally routes a copy (ADR-10, #13) |
+| `output/` | Gitignored; debate transcripts, `council-verdict-*.json` verdict packages (#26), `*_metrics.json` sidecars (`seats[]`/`synthesis`), research reports, `council-minority-*` dissent artifacts (#15), and `output/health/doctor-*.json` records (#25). Canonical write; `--return-dir` additionally routes a copy (ADR-10, #13) |
 | `council_inbox/` | Gitignored; drop `.md` files for batch processing |
 | `LESSONS.md` | Repo-local lessons (append-only; at repo root) |
 
@@ -295,7 +313,7 @@ Do not create files outside these directories without updating this section.
 
 ## Governing ADRs
 
-- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing.
+- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing · ADR-11 delegated invocation contract · ADR-12 provider backend engine · ADR-14 ADR lifecycle states.
 - **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only LESSONS) · ADR-34 (naming) · ADR-38 (namespace + A6 seven-file baseline) · ADR-42 (handoffs centralized) · ADR-43 (transcript routing) · ADR-51 (ARCHITECTURE convention) · ADR-53 (CLAUDE.md) · ADR-59 (visual pattern) · ADR-60 (docs taxonomy) · ADR-67 (Council process operationalization).
 
 ---
