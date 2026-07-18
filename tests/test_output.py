@@ -765,10 +765,10 @@ def test_verdict_dissent_pointer_null_when_no_minority_emitted(tmp_path, sample_
     assert data["dissent"]["gist"]  # dissent is still conveyed via the gist
 
 
-def test_verdict_contract_version_null_and_exit_zero(tmp_path, sample_question, sample_round):
-    """Gap 2 (no invented version) + Gap 3 (completed debate exits 0)."""
+def test_verdict_contract_version_stamped_and_exit_zero(tmp_path, sample_question, sample_round):
+    """Contract-Version 1.0 stamped once §7 emptied (#22/#23 shipped) + completed debate exits 0."""
     data = _emit(_pick_result(sample_question, sample_round), tmp_path / "out")
-    assert data["contract_version"] is None
+    assert data["contract_version"] == "1.0"
     assert data["exit_semantics"] == 0
 
 
