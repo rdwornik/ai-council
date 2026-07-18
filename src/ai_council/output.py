@@ -591,16 +591,34 @@ def _extracted_field(
     return {"value": _one_line(body) if one_line else body, "source": "extraction", "heading": heading}
 
 
-def _extracted_options(sections: list[tuple[str, str]]) -> dict:
-    """Options/alternatives as a list of bullet items (source='extraction')."""
+def _extracted_options(
+    sections: list[tuple[str, str]],
+    question_sections: list[tuple[str, str]] | None = None,
+) -> dict:
+    """Options/alternatives as a list of top-level bullet items (source='extraction').
+
+    Sources the options section from the synthesis first — an ideas verdict's ``## Top Tier``
+    (or a synthesis that carries an explicit ``## Alternatives Considered``). When the synthesis
+    carries no matching heading — the pick synthesis template (``prompts.synthesis``) prescribes
+    none (#40) — falls back to the debate QUESTION's own ``## Options`` section, which is where a
+    pick debate's alternatives actually live.
+
+    Only TOP-LEVEL bullets are kept: a nested (indented) sub-bullet — e.g. an ideas entry's
+    ``Who endorsed it`` annotation — is dropped rather than scooped as its own option. Wrapping
+    markdown emphasis is stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    """
     heading, body = _first_by_priority(sections, _OPTIONS_HEADING_MARKERS)
+    if not body and question_sections is not None:
+        heading, body = _first_by_priority(question_sections, _OPTIONS_HEADING_MARKERS)
     items: list[str] = []
     if body:
-        for ln in body.splitlines():
-            t = ln.strip()
+        for raw in body.splitlines():
+            if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
+                continue
+            t = raw.strip()
             first_token = t.split(" ", 1)[0].rstrip(".")
             if t[:1] in ("-", "*") or first_token.isdigit():
-                cleaned = t.lstrip("-*0123456789. ").strip()
+                cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
                 if cleaned:
                     items.append(cleaned)
     return {"items": items, "source": "extraction", "heading": heading}
@@ -713,7 +731,9 @@ def _build_verdict_payload(
         "exit_semantics": 0,
         "decision": _extracted_field(sections, _DECISION_HEADING_MARKERS, one_line=True),
         "rationale": _extracted_field(sections, _RATIONALE_HEADING_MARKERS),
-        "options_considered": _extracted_options(sections),
+        "options_considered": _extracted_options(
+            sections, question_sections=_split_sections(result.question.text)
+        ),
         "dissent": dissent,
         "panel": {
             "requested": requested,

@@ -73,6 +73,27 @@ def test_claude_extract_parses_result_and_identity() -> None:
     assert (out.input_tokens, out.output_tokens, out.token_count) == (5, 7, 12)
 
 
+def test_claude_extract_input_includes_cache_tokens() -> None:
+    # The REAL claude usage block (captured live): a multi-paragraph prompt books its input to
+    # cache_creation_input_tokens, so the bare usage.input_tokens (1) under-reports it. #41 F-M2:
+    # input must be input + cache_creation + cache_read (4642), not 1.
+    p = _make(ClaudeCliProvider, "claude")
+    doc = {
+        "result": "pong",
+        "modelUsage": {"claude-opus-4-8[1m]": {}},
+        "usage": {
+            "input_tokens": 1,
+            "cache_creation_input_tokens": 4641,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 4,
+        },
+    }
+    out = p._extract(json.dumps(doc), "")
+    assert out.input_tokens == 4642           # 1 + 4641 + 0 — no longer the ~1/~9 under-report
+    assert out.output_tokens == 4
+    assert out.token_count == 4646
+
+
 def test_claude_extract_identity_unreadable_raises() -> None:  # I1
     p = _make(ClaudeCliProvider, "claude")
     with pytest.raises(ProviderError, match="identity-unreadable"):
@@ -95,13 +116,27 @@ def test_claude_extract_bad_json_raises() -> None:
 
 
 def test_codex_extract_parses_stdout_and_banner() -> None:
+    # The REAL codex 0.144.5 stderr banner (captured live): the count is on its OWN line,
+    # and codex reports only a single combined total. #41 F-M1: it must reach the sidecar as
+    # output_tokens (metrics reads input/output, not token_count), else a codex call books 0.
     p = _make(CodexCliProvider, "codex")
-    stderr = "OpenAI Codex v0.144.5\nmodel: gpt-5.6-sol\nprovider: openai\ntokens used 1980"
-    out = p._extract("OK answer", stderr)
-    assert out.content == "OK answer"
+    stderr = (
+        "OpenAI Codex v0.144.5\n--------\nmodel: gpt-5.6-sol\nprovider: openai\n"
+        "approval: never\nsandbox: read-only\n--------\ncodex\npong\ntokens used\n4,315\n"
+    )
+    out = p._extract("pong", stderr)
+    assert out.content == "pong"
     assert out.actual_model == "gpt-5.6-sol"
     assert out.identity_channel == "stderr-banner"
-    assert out.token_count == 1980
+    assert out.token_count == 4315
+    assert out.output_tokens == 4315   # combined total surfaced so metrics counts it (F-M1)
+
+
+def test_codex_extract_no_banner_tokens_is_none() -> None:
+    p = _make(CodexCliProvider, "codex")
+    out = p._extract("answer", "OpenAI Codex v0.144.5\nmodel: gpt-5.6-sol\n")
+    assert out.token_count is None
+    assert out.output_tokens is None
 
 
 def test_codex_extract_identity_unreadable_raises() -> None:  # I1

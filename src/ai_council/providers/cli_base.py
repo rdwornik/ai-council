@@ -274,7 +274,17 @@ class ClaudeCliProvider(CliProvider):
             )
         actual_model = next(iter(model_usage))
         usage = doc.get("usage") or {}
-        input_tokens = usage.get("input_tokens")
+        # Real prompt input = fresh input + newly-cached + cache-read: the claude CLI books most
+        # of a multi-paragraph prompt to cache_creation_input_tokens, so the bare usage.input_tokens
+        # under-reports it (witnessed: input_tokens=1 while cache_creation_input_tokens=4641 for a
+        # real prompt — F-M2). cache_read is ~0 for a single-shot seat call (--tools "", one turn),
+        # so the agentic ~8x cache-read inflation caveat does not apply; this is a token COUNT, not
+        # a spend cap (CLI cost is $0 regardless).
+        input_tokens: int | None = (
+            (usage.get("input_tokens") or 0)
+            + (usage.get("cache_creation_input_tokens") or 0)
+            + (usage.get("cache_read_input_tokens") or 0)
+        ) if usage else None
         output_tokens = usage.get("output_tokens")
         token_count = (
             (input_tokens or 0) + (output_tokens or 0)
@@ -312,6 +322,10 @@ class CodexCliProvider(CliProvider):
                 self._config.name, "identity-unreadable: no served model in stderr banner"
             )
         actual_model = match.group(1)
+        # codex 0.144.5 prints "tokens used\n<N>" (the count on its own line — the [:\s]+ class
+        # spans the newline). It is a SINGLE combined total with no input/output split, so record
+        # it as output_tokens: metrics.build_call_metrics sums input_tokens/output_tokens and never
+        # reads token_count, so a codex call would otherwise book 0 tokens in the sidecar (F-M1).
         tok = self._TOKENS_RE.search(stderr)
         token_count = int(tok.group(1).replace(",", "")) if tok else None
         return CliOutcome(
@@ -319,4 +333,5 @@ class CodexCliProvider(CliProvider):
             actual_model=actual_model,
             identity_channel=self.identity_channel,
             token_count=token_count,
+            output_tokens=token_count,
         )
