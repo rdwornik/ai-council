@@ -19,6 +19,14 @@
 
 ---
 
+### 2026-07-18 — #27 CORPUS FROZEN + Phase 1 launched (mid-flight anchor)
+
+**Did:** Froze the CLI-4 parity corpus and launched Phase 1. **P4 swap** (operator ruling): dropped the compound P4, replaced with the cleanest single-decision real spare `handoff-Q1-internalization-assurance`. **Freeze precondition** (read the `smoke-pair` BURNED note) resolved by inversion — exhaustive search proved **no BURNED note / smoke question exists** (branch `worktree-smoke-pair` == main `4495dfd`, zero commits, empty worktree); operator confirmed the dependency runs the other way (the smoke session avoids the frozen topics), so branch (b) = freeze now. Committed the frozen 12-brief corpus (`df44b46`, `docs/audits/2026-07-18-cli4-parity-corpus.md`; 6 real + 6 fresh, 6 pick / 6 judge, rider-b locked). Generated both trial configs (Arm A CLI = witness-config; Arm B all-API), then **launched Phase 1** (background) — 24 debates = 12 briefs × {cli, api}, panel claude-opus-4-8 + gpt-5.6-terra, synth gemini (trial-scoped), rounds 2, with the rider-(d) fallback-abort armed (any CLI-seat fallback → stop at completed pairs, no silent continue).
+
+**Result (in flight):** Phase 1 running at anchor time (P1-cli debate underway, incremental `parity_raw/manifest.json` = the seal/progress). Phase 2 blinding + scoring-sheet generator built and staged (strip `**Cost:**`/`**Duration:**` tells, randomize A/B, 24 blinded transcripts + 12×5 scoring sheet, SEALED key kept local/gitignored per the epi1-archaeology pattern).
+
+**Not done (handed forward):** on Phase-1 completion → run blinding, commit the blinded set + scoring sheet (`chore/27-parity-run`), hand the operator the sealed A/B set to score (Phase 3, non-delegable) → unseal + tally → ADR-12 §5 flip/retire. Scratchpad configs/runners are session-local (no repo leftovers); the frozen corpus is the committed instrument.
+
 ### 2026-07-18 — #27 WITNESS PASS: both CLI seats admit at $0 (pin gpt-5.6-terra confirmed), Phase 1 ready
 
 **Did:** Executed the operator's pre-ruled decision tree for the codex pin. **Enumerated** the OpenAI API models list (free): gpt-5.6 tiers = **[luna, sol, terra]**. **Selected** the medium tier = **`gpt-5.6-terra`** (sol = flagship / codex config default; terra = the one non-sol/non-luna id — the operator's routing names the 5.6 medium tier "terra"). **Probed** it with one tiny Responses call → resolves (status=completed, 18 tokens). **BRANCH (a) fired** (medium 5.6 on API): pinned `gpt-5.6-terra` verbatim BOTH arms of the codex seat. Then ran the **witness debate** — a scratchpad witness config (claude→CLI/opus-4-8, openai→codex-CLI/terra, synthesizer→gemini trial-scoped; `settings.yaml` untouched) driven via a monkeypatched `load_config`, `--no-persist`, `--models claude,openai --rounds 1`.
