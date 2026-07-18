@@ -1,7 +1,7 @@
 ---
 version: "1.0"
 owner: rob
-last_reviewed: "2026-07-17"
+last_reviewed: "2026-07-19"
 status: active
 ---
 
@@ -21,7 +21,7 @@ consumed by other repos via the `council` entry point.
 - **5 research providers**: Perplexity, Gemini Deep Research, OpenAI gpt-5.4-mini web search, Grok x_search, OpenAI gpt-5.5 deep research
 - **4 modes**: pick / ideas / judge / research
 - **CLI entry point**: `council`
-- **Synthesizer**: Gemini (deliberate selection, ADR-01)
+- **Synthesizer**: OpenAI (default ratified 2026-07-18 on the night-batch evidence; ADR-01 amendment text pending #2/#3 — was Gemini)
 - **Output paths**: local `ai-council/output/` is the always-written default (operational metrics + transcripts); the `.dev-knowledge/docs/decisions/transcripts/` hub mirror is **opt-in** per-invocation (ADR-43 `target-project` routing; ADR-10 `--return-dir`), never a silent default
 - Standalone tool — invoked by other repos, not embedded as a library
 

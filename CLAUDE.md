@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-19
 status: active
 owner: Rob
 ---
@@ -200,7 +200,7 @@ Do NOT:
 <!-- methodology:start id=recent-adrs-roster owner=repo -->
 
 **Local (`docs/decisions/`):**
-- ADR-01: Synthesizer Selection — non-participating model synthesizes; default gemini (Revised 2026-04-30)
+- ADR-01: Synthesizer Selection — non-participating model synthesizes; default openai (Revised 2026-07-18; was gemini, ADR-01 amendment text pending #2/#3)
 - ADR-02: Default Panel Composition — full 5-model default; `--lite` for 3-model (Revised 2026-05-11)
 - ADR-03: Blind Voting in Round 2 — `_anonymize_responses()` shuffles; hides provider identity
 - ADR-04: Mode System — pick/ideas/judge/research with aliases and auto-detection
@@ -239,9 +239,10 @@ Do NOT:
 - v2.8 (2026-07-12) — ruff-gate re-activation (fleet ruling) + hub `.vscode/settings.json` carry: §9's `ruff` bullet flipped from PRUNED to a live consumer-owned gate (`astral-sh/ruff-pre-commit` mirror `v0.15.5`, gate mode `args: []`, prune-safe bare `id: ruff`), re-activated 2026-07-12 overriding the [#244] 2026-07-04 prune; declared in `.methodology.yaml` (`ruff-gate` divergence, since the fleet-generic manifest carries no ruff). **Wording correction:** the triggering prompt's "divergence-register item 9" authority was a hub-side pointer (the hub's divergence register), mis-addressed as local — recorded truthfully here rather than as "item 9 did not exist." Also carried `.vscode/settings.json` byte-identical to the hub (77-byte `files.watcherExclude` for `.claude/worktrees/**`; `.gitignore` narrowed `.vscode/` → `.vscode/*` + `!.vscode/settings.json`). `last_reviewed` re-stamped 2026-07-12.
 - v2.9 (2026-07-13) — content-parity T1 canonical baseline (consumer half; hub audit `2026-07-13-technical-content-parity-inventory.md` @ `2b21cb26`, rows A1–A8/B1/B2/B4/B5/C/D1/E3/F1). §1/§4/§5/§6 hub regions **expanded from 4 → 8** and materialized **byte-verbatim** from `templates/claude-regions/`: `first-read` (A1, +adjacent repo handoff note), `conventions-commit-branch` (A2), **+`conventions-output-formatting`** (A3), `critical-rules-records` (A4, now 3 canonical items), **+`critical-rules-consistency`** (A5, slot 6), **+`critical-rules-no-leftovers`** (A6, slot 9), `session-start-protocol` (A7, +adjacent repo merge-command note), **+`antipatterns-universal`** (A8, §10). §5 renumbered to the hub 1–10 skeleton (hub regions at 1-3/6/9; all 5 local rules preserved at 4/5/7/8/10). B2: contiguous §4/§5 project prose wrapped `owner=repo`. B4: §8 relabels the three `.claude/rules/` files as **rules, not skills**. B5: §9 gains the two missing live local ids (`validate-audit-casing`, `validate-backlog`). §11 title kept **without** "(last 5)" per operator ruling (a false-claim over a ~20-item curated list; declared in `.methodology.yaml` `claude-md-section-11-title`). `last_reviewed` re-stamped 2026-07-13.
 - v2.10 (2026-07-17) — GOV-1 consolidation currency pass (#31, gate G1→G2): §11 Local ADR list extended from ADR-08 through **ADR-09/10/11/12 + ADR-14** (the roster stopped at ADR-08 while ADR-09..12 were live and ADR-14 ratified this session — the exact A2 staleness `canonical_freshness` guards). ADR-09/10 flipped `Proposed`→`Accepted` and DRAFT-GOV-1 ratified as ADR-14 (see the ADR index + `docs/intake/2026-07-17-gov1-rulings-register.md`). Genuine end-to-end re-read verified §1–§10 unchanged against live state (hooks, commands, conventions all current since the 2026-07-13 stamp); only §11 was stale. `last_reviewed` re-stamped 2026-07-17.
+- v2.11 (2026-07-19) — night-consolidation currency pass: §11's ADR-01 roster line corrected from "default gemini (Revised 2026-04-30)" to "default openai (Revised 2026-07-18)" — the synthesizer default flipped gemini→openai on 2026-07-18 (operator ruling, `docs/audits/2026-07-17-synthesizer-ruling-gemini-to-openai.md`) and ADR-01 was amended in-body, but the §11 summary still named gemini (the exact A2 staleness `canonical_freshness` guards). Verified §1–§10 unchanged against live state; only §11's ADR-01 summary was stale. `last_reviewed` re-stamped 2026-07-19. Full witness: `docs/audits/2026-07-19-night-consolidation-verification.md`.
 <!-- methodology:end id=section-history -->
 
 ---
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-19
 **Maintained by:** Rob
