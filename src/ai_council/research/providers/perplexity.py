@@ -3,12 +3,11 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
 
 from openai import APIError, APITimeoutError, AsyncOpenAI
 
 from ai_council.research.models import ResearchResult, Source
-from ai_council.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.provider import ResearchProvider, ResearchProviderError, iso_now
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class PerplexityProvider(ResearchProvider):
 
     async def research(self, query: str) -> ResearchResult:
         start = time.monotonic()
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = iso_now()
 
         # Pass timeout + max_retries into the SDK so the configured timeout_sec
         # controls request lifetime and the SDK owns the single transient retry

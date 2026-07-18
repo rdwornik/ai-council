@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from ai_council.policy import RunPolicy
 from config.config_loader import (
     AppConfig,
     ModelConfig,
@@ -52,6 +53,25 @@ def minimal_settings(tmp_path: Path) -> Path:
 def test_load_config_returns_app_config(minimal_settings):
     config = load_config(minimal_settings)
     assert isinstance(config, AppConfig)
+
+
+def test_policy_block_absent_defaults_to_none(minimal_settings):
+    config = load_config(minimal_settings)
+    assert config.policy is None
+    # Fallback path: from_config(None) yields the code defaults.
+    assert RunPolicy.from_config(config.policy) == RunPolicy.default()
+
+
+def test_policy_block_loaded_and_drives_runpolicy(minimal_settings):
+    """B7 done-when: max_retries_per_provider set via YAML changes the RunPolicy."""
+    raw = yaml.safe_load(minimal_settings.read_text(encoding="utf-8"))
+    raw["policy"] = {"min_panel_size": 4, "max_retries_per_provider": 3}
+    minimal_settings.write_text(yaml.dump(raw), encoding="utf-8")
+
+    config = load_config(minimal_settings)
+    assert config.policy == {"min_panel_size": 4, "max_retries_per_provider": 3}
+    policy = RunPolicy.from_config(config.policy)
+    assert policy.max_retries_per_provider == 3  # not the code default of 1
 
 
 def test_load_config_defaults(minimal_settings):

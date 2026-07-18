@@ -7,12 +7,11 @@ the agentic `web_search` tool and high reasoning effort. Gated behind `--deep`.
 import asyncio
 import logging
 import time
-from datetime import datetime
 
 from openai import APIError, APITimeoutError, AsyncOpenAI
 
 from ai_council.research.models import ResearchResult, Source
-from ai_council.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.provider import ResearchProvider, ResearchProviderError, iso_now
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class OpenAIDeepResearchProvider(ResearchProvider):
 
     async def research(self, query: str) -> ResearchResult:
         start = time.monotonic()
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = iso_now()
 
         client = AsyncOpenAI(
             api_key=self._api_key,

@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from ai_council.models import DebateOutcome, DebateResult, Question, Round, RunRequest
+from ai_council.orchestrator import CouncilRunner
 from ai_council.policy import RunPolicy
 from ai_council.runner import (
-    CouncilRunner,
     build_all_providers,
     determine_panel,
     exclude_synthesizer_from_panel,

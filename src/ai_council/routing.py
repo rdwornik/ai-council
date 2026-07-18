@@ -23,7 +23,6 @@ class TargetResolver:
 
     def __init__(self, dev_root: Path, target_projects: list[str]) -> None:
         self._dev_root = dev_root
-        self._target_projects = list(target_projects)
         self._known: set[str] = set(target_projects)
 
     def resolve(

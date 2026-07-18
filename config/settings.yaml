@@ -13,6 +13,12 @@ defaults:
   default_panel: ["claude", "gemini", "openai"] # Systems + Security + Product; best for most decisions
   full_panel: ["claude", "gemini", "deepseek", "openai", "grok"] # add Performance + Contrarian for high-stakes debates
 
+# RunPolicy thresholds (B7 / audit §2.10). Loaded via RunPolicy.from_config; the
+# code defaults in src/ai_council/policy.py are the fallback when this block is absent.
+policy:
+  min_panel_size: 2
+  max_retries_per_provider: 1
+
 # Ecosystem root — all routable projects live under this directory.
 # Per ADR-43 amendment cycle 1 (2026-05-11): single root declared here;
 # target_projects below is opt-in list of project names.

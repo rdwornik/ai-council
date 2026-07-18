@@ -38,3 +38,26 @@ def test_default_factory_returns_standard_values():
     policy = RunPolicy.default()
     assert policy.min_panel_size == 2
     assert policy.max_retries_per_provider == 1
+
+
+# --- from_config (B7: load from settings.yaml, code defaults as fallback) ---
+
+
+def test_from_config_none_returns_defaults():
+    assert RunPolicy.from_config(None) == RunPolicy.default()
+
+
+def test_from_config_empty_dict_returns_defaults():
+    assert RunPolicy.from_config({}) == RunPolicy.default()
+
+
+def test_from_config_overrides_from_mapping():
+    policy = RunPolicy.from_config({"min_panel_size": 4, "max_retries_per_provider": 3})
+    assert policy.min_panel_size == 4
+    assert policy.max_retries_per_provider == 3
+
+
+def test_from_config_partial_override_keeps_defaults():
+    policy = RunPolicy.from_config({"max_retries_per_provider": 5})
+    assert policy.max_retries_per_provider == 5
+    assert policy.min_panel_size == 2  # untouched field keeps its code default
