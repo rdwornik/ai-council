@@ -34,6 +34,17 @@
 **Result (in flight):** Phase 1 running at anchor time (P1-cli debate underway, incremental `parity_raw/manifest.json` = the seal/progress). Phase 2 blinding + scoring-sheet generator built and staged (strip `**Cost:**`/`**Duration:**` tells, randomize A/B, 24 blinded transcripts + 12×5 scoring sheet, SEALED key kept local/gitignored per the epi1-archaeology pattern).
 
 **Not done (handed forward):** on Phase-1 completion → run blinding, commit the blinded set + scoring sheet (`chore/27-parity-run`), hand the operator the sealed A/B set to score (Phase 3, non-delegable) → unseal + tally → ADR-12 §5 flip/retire. Scratchpad configs/runners are session-local (no repo leftovers); the frozen corpus is the committed instrument.
+### 2026-07-18 — STREAM SMOKE: CLI vs API paired witness run (side-by-side, observability question)
+
+**Did:** Operator's simple quality test in the isolated `smoke-pair` worktree (COMMIT-AND-STOP; branch never merges to main), independent of the primary's 12-brief corpus work. Authored a scoped witness config `config/settings.smoke.yaml` (`settings.yaml` untouched) — panel `claude-opus-4-8` + `gpt-5.6-terra` (ruled pins), synthesizer gemini (trial-scoped), 2 rounds, mode pick. Drove ONE fresh non-trivial decision (observability stack: managed SaaS vs self-hosted OSS vs cloud-native) TWICE via a scratchpad driver + `load_config(smoke_path)`: ARM 1 seats on the CLI subscription lane, ARM 2 the same seats flipped to API (backend-only delta; model strings identical). `AICOUNCIL_OUTPUT_DIR=./smoke-output/` + `PYTHONPATH=./src` — nothing touched canonical `output/`. First-drafted a webhook-ingestion question, then **discarded it** (+ cleared its outputs) after the operator's corpus-freeze addendum — topical adjacency to the frozen backend-architecture topics (REST/gRPC, monorepo/polyrepo, Postgres/doc-store); re-picked observability (zero overlap with the 12).
+
+**Result:** Clean pair, both arms UNBLINDED side-by-side. CLI arm — both seats `actual_backend=cli`, exact pins, `fallback_events=[]`, **$0 seat cost**; only gemini synth billed $0.0297; total $0.0297 / 165.1s. API arm — both seats `actual_backend=api`, exact pins, no fallback; seats **$0.2817** + synth $0.0364; total $0.3181 / 134.5s. Both arms **converged on the same verdict** (managed SaaS + OpenTelemetry, keep cloud-native as break-glass, reject self-hosting), same standout argument (blast-radius independence) and shared blind spot (egress costs). By-eye quality equivalent; CLI seats $0 vs $0.28 API for identical panel/rounds. Spend approved for the single billed pair (a superseded webhook pair was also run before the re-pick).
+
+**Changes:** `config/settings.smoke.yaml` (new scoped witness), `docs/audits/2026-07-18-smoke-pair-cli-vs-api-report.md` (side-by-side report), `docs/audits/2026-07-18-burned-question-observability.md` (burn note — observability question BURNED for corpus exclusion; primary picks up at integration), `.gitignore` (+`smoke-output/`). Commit `1b016ca` on `worktree-smoke-pair` (main untouched at `4495dfd`; `settings.yaml` byte-identical to main).
+
+**Abandoned:** the webhook-ingestion draft question (topical adjacency; outputs cleared, replaced by observability).
+
+**Not done (handed forward):** none — smoke stream is self-contained and stops here; the branch is not merged.
 
 ### 2026-07-18 — #27 WITNESS PASS: both CLI seats admit at $0 (pin gpt-5.6-terra confirmed), Phase 1 ready
 
