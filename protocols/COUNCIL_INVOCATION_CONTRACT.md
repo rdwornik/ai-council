@@ -104,10 +104,6 @@ consumption; artifacts are still written.
 Committed contract, **currently deviating** — an ADR-11 decision whose code has not
 shipped yet (the fix is a separate, pause-gated session):
 
-2. **Research mode currently ignores `--return-dir`.** A research commission returns only
-   to canonical `./output/` (and `--target-project` mirrors). Until fixed: Lane A research
-   callers must collect from `./output/`.
-
 ## 8. Caller walkthrough (Lane A lifecycle)
 
 1. **Commission** — the caller repo hits an ADR-67 convene threshold (hub-owned judgment).
@@ -118,8 +114,7 @@ shipped yet (the fix is a separate, pause-gated session):
 4. **Invoke** — `council --file <brief.md> --return-dir <caller>/docs/decisions/inbox
    [--format json] [flags]` from the caller's own cwd.
 5. **Handle exit code** — per §4; on 3, carry the degradation note forward.
-6. **Consume** — read verdict + minority report + metrics from the return dir (deviation #2:
-   research runs return via `./output/`).
+6. **Consume** — read verdict + minority report + metrics from the return dir.
 7. **Record** — the caller's CC session drafts the ADR in the caller repo (ADR-67 step 5);
    the verdict artifact is referenced, not copied into the hub (hub is never a default).
 8. **Close out** — caller-side commit; any transcript mirroring only via explicit

@@ -140,6 +140,7 @@ async def run_research(
     output_format: str = "text",
     models_filter: list[str] | None = None,
     target_paths: list[Path] | None = None,
+    return_dir: Path | None = None,
 ) -> MergedResearchReport:
     """Run full research pipeline for a query. Returns merged report."""
     if console is None:
@@ -162,7 +163,7 @@ async def run_research(
             console.print(f"\n[dim]Research cache hit (key: {cache_key})[/dim]")
             saved_paths = save_research_to_file(
                 cached, output_dir, from_cache=True, secondary_dir=secondary_dir,
-                target_paths=target_paths,
+                target_paths=target_paths, return_dir=return_dir,
             )
             print_research_summary(cached, saved_paths[0], from_cache=True, console=console)
             _print_research_paths(console, saved_paths, secondary_dir)
@@ -211,7 +212,7 @@ async def run_research(
     # Output
     saved_paths = save_research_to_file(
         report, output_dir, from_cache=False, secondary_dir=secondary_dir,
-        target_paths=target_paths,
+        target_paths=target_paths, return_dir=return_dir,
     )
     print_research_summary(report, saved_paths[0], from_cache=False, console=console)
     _print_research_paths(console, saved_paths, secondary_dir)
