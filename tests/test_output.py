@@ -10,6 +10,7 @@ from ai_council.models import (
     DebateResult,
     FallbackEvent,
     ModelResponse,
+    Question,
     Round,
     SeatMetrics,
     SynthesisMetrics,
@@ -590,6 +591,90 @@ def test_verdict_transcript_free_decision_extraction(tmp_path, sample_question, 
     assert data["rationale"]["source"] == "extraction"
     assert data["options_considered"]["items"] == ["JSON: no comments", "TOML: less familiar"]
     assert data["options_considered"]["source"] == "extraction"
+
+
+# ---------------------------------------------------------------------------
+# #40 — options_considered extractor, verified against the REAL 2026-07-17
+# night-batch artifacts (docs/audits/2026-07-17-night-batch-empirical-e2e-audit.md
+# §3.2 H2). Synthetic fixtures do NOT satisfy the #40 done-contract; these read the
+# genuine transcripts copied verbatim into tests/fixtures/night_batch/.
+# ---------------------------------------------------------------------------
+
+_NIGHT_BATCH = Path(__file__).parent / "fixtures" / "night_batch"
+
+
+def _slice_transcript(md: str) -> tuple[str, str]:
+    """Recover (question_text, synthesis) from a real council-out transcript.
+
+    Mirrors what _build_body wrote: question.text sits under the ``## Question`` wrapper
+    (up to the first ``## Round``), and result.synthesis is the body under the
+    ``## Synthesis (by …)`` wrapper — neither wrapper heading is part of the model field.
+    """
+    lines = md.splitlines()
+    q_start = next(i for i, ln in enumerate(lines) if ln.strip() == "## Question")
+    q_end = next(i for i, ln in enumerate(lines) if ln.startswith("## Round "))
+    s_start = next(i for i, ln in enumerate(lines) if ln.startswith("## Synthesis"))
+    question_text = "\n".join(lines[q_start + 1 : q_end]).strip()
+    synthesis = "\n".join(lines[s_start + 1 :]).strip()
+    return question_text, synthesis
+
+
+def _real_result(fixture: str, sample_round, mode: str) -> DebateResult:
+    md = (_NIGHT_BATCH / fixture).read_text(encoding="utf-8")
+    question_text, synthesis = _slice_transcript(md)
+    return DebateResult(
+        question=Question(text=question_text, source=str(_NIGHT_BATCH / fixture)),
+        rounds=[sample_round],
+        synthesis=synthesis,
+        synthesizer="openai",
+        total_duration_sec=5.0,
+        panel_mode="custom",
+        synthesizer_is_participant=False,
+        mode=mode,
+    )
+
+
+_PICK_FIXTURES = [
+    "council-out-20260717_230406-pick-uc1-rama1-crux-grounding.md",
+    "council-out-20260717_230852-pick-uc2-rama3-framing-defense.md",
+    "council-out-20260717_231220-pick-uc3-deepseek-panel-disposition.md",
+]
+
+
+@pytest.mark.parametrize("fixture", _PICK_FIXTURES)
+def test_options_pick_falls_back_to_question_alternatives(fixture, tmp_path, sample_round):
+    """#40 empty-on-pick: the pick synthesis prescribes no options heading, so the field
+    was []. Options now fall back to the debate QUESTION's own ``## Options`` section —
+    the three (a)/(b)/(c) alternatives the panel actually chose among."""
+    data = _emit(_real_result(fixture, sample_round, mode="pick"), tmp_path / "out")
+    opts = data["options_considered"]
+    assert opts["heading"] == "Options"          # sourced from the question, not the synthesis
+    assert opts["source"] == "extraction"
+    items = opts["items"]
+    assert len(items) == 3                        # each UC pick question enumerates (a)/(b)/(c)
+    assert items[0].startswith("(a)")
+    assert all("**" not in it for it in items)    # no leaked emphasis
+
+
+def test_options_ideas_top_tier_top_level_only_and_clean(tmp_path, sample_round):
+    """#40 polluted-on-ideas: the extractor scooped indented sub-bullets ('Who endorsed it')
+    and leaked trailing **. It now keeps only top-level Top-Tier ideas, emphasis stripped
+    (verified against the REAL uc4 ideas transcript)."""
+    data = _emit(
+        _real_result(
+            "council-out-20260717_231341-ideas-uc4-model-currency-detection.md",
+            sample_round,
+            mode="ideas",
+        ),
+        tmp_path / "out",
+    )
+    opts = data["options_considered"]
+    assert opts["heading"] == "Top Tier (Implement Soon)"
+    items = opts["items"]
+    assert len(items) == 5                                       # the five top-level ideas only
+    assert "Provider-specific API/model listing adapters" in items   # clean, no trailing **
+    assert all("**" not in it for it in items)                  # emphasis stripped
+    assert all("Who endorsed it" not in it for it in items)     # nested sub-bullet dropped
 
 
 def test_verdict_decision_strips_wrapping_emphasis(tmp_path, sample_question, sample_round):
