@@ -173,3 +173,43 @@ def test_research_return_dir_is_additive_canonical_unchanged(tmp_path, sample_re
     assert canonical[0].exists()
     # exactly canonical + return-dir here (no secondary/targets configured)
     assert len(saved) == 2
+
+
+# ---------------------------------------------------------------------------
+# #42: research filename must not double the `research-` mode token
+# ---------------------------------------------------------------------------
+
+def test_research_filename_no_double_prefix_when_query_begins_research(tmp_path):
+    """#42: a query beginning "Research…" must not yield council-out-…-research-research-…"""
+    report = MergedResearchReport(
+        query="Research: sycophantic convergence and blind-vote integrity",
+        results=[],
+        merged_report="merged content",
+        summary_2500="summary",
+        total_cost_usd=0.01,
+        total_duration_sec=5.0,
+        total_sources=0,
+        cache_key="k",
+    )
+    saved = save_research_to_file(report, tmp_path / "primary")
+    name = saved[0].name
+    assert "research-research-" not in name
+    assert name.count("research") == 1  # only the single mode token
+    assert name.startswith("council-out-")
+    assert "-research-sycophantic" in name
+
+
+def test_research_filename_preserves_researcher_word(tmp_path):
+    """#42: only a leading "research" *token* is stripped — "researcher…" is preserved."""
+    report = MergedResearchReport(
+        query="Researcher salaries in 2026",
+        results=[],
+        merged_report="merged content",
+        summary_2500="summary",
+        total_cost_usd=0.01,
+        total_duration_sec=5.0,
+        total_sources=0,
+        cache_key="k",
+    )
+    saved = save_research_to_file(report, tmp_path / "primary")
+    assert "-research-researcher-salaries" in saved[0].name
