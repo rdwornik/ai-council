@@ -4,7 +4,7 @@
 **Worktree/branch:** `smoke-pair` / `worktree-smoke-pair` (COMMIT-AND-STOP; never merged to main)
 **Config:** `config/settings.smoke.yaml` (scoped witness; production `settings.yaml` untouched)
 **Question (BURNED):** observability stack choice — see
-`2026-07-18-BURNED-question-observability.md` for the verbatim prompt.
+`2026-07-18-burned-question-observability.md` for the verbatim prompt.
 
 ## Experiment design
 
@@ -171,8 +171,8 @@ CloudWatch/Cloud-Monitoring break-glass alert.
 ## Artifacts (paths)
 
 - Config: `config/settings.smoke.yaml`
-- Burn note: `docs/smoke/2026-07-18-BURNED-question-observability.md`
-- This report: `docs/smoke/2026-07-18-smoke-pair-cli-vs-api-report.md`
+- Burn note: `docs/audits/2026-07-18-burned-question-observability.md`
+- This report: `docs/audits/2026-07-18-smoke-pair-cli-vs-api-report.md`
 - Raw arm output (gitignored evidence, not committed):
   - `smoke-output/cli/` — transcript + `_metrics.json` + verdict package (+ minority report)
   - `smoke-output/api/` — transcript + `_metrics.json` + verdict package (+ minority report)

@@ -25,7 +25,7 @@
 
 **Result:** Clean pair, both arms UNBLINDED side-by-side. CLI arm — both seats `actual_backend=cli`, exact pins, `fallback_events=[]`, **$0 seat cost**; only gemini synth billed $0.0297; total $0.0297 / 165.1s. API arm — both seats `actual_backend=api`, exact pins, no fallback; seats **$0.2817** + synth $0.0364; total $0.3181 / 134.5s. Both arms **converged on the same verdict** (managed SaaS + OpenTelemetry, keep cloud-native as break-glass, reject self-hosting), same standout argument (blast-radius independence) and shared blind spot (egress costs). By-eye quality equivalent; CLI seats $0 vs $0.28 API for identical panel/rounds. Spend approved for the single billed pair (a superseded webhook pair was also run before the re-pick).
 
-**Changes:** `config/settings.smoke.yaml` (new scoped witness), `docs/smoke/2026-07-18-smoke-pair-cli-vs-api-report.md` (side-by-side report), `docs/smoke/2026-07-18-BURNED-question-observability.md` (burn note — observability question BURNED for corpus exclusion; primary picks up at integration), `.gitignore` (+`smoke-output/`). Commit `1b016ca` on `worktree-smoke-pair` (main untouched at `4495dfd`; `settings.yaml` byte-identical to main).
+**Changes:** `config/settings.smoke.yaml` (new scoped witness), `docs/audits/2026-07-18-smoke-pair-cli-vs-api-report.md` (side-by-side report), `docs/audits/2026-07-18-burned-question-observability.md` (burn note — observability question BURNED for corpus exclusion; primary picks up at integration), `.gitignore` (+`smoke-output/`). Commit `1b016ca` on `worktree-smoke-pair` (main untouched at `4495dfd`; `settings.yaml` byte-identical to main).
 
 **Abandoned:** the webhook-ingestion draft question (topical adjacency; outputs cleared, replaced by observability).
 
