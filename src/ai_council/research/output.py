@@ -10,6 +10,13 @@ from rich.rule import Rule
 from ai_council.output import _write_routed
 from ai_council.research.models import MergedResearchReport
 
+# #42: the research filename already carries the `research-` mode token, so a slug
+# from a query that itself begins "research…" would double it (council-out-…-research-
+# research-…). Strip a leading "research" token from the slug — mirrors the leading-
+# "council" strip in inbox.clean_slug. Fires only when a separator + content follow, so
+# "research" alone and words like "researcher" are preserved.
+_LEADING_RESEARCH_RE = re.compile(r"^research[-_ ]+(.+)$", re.IGNORECASE)
+
 
 def _slug(query: str, max_len: int = 50) -> str:
     s = query.lower()
@@ -42,6 +49,9 @@ def save_research_to_file(
     """
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = _slug(report.query)
+    research_m = _LEADING_RESEARCH_RE.match(slug)
+    if research_m:
+        slug = research_m.group(1)
     filename = f"council-out-{ts}-research-{slug}.md"
 
     lines: list[str] = [
