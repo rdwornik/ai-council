@@ -59,3 +59,6 @@ logs/OVERRIDES.md
 docs/audits/2026-07-17-epi1-archaeology/
 docs/audits/2026-07-17-epi1-archaeology-KEY-SEALED.json
 docs/audits/2026-07-17-epi1-archaeology-SECOND-OPINION-judge.md
+
+# CLI-4 parity (#27) sealed backend key — local only, opened after scoring
+docs/audits/2026-07-18-cli4-parity/SEALED-KEY.json
