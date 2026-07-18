@@ -634,8 +634,15 @@ def run(
         return
 
 
+    file_meta: dict = {}
     if question_file:
-        question_text = Path(question_file).read_text(encoding="utf-8").strip()
+        try:
+            # #22: route --file through parse_file so YAML frontmatter is stripped
+            # (never leaks into the question text) and its overrides are honored below.
+            question_text, file_meta = parse_file(Path(question_file), resolver=resolver)
+        except RoutingError as exc:
+            console.print(f"[bold red]Error:[/bold red] {exc}")
+            sys.exit(1)
         question_source = question_file
     elif question:
         question_text = question
@@ -644,19 +651,43 @@ def run(
         console.print("[bold red]Error:[/bold red] Provide a QUESTION argument, --file, or --inbox.")
         sys.exit(1)
 
-    # Mode resolution for interactive: CLI --mode > auto-detect > default
+    # #22: --file frontmatter precedence -- CLI flag > frontmatter > config default.
+    # file_meta is {} for an inline question, so each reduces to the flag/config path.
+    effective_synthesizer = (
+        synthesizer if synthesizer is not None
+        else str(file_meta["synthesizer"]) if "synthesizer" in file_meta
+        else config.defaults.synthesizer
+    )
+    eff_full = (use_full_panel or not lite) or bool(file_meta.get("full", False))
+    eff_models = models if models is not None else (
+        str(file_meta["models"]) if "models" in file_meta and not eff_full else None
+    )
+    eff_target_paths = cli_target_paths if cli_target_paths else file_meta.get("target_paths", [])
+
+    # Mode resolution for interactive: CLI --mode > frontmatter mode: > auto-detect > default
+    effective_mode: str | None = None
     if mode_arg is not None and config.modes:
         effective_mode = resolve_mode(mode_arg, config.modes)
-    elif config.modes:
-        valid_modes = set(config.modes.keys())
-        detected, source_label = asyncio.run(
-            detect_mode(question_text, all_providers, valid_modes)
-        )
-        effective_mode = _interactive_confirm_mode(
-            detected, source_label, config.modes
-        )
-    else:
-        effective_mode = "pick"
+    elif file_meta.get("mode") is not None and config.modes:
+        try:
+            effective_mode = resolve_mode(str(file_meta["mode"]), config.modes)
+        except ValueError:
+            logger.warning(
+                "Unknown mode '%s' in %s, falling back to auto-detect",
+                file_meta["mode"], question_source,
+            )
+            effective_mode = None
+    if effective_mode is None:
+        if config.modes:
+            valid_modes = set(config.modes.keys())
+            detected, source_label = asyncio.run(
+                detect_mode(question_text, all_providers, valid_modes)
+            )
+            effective_mode = _interactive_confirm_mode(
+                detected, source_label, config.modes
+            )
+        else:
+            effective_mode = "pick"
 
     # Research mode: completely separate code path — no debate rounds
     if effective_mode == "research":
@@ -674,8 +705,8 @@ def run(
                     no_cache=no_cache,
                     console=console,
                     output_format=output_format,
-                    models_filter=[m.strip() for m in models.split(",")] if models else None,
-                    target_paths=cli_target_paths or None,
+                    models_filter=[m.strip() for m in eff_models.split(",")] if eff_models else None,
+                    target_paths=eff_target_paths or None,
                 )
             )
         except RuntimeError as exc:
@@ -687,11 +718,17 @@ def run(
         return
 
     mode_cfg = config.modes.get(effective_mode)
-    effective_rounds = rounds if rounds is not None else (
-        mode_cfg.max_rounds if mode_cfg else config.defaults.rounds
-    )
+    # #22: rounds precedence -- CLI flag > frontmatter > mode default > config default.
+    if rounds is not None:
+        effective_rounds = rounds
+    elif "rounds" in file_meta:
+        effective_rounds = int(file_meta["rounds"])
+    elif mode_cfg:
+        effective_rounds = mode_cfg.max_rounds
+    else:
+        effective_rounds = config.defaults.rounds
 
-    panel_names, panel_mode = determine_panel(config, models, use_full_panel or not lite)
+    panel_names, panel_mode = determine_panel(config, eff_models, eff_full)
     request = RunRequest(
         question=Question(text=question_text, source=question_source),
         panel_names=panel_names,
@@ -699,9 +736,9 @@ def run(
         rounds=effective_rounds,
         policy=policy,
         panel_mode=panel_mode,
-        synthesizer_specified=synthesizer is not None,
+        synthesizer_specified=synthesizer is not None or "synthesizer" in file_meta,
         mode=effective_mode,
-        target_paths=cli_target_paths,
+        target_paths=eff_target_paths,
         return_dir=effective_return_dir,
     )
     asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))

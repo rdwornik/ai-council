@@ -581,3 +581,113 @@ def test_group_help_lists_subcommands() -> None:
     assert result.exit_code == 0
     assert "run" in result.output
     assert "doctor" in result.output
+
+
+# ---------------------------------------------------------------------------
+# #22: --file frontmatter parsing + precedence (flag > frontmatter > config default)
+# ---------------------------------------------------------------------------
+
+
+def _capture_run_request(config: AppConfig, args: list[str]) -> list:
+    """Invoke the CLI and capture the RunRequest passed to CouncilRunner.run."""
+    fake_provider = MockProvider("claude")
+    fake_result = DebateResult(
+        question=Question(text="test", source="cli"),
+        rounds=[Round(number=1, responses=[])],
+        synthesis="Result",
+        synthesizer="claude",
+        total_duration_sec=1.0,
+        panel_mode="custom",
+    )
+    captured: list = []
+
+    async def _fake_run(request, output_dir=None, output_format="text"):
+        captured.append(request)
+        return fake_result
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _fake_run
+        CliRunner().invoke(main, args)
+    return captured
+
+
+def _write_brief(tmp_path: Path, body: str, frontmatter: str = "") -> Path:
+    brief = tmp_path / "brief.md"
+    content = f"---\n{frontmatter}\n---\n{body}\n" if frontmatter else f"{body}\n"
+    brief.write_text(content, encoding="utf-8")
+    return brief
+
+
+def test_file_frontmatter_stripped_no_leak(tmp_path: Path) -> None:
+    """#22: YAML frontmatter must not leak into the question text sent to panelists."""
+    config = _make_test_config(tmp_path)
+    brief = _write_brief(
+        tmp_path,
+        body="What is the best cache strategy?",
+        frontmatter="rounds: 3\nsynthesizer: claude",
+    )
+    captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
+    assert len(captured) == 1
+    text = captured[0].question.text
+    assert text == "What is the best cache strategy?"
+    assert "rounds:" not in text
+    assert "synthesizer:" not in text
+    assert "---" not in text
+
+
+def test_file_rounds_config_default(tmp_path: Path) -> None:
+    """#22 tier 3: no flag, no frontmatter -> config default rounds."""
+    config = _make_test_config(tmp_path)  # defaults.rounds == 1
+    brief = _write_brief(tmp_path, body="A question with no rounds override.")
+    captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
+    assert captured[0].rounds == 1
+
+
+def test_file_rounds_frontmatter_over_default(tmp_path: Path) -> None:
+    """#22 tier 2: frontmatter rounds override the config default."""
+    config = _make_test_config(tmp_path)
+    brief = _write_brief(tmp_path, body="A question.", frontmatter="rounds: 3")
+    captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
+    assert captured[0].rounds == 3
+
+
+def test_file_rounds_flag_wins_over_frontmatter(tmp_path: Path) -> None:
+    """#22 tier 1: the CLI --rounds flag wins over frontmatter."""
+    config = _make_test_config(tmp_path)
+    brief = _write_brief(tmp_path, body="A question.", frontmatter="rounds: 3")
+    captured = _capture_run_request(
+        config, ["--skip-health-check", "--rounds", "5", "--file", str(brief)]
+    )
+    assert captured[0].rounds == 5
+
+
+def test_file_synthesizer_frontmatter_honored(tmp_path: Path) -> None:
+    """#22: frontmatter synthesizer is honored and marks the request synthesizer-specified."""
+    config = _make_test_config(tmp_path)
+    brief = _write_brief(tmp_path, body="A question.", frontmatter="synthesizer: openai")
+    captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
+    assert captured[0].synthesizer_name == "openai"
+    assert captured[0].synthesizer_specified is True
+
+
+def test_file_synthesizer_flag_wins_over_frontmatter(tmp_path: Path) -> None:
+    """#22 tier 1: the CLI --synthesizer flag wins over frontmatter."""
+    config = _make_test_config(tmp_path)
+    brief = _write_brief(tmp_path, body="A question.", frontmatter="synthesizer: openai")
+    captured = _capture_run_request(
+        config, ["--skip-health-check", "--synthesizer", "gemini", "--file", str(brief)]
+    )
+    assert captured[0].synthesizer_name == "gemini"
+
+
+def test_file_target_project_frontmatter_resolved(tmp_path: Path) -> None:
+    """#22: frontmatter target-project is resolved to target_paths."""
+    config = _make_test_config(tmp_path, dev_root=tmp_path, target_projects=[".dev-knowledge"])
+    brief = _write_brief(tmp_path, body="A question.", frontmatter="target-project: .dev-knowledge")
+    captured = _capture_run_request(config, ["--skip-health-check", "--file", str(brief)])
+    assert len(captured[0].target_paths) == 1
+    assert ".dev-knowledge" in str(captured[0].target_paths[0])
