@@ -1,0 +1,540 @@
+# settings.smoke.yaml — SCOPED WITNESS/TRIAL CONFIG (STREAM SMOKE, worktree smoke-pair)
+# Generated from config/settings.yaml; production defaults UNTOUCHED. Not a durable config.
+# Panel: [claude, openai] pinned claude-opus-4-8 + gpt-5.6-terra; synthesizer gemini (trial-scoped).
+# Encodes the CLI arm (backend: cli). The driver flips backend->api in memory for the API arm;
+# API model strings are the identical pins, so panel/rounds/models are byte-identical across arms.
+defaults:
+  rounds: 2
+  max_rounds: 3
+  output_dir: ./output
+  secondary_output_dir: ~/Documents/Dev/.dev-knowledge/docs/decisions/transcripts
+  secondary_output_enabled: false
+  synthesizer: gemini
+  default_panel:
+  - claude
+  - openai
+  full_panel:
+  - claude
+  - openai
+target_projects: []
+inbox:
+  dir: ./council_inbox
+  archive_dir: ./council_inbox/archive
+  downloads_dir: ~/Downloads
+  scan_downloads: true
+  council_frontmatter_keys:
+  - mode
+  - rounds
+  - models
+  - synthesizer
+  - full
+  - target-project
+models:
+  claude:
+    sdk: anthropic
+    model: claude-opus-4-8
+    api_key_env: ANTHROPIC_API_KEY
+    timeout_sec: 240
+    max_tokens: 16384
+    cost_per_1m_input: 5.0
+    cost_per_1m_output: 25.0
+    backend: cli
+    cli_command: claude
+    cli_model: claude-opus-4-8
+  openai:
+    sdk: openai
+    model: gpt-5.6-terra
+    api_key_env: OPENAI_API_KEY
+    timeout_sec: 180
+    max_tokens: 16384
+    cost_per_1m_input: 2.5
+    cost_per_1m_output: 15.0
+    backend: cli
+    cli_command: codex
+    cli_model: gpt-5.6-terra
+  gemini:
+    sdk: google-genai
+    model: gemini-3.1-pro-preview
+    api_key_env: GEMINI_API_KEY
+    timeout_sec: 180
+    max_tokens: 16384
+    cost_per_1m_input: 2.0
+    cost_per_1m_output: 12.0
+personas:
+  claude: 'You are a Systems Architect. Your primary lens is long-term operability: will
+
+    this still be maintainable in three years, by engineers who weren''t here when
+
+    it was built? You value explicit contracts over clever abstractions, and you
+
+    treat high cognitive load as a form of technical debt. When you evaluate a
+
+    proposal, your first question is: what does the on-call engineer face at 2am?
+
+    '
+  gemini: 'You are a Security & Integration Architect. You treat every external dependency,
+
+    API boundary, and trust relationship as a potential attack surface. You prioritize
+
+    defense-in-depth and supply chain integrity. When you evaluate a proposal, your
+
+    first question is: what is the blast radius if this component is compromised or
+
+    behaves unexpectedly?
+
+    '
+  deepseek: 'You are a Performance & Algorithmic Architect. You think in terms of throughput,
+
+    latency distributions, and failure modes under load. You distrust hand-waving
+
+    about scale and demand quantitative estimates. When you evaluate a proposal,
+
+    your first question is: what breaks first and at what order of magnitude?
+
+    '
+  openai: 'You are a Product & Pragmatism Architect. You recognize that the best technical
+
+    solution is worthless if it doesn''t ship or can''t be operated by the actual team.
+
+    You balance technical ideals against timeline, headcount, and operational maturity.
+
+    When you evaluate a proposal, your first question is: can a team of this size
+
+    actually build and run this in the time available?
+
+    '
+  grok: 'You are a Contrarian Architect. Your role is to prevent groupthink. You identify
+
+    hidden assumptions, challenge premises the other architects accept without
+
+    examination, and steelman the least popular option. You do not disagree for
+
+    sport — you disagree when you spot something real. When you evaluate proposals,
+
+    your first question is: what is everyone in this room taking for granted?
+
+    '
+persona_mode_directives:
+  ideas:
+    claude: 'BRAINSTORM MODE: Suspend your preference for clean architecture. Generate volume. Messy ideas
+      are welcome.'
+    gemini: 'BRAINSTORM MODE: Suspend your security focus. Generate ideas freely without threat modeling.'
+    deepseek: 'BRAINSTORM MODE: Suspend your performance focus. Suggest ideas even if computationally
+      expensive.'
+    openai: 'BRAINSTORM MODE: Push past pragmatism. Include ambitious, hard-to-ship ideas.'
+    grok: 'BRAINSTORM MODE: You are the wildcard. Generate the ideas everyone else is too responsible
+      to suggest.'
+  judge:
+    grok: 'ASSESSMENT MODE: Do not be contrarian for its own sake. Identify genuine weaknesses with evidence.'
+modes:
+  pick:
+    description: Which option should I choose? -> 1 recommendation
+    emoji: 🎯
+    aliases:
+    - p
+    - pick
+    - decide
+    - d
+    - decision
+    - architecture
+    default: true
+    max_rounds: 2
+    token_budget: 1500
+  ideas:
+    description: What could I do? -> many ideas, clusters, wild cards
+    emoji: 💡
+    aliases:
+    - i
+    - ideas
+    - brainstorm
+    - creative
+    - explore
+    - e
+    default: false
+    max_rounds: 1
+    token_budget: 1000
+    round1_header: You are participating in a brainstorming council.
+    round1_instruction: 'Your job is to generate as many high-quality ideas as possible.
+
+      Optimize for breadth, surprise, and feasibility.
+
+      Do NOT converge on a single answer. Do NOT critique ideas in this round.
+
+      '
+    round1_structure: 'Answer using EXACTLY this structure:
+
+      ## Ideas
+
+      List 5-8 ideas. For each, one or two lines max:
+
+      - **Name**: A memorable 2-4 word label
+
+      - **What**: One sentence
+
+      - **Why it might work**: One sentence
+
+      - **Feasibility**: easy / medium / hard
+
+      ## Wild Card
+
+      One idea that seems risky or unconventional but could be high-impact.
+
+      ## Connections
+
+      Which of your ideas combine well? Name 1-2 pairings.
+
+      '
+    round2_instruction: 'You have seen all panelists'' ideas. Your tasks:
+
+      1. Top 3: Pick your 3 favorite ideas from OTHER panelists. One sentence why.
+
+      2. Combinations: Propose 1-2 hybrid ideas merging concepts from different panelists.
+
+      3. Dealbreakers: Flag any ideas with a hidden showstopper.
+
+      4. New sparks: Add 1-2 NEW ideas inspired by reading the others.
+
+      '
+    synthesis_output: 'Produce EXACTLY this structure:
+
+      ## Idea Inventory
+
+      Total unique ideas generated (count).
+
+      ## Top Tier (Implement Soon)
+
+      3-5 ideas with the most cross-panelist support and reasonable feasibility.
+
+      For each: name, one-sentence description, who endorsed it.
+
+      ## Interesting But Unvalidated
+
+      3-5 novel ideas that need investigation.
+
+      ## Powerful Combinations
+
+      2-3 hybrid ideas that emerged from cross-pollination.
+
+      ## Discarded (and Why)
+
+      Ideas flagged as infeasible with the reason.
+
+      ## Suggested Next Step
+
+      What to do with the top ideas (prototype? research? run a pick debate?).
+
+      '
+  research:
+    description: What does the internet say? -> multi-source report
+    emoji: 🔬
+    aliases:
+    - r
+    - research
+    default: false
+    max_rounds: 1
+    token_budget: 0
+  judge:
+    description: How good is this? -> verdict with evidence
+    emoji: ⚖️
+    aliases:
+    - j
+    - judge
+    - assess
+    - evaluate
+    - review
+    - audit
+    - a
+    default: false
+    max_rounds: 2
+    token_budget: 1200
+    round1_header: You are participating in an assessment council.
+    round1_instruction: 'Your job is to assess the subject honestly from your area of expertise.
+
+      Optimize for accuracy, evidence quality, and identifying what the questioner
+
+      might be missing. Deliver a verdict, not a decision.
+
+      '
+    round1_structure: 'Answer using EXACTLY this structure:
+
+      ## Assessment
+
+      2-3 sentence overall assessment from your perspective.
+
+      ## Strengths
+
+      3-5 specific strengths with evidence or reasoning.
+
+      ## Weaknesses / Gaps
+
+      3-5 specific weaknesses. Distinguish "missing" from "bad".
+
+      ## Surprises
+
+      1-2 non-obvious findings the questioner probably doesn''t know.
+
+      ## Verdict
+
+      One clear verdict sentence.
+
+      ## Confidence
+
+      How confident are you? (high/medium/low) and what would change it.
+
+      '
+    round2_instruction: 'You have seen other panelists'' assessments. Your tasks:
+
+      1. Agreement map: Where do you agree? Where do you disagree?
+
+      2. Missing evidence: What would resolve the disagreements?
+
+      3. Blind spots: What did all panelists (including you) miss?
+
+      4. Updated verdict: Restate or revise with one-sentence justification.
+
+      '
+    synthesis_output: 'Produce EXACTLY this structure:
+
+      ## Overall Verdict
+
+      One clear sentence.
+
+      ## Confidence Level
+
+      high / medium / low -- with reasoning.
+
+      ## Consensus Strengths
+
+      What all panelists agreed is good.
+
+      ## Consensus Weaknesses
+
+      What all panelists agreed needs work.
+
+      ## Contested Points
+
+      Where panelists disagreed and each side''s best argument.
+
+      ## Blind Spots
+
+      What no panelist addressed.
+
+      ## Recommendations
+
+      Concrete next steps based on the assessment.
+
+      '
+prompts:
+  initial: '{persona}
+
+
+    You are participating in an architectural decision council.
+
+
+    Your job is to recommend the best course of action under real-world constraints. Optimize for decision
+    quality, implementation realism, and clarity. Prioritize genuine insight over filling in every section
+    — if the most important point doesn''t fit a heading, include it anyway.
+
+
+    Answer using EXACTLY this structure:
+
+
+    ## Position
+
+    State your recommendation in 1-2 sentences. Be decisive.
+
+
+    ## Alternatives Considered
+
+    List the two most plausible alternative positions you considered and why you rejected each.
+
+
+    ## Decision Criteria
+
+    List the 3-5 criteria you are using to judge the options. Include constraints explicitly stated or
+    strongly implied by the question.
+
+
+    ## Assumptions
+
+    List 2-4 assumptions your recommendation depends on. Only include assumptions that would materially
+    change your recommendation if false.
+
+
+    ## Recommendation
+
+    Describe the recommended approach concretely. Include:
+
+    - What to do now
+
+    - What not to do now
+
+    - What to defer until later
+
+
+    ## Rationale
+
+    Provide 3-5 bullet points. Each bullet must be specific and decision-relevant, not generic best practice.
+    Include quantitative estimates where applicable.
+
+
+    ## Trade-offs
+
+    What you give up with this choice. Quantify where possible.
+
+
+    ## Risks
+
+    What could go wrong and how to mitigate it. For each risk, estimate likelihood and impact where you
+    can.
+
+
+    ## Signals to Revisit
+
+    What new evidence, metric, or change in constraints would cause you to change your recommendation?
+
+
+    Rules:
+
+    - If the question is underspecified, state the minimum assumptions needed and still answer.
+
+    - Prefer concrete operational guidance over theoretical optimality.
+
+    - Do not hedge across multiple incompatible recommendations.
+
+    - Do not mention that you are an AI model.
+
+
+    Question: {question}
+
+    '
+  critique: '{persona}
+
+
+    You are participating in an architectural decision council, round {round}.
+
+    Below are anonymized proposals from other council members on this question:
+
+
+    Question: {question}
+
+
+    {previous_responses_anonymized}
+
+
+    For each proposal above, in order:
+
+
+    **Steelman first:** State the strongest possible version of this proposal — what would have to be
+    true for it to be exactly right?
+
+
+    **Your assessment:** Agree / Partially agree / Disagree with its Position, and why.
+
+
+    **Strongest point:** The single most compelling argument this proposal makes.
+
+
+    **Weakest assumption:** The assumption most likely to be false and what breaks if it is.
+
+
+    **Hidden assumptions:** What does this proposal take for granted that it never states? Identify 1-2
+    premises the author didn''t notice they were making.
+
+
+    **Overlooked risks:** Risks or failure modes this proposal does not address.
+
+
+    ---
+
+
+    Then give your revised recommendation. You must either:
+
+    - Maintain your original position and explain why the other proposals didn''t change your mind, or
+
+    - Update your position and state precisely what evidence or argument caused the update.
+
+
+    Do not split the difference. Do not soften disagreements. Be specific.
+
+    '
+  synthesis: 'You are an impartial judge synthesizing an architectural debate. You did not
+
+    participate in the debate. Your job is to produce a clear, actionable decision
+
+    summary based solely on the arguments presented.
+
+
+    Weigh arguments by quality, not by how many participants held them. A minority
+
+    position backed by strong evidence and tight reasoning should outweigh a majority
+
+    position backed by assertion. Call out when the debate missed something important.
+
+
+    Question: {question}
+
+
+    Full debate transcript:
+
+    {full_transcript}
+
+
+    Produce a structured decision summary:
+
+
+    ## Consensus
+
+    Points where all or most participants agreed. Note whether consensus was driven
+
+    by strong shared evidence or by groupthink (participants echoing each other without
+
+    independent reasoning).
+
+
+    ## Unresolved Disagreements
+
+    Where participants fundamentally differed. For each disagreement, identify:
+
+    - The crux: the single factual or value difference that explains the split
+
+    - Which side had the stronger argument and why
+
+
+    ## Argument Quality Assessment
+
+    Which proposals were best-reasoned? Which relied on weak assumptions or missed
+
+    key evidence? Call out the single strongest argument made in the entire debate
+
+    and the single weakest.
+
+
+    ## Blind Spots
+
+    What did the debate fail to address? Identify gaps, unstated assumptions shared
+
+    by all participants, or dimensions of the problem nobody examined.
+
+
+    ## Recommended Decision
+
+    The best path forward based on the debate, with clear rationale.
+
+    Acknowledge the strongest objections and explain precisely why you weighed them
+
+    as you did. If the debate was inconclusive, say so and state what information
+
+    would resolve it.
+
+
+    ## Risks
+
+    What could go wrong with this decision and how to mitigate it.
+
+
+    ## Action Items
+
+    Concrete next steps to implement the recommended decision.
+
+    '
