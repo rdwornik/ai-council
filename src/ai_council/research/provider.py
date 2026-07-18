@@ -1,8 +1,19 @@
 """Abstract base for research providers."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 
 from ai_council.research.models import ResearchResult
+
+
+def iso_now() -> str:
+    """Single source for the tz-aware ISO-8601 UTC timestamp on ResearchResult.
+
+    All research providers route their ``timestamp`` through here (B2) so the field
+    is derived one way. Replaces the deprecated ``datetime.utcnow().isoformat()`` that
+    was pasted into every provider.
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 
 class ResearchProviderError(Exception):

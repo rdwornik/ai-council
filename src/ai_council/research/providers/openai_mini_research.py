@@ -9,12 +9,11 @@ provider used a `background=True` + poll loop; the migrated path is synchronous
 import asyncio
 import logging
 import time
-from datetime import datetime
 
 from openai import APIError, APITimeoutError, AsyncOpenAI
 
 from ai_council.research.models import ResearchResult, Source
-from ai_council.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.provider import ResearchProvider, ResearchProviderError, iso_now
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class OpenAIMiniResearchProvider(ResearchProvider):
 
     async def research(self, query: str) -> ResearchResult:
         start = time.monotonic()
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = iso_now()
 
         # Pass timeout + max_retries into the SDK so the configured timeout_sec actually
         # controls request lifetime, and the SDK owns the (single) transient retry. The

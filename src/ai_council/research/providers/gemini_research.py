@@ -12,12 +12,11 @@ import logging
 import re
 import time
 import warnings
-from datetime import datetime
 
 from google import genai
 
 from ai_council.research.models import ResearchResult, Source
-from ai_council.research.provider import ResearchProvider, ResearchProviderError
+from ai_council.research.provider import ResearchProvider, ResearchProviderError, iso_now
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ class GeminiResearchProvider(ResearchProvider):
 
     async def research(self, query: str) -> ResearchResult:
         start = time.monotonic()
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = iso_now()
 
         try:
             result = await asyncio.wait_for(
