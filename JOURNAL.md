@@ -19,6 +19,22 @@
 
 ---
 
+### 2026-07-18 — STREAM B (p6-hardening worktree): #40 + #41 committed (commit-and-STOP)
+
+**Did:** Parallel Stream B (worktree `.claude/worktrees/p6-hardening`, branch `worktree-p6-hardening`), plan-first per arc, **COMMIT-AND-STOP** (never merge/touch main — operator does serial integration in primary). Pre-flight file-touch check per arc against the Stream-A abort-to-serial triggers (`cli.py`, research modules, `COUNCIL_INVOCATION_CONTRACT.md`): **#40 CLEAN, #41 CLEAN, #39 TRIPS** (its natural design needs cli.py flag+env wiring AND the contract doc). **#39 aborted to serial** by operator ruling — dropped from this stream, moves to the primary after Stream A + after #40 merges, full held-to-S contract intact (no env-only variant). #43 not in stream. **ARC 1 #40:** rewrote `_extracted_options` (output.py) — pick verdicts now fall back to the debate question's `## Options` (the pick synthesis template prescribes no options heading), and both paths keep only top-level bullets + strip wrapping `**`. **ARC 3 #41:** fixed CLI-seat token counts (providers/cli_base.py) — LIVE-captured codex 0.144.5 + claude -p first; found the codex regex actually MATCHES (audit premise wrong) — real F-M1 bug is that only combined `token_count` was set while metrics reads input/output, so codex's single combined total is now recorded as `output_tokens`; claude F-M2 input now sums `input + cache_creation + cache_read`.
+
+**Result:** **2 commits on the worktree branch (NOT merged):** **`496a2c9`** (#40 — regression tests verified against the REAL UC1–UC3 pick + UC4 ideas night-batch transcripts, copied verbatim into `tests/fixtures/night_batch/`; E2E: pick→3 `(a)/(b)/(c)`, ideas→5 clean ideas) and **`8a5cecd`** (#41 — regression tests use the REAL captured codex banner + claude usage block; E2E through the metrics sidecar: codex `0→4315`, claude input `1→4642`; cost stays $0). Full unit suite **520 passed**, ruff clean, both changed source files mypy-clean. Pre-existing (not introduced here): `mypy src/` = 7 errors, all in `research/providers/*.py` (#20 SDK-stub drift), untouched/off-limits. Env quirk recorded to memory: worktrees share the main `.venv` whose editable install points at MAIN src → all verify runs used `PYTHONPATH=<worktree>/src` (no global mutation, Stream A unaffected).
+
+**Changes:** `src/ai_council/output.py`, `src/ai_council/providers/cli_base.py`, `tests/test_output.py`, `tests/test_cli_base.py`, `tests/fixtures/night_batch/*.md` (4 real transcripts). Plan file `stream-b-worktree-bubbly-dewdrop.md`.
+
+**Terra waiver (recorded):** terra / `codex exec review` **WAIVED** per arc for both #40 and #41 (codex credits exhausted, reset **2026-07-23**; same waiver class as #33). **#40 and #41 go FIRST in the 2026-07-23 batch re-review priority.**
+
+**Abandoned:** none. #39 aborted-to-serial (not abandoned — handed forward).
+
+**Next (operator, serial in primary):** integrate `worktree-p6-hardening` (#40 then #41) after Stream A; then build #39 (cli.py flag + `AICOUNCIL_OUTPUT_DIR` env + documented `output/health/` retention) serial; close #40/#41 in BACKLOG at integration; 2026-07-23 terra re-review of #40/#41 first.
+
+---
+
 ### 2026-07-18 — NIGHT BATCH (autonomous E2E audit) + MORNING CLOSE
 
 **Did:** Two phases. **(1) Night batch (autonomous, 2026-07-17, operator pre-authorized).** Unattended empirical E2E audit. Built a **config-override harness** (transient `backend: cli` on claude + deepseek-hosting-codex + `scan_downloads:false`; restored byte-identical per run via a PowerShell `try/finally` + SHA-256 verify — `config/settings.yaml` untouched at end). Pre-flight `council doctor` **GREEN**. Ran **5 use cases** through the full inbox→`council --inbox` pipeline with **CLI seats (claude+codex, zero fallbacks)** + **openai synthesizer**: Rama 1 (#18 crux-grounding) **PASS**, Rama 3 (#19 framing) **PASS**, #6 DeepSeek **PASS**, #17 currency (ideas) **PASS**, #110 sycophancy (research) **DEGRADED** (summarizer truncation + no verdict package = #34, live-confirmed). LEG 2 (artifact hygiene) + LEG 3 (docs currency + gap-map) ran as read-only sub-audits. Filed the PART-0 operator ruling (synthesizer gemini→openai), the hub-feedback session-close-gate intake, and the amendment-2 consumption test (candidate ADR from the verdict JSON alone). **(2) Morning close (2026-07-18, supervised, docs/config only, terra WAIVED).** Four `--no-ff` merges.
