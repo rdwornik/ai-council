@@ -1,6 +1,6 @@
 # Technical Refactoring Guide — ai-council `src/` (the how, at code level)
 
-> **Deployment-Status (2026-07-18 inventory):** PARTIAL — A1 `fa4c1b5`, A3 `3583ae5`, A4/B3 `0ae7429` shipped; open: #45–#48 (A5/B2/B4/B7), #20. _(Additive inventory stamp; body below unchanged.)_
+> **Deployment-Status (2026-07-18 inventory; refreshed 2026-07-18 consolidation):** PARTIAL — A1 `fa4c1b5`, A3 `3583ae5`, A4/B3 `0ae7429` shipped **+ A5/B2/B4/B7 shipped 2026-07-18** (#45–#48, merge `02b6dd0`, terra-waived→#44); open: #20. _(Additive inventory stamp; body below unchanged.)_
 
 **Date:** 2026-07-06 · **Companion to:** `docs/audits/2026-07-06-code-quality-audit.md` · **Model:** Fable · **Mode:** READ-ONLY (this document is the only artifact — **no code was changed**) · **Verified against:** live `main` @ `ee8a323`
 
