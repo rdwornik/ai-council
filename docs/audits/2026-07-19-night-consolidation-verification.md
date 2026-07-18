@@ -307,7 +307,39 @@ that would cost money or need a gated flip is honestly served by exercising the 
 
 ## Comprehension probe (Wave 5)
 
-_Filled in the second commit — a cold reader (Codex `sol`, report-only) answers four questions from
-this document alone; any gap is closed once here and re-probed._
+A cold reader — Codex `sol`, given **only** this document in an otherwise-empty directory (no chat
+context, no other summaries) — answered the operator's four questions from the report alone.
+**Result: 4/4 ANSWERED — no PARTIAL, no UNANSWERABLE. The report is self-contained; no gap to close,
+no re-probe needed.**
 
-<!-- WAVE5-PLACEHOLDER -->
+| # | Question | Verdict |
+|---|---|---|
+| Q1 | What shipped 2026-07-18 + evidence per item | ANSWERED |
+| Q2 | Verified empirically vs merely merged | ANSWERED |
+| Q3 | What must happen next, and why | ANSWERED |
+| Q4 | Three decisions in force + what each forbids | ANSWERED |
+
+Raw cold-reader answers (verbatim, logged as evidence):
+
+> **Q1:** "#22 file/frontmatter precedence—L1 output; #23 return-dir—L2 matching MD5s; #39 retention—L4
+> kept 10, while output guards are only code-verified; #40 options—L5 pick/ideas outputs; #41 token
+> counts—L6 Claude=4800/Codex=1234 at adapter level; #42 slug—L7 'research- x1'; #45–48
+> cleanup/refactors—L8 four checks; ADR-13—L3 emitted `contract_version='1.0'`; synthesizer OpenAI
+> default—L1 config output. #20's stopgap is evidenced only by merge `3e1005f` …" — **ANSWERED**
+>
+> **Q2:** "Empirically verified: #22, #23 happy path, ADR-13 happy path, #39 retention, #40, #41 adapter
+> parsing, #42, #45–48, and the OpenAI synthesizer default. Merely merged/not live-witnessed: #39 run
+> output guards and #41 end-to-end CLI-seat routing. The report warns: 'Merged is not deployed.'" —
+> **ANSWERED**
+>
+> **Q3:** "Score #27 and decide the §5 CLI flip to unblock #41 end-to-end proof; re-disposition #44/#33
+> because Terra is live; groom #59–#66, prioritizing silent-failure hazards #62/#63; decide #67/#68
+> because the SEALED-KEY near-leak was real." — **ANSWERED**
+>
+> **Q4:** "ADR-12 §5 forbids defaulting seats to CLI before #27 ratification. ADR-13 forbids unversioned
+> verdict packages or silent shape changes without a version bump. ADR-10/DRAFT-INT-1 R4 forbids
+> optional canonical writes and best-effort handling of a required return directory." — **ANSWERED**
+
+The cold reader's Q2 split independently reproduces this audit's verified-vs-merged table — including
+that #39 run-path guards and #41 end-to-end are *merged, not live-witnessed* — confirming the
+distinction survives a context-free read.
