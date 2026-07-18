@@ -19,6 +19,18 @@
 
 ---
 
+### 2026-07-18 — STREAM SMOKE: CLI vs API paired witness run (side-by-side, observability question)
+
+**Did:** Operator's simple quality test in the isolated `smoke-pair` worktree (COMMIT-AND-STOP; branch never merges to main), independent of the primary's 12-brief corpus work. Authored a scoped witness config `config/settings.smoke.yaml` (`settings.yaml` untouched) — panel `claude-opus-4-8` + `gpt-5.6-terra` (ruled pins), synthesizer gemini (trial-scoped), 2 rounds, mode pick. Drove ONE fresh non-trivial decision (observability stack: managed SaaS vs self-hosted OSS vs cloud-native) TWICE via a scratchpad driver + `load_config(smoke_path)`: ARM 1 seats on the CLI subscription lane, ARM 2 the same seats flipped to API (backend-only delta; model strings identical). `AICOUNCIL_OUTPUT_DIR=./smoke-output/` + `PYTHONPATH=./src` — nothing touched canonical `output/`. First-drafted a webhook-ingestion question, then **discarded it** (+ cleared its outputs) after the operator's corpus-freeze addendum — topical adjacency to the frozen backend-architecture topics (REST/gRPC, monorepo/polyrepo, Postgres/doc-store); re-picked observability (zero overlap with the 12).
+
+**Result:** Clean pair, both arms UNBLINDED side-by-side. CLI arm — both seats `actual_backend=cli`, exact pins, `fallback_events=[]`, **$0 seat cost**; only gemini synth billed $0.0297; total $0.0297 / 165.1s. API arm — both seats `actual_backend=api`, exact pins, no fallback; seats **$0.2817** + synth $0.0364; total $0.3181 / 134.5s. Both arms **converged on the same verdict** (managed SaaS + OpenTelemetry, keep cloud-native as break-glass, reject self-hosting), same standout argument (blast-radius independence) and shared blind spot (egress costs). By-eye quality equivalent; CLI seats $0 vs $0.28 API for identical panel/rounds. Spend approved for the single billed pair (a superseded webhook pair was also run before the re-pick).
+
+**Changes:** `config/settings.smoke.yaml` (new scoped witness), `docs/smoke/2026-07-18-smoke-pair-cli-vs-api-report.md` (side-by-side report), `docs/smoke/2026-07-18-BURNED-question-observability.md` (burn note — observability question BURNED for corpus exclusion; primary picks up at integration), `.gitignore` (+`smoke-output/`). Commit `1b016ca` on `worktree-smoke-pair` (main untouched at `4495dfd`; `settings.yaml` byte-identical to main).
+
+**Abandoned:** the webhook-ingestion draft question (topical adjacency; outputs cleared, replaced by observability).
+
+**Not done (handed forward):** none — smoke stream is self-contained and stops here; the branch is not merged.
+
 ### 2026-07-18 — #27 WITNESS PASS: both CLI seats admit at $0 (pin gpt-5.6-terra confirmed), Phase 1 ready
 
 **Did:** Executed the operator's pre-ruled decision tree for the codex pin. **Enumerated** the OpenAI API models list (free): gpt-5.6 tiers = **[luna, sol, terra]**. **Selected** the medium tier = **`gpt-5.6-terra`** (sol = flagship / codex config default; terra = the one non-sol/non-luna id — the operator's routing names the 5.6 medium tier "terra"). **Probed** it with one tiny Responses call → resolves (status=completed, 18 tokens). **BRANCH (a) fired** (medium 5.6 on API): pinned `gpt-5.6-terra` verbatim BOTH arms of the codex seat. Then ran the **witness debate** — a scratchpad witness config (claude→CLI/opus-4-8, openai→codex-CLI/terra, synthesizer→gemini trial-scoped; `settings.yaml` untouched) driven via a monkeypatched `load_config`, `--no-persist`, `--models claude,openai --rounds 1`.
