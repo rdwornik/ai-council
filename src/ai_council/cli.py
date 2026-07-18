@@ -21,6 +21,7 @@ from ai_council.healthcheck import run_health_checks
 from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
 from ai_council.mode_detector import detect_mode
 from ai_council.models import Question, RunRequest
+from ai_council.orchestrator import CouncilRunner
 from ai_council.policy import RunPolicy
 from ai_council.providers.anthropic import AnthropicProvider
 from ai_council.providers.base import AIProvider
@@ -29,7 +30,7 @@ from ai_council.providers.gemini import GeminiProvider
 from ai_council.providers.openai_provider import OpenAIProvider
 from ai_council.providers.xai import XAIProvider
 from ai_council.routing import RoutingError, TargetResolver
-from ai_council.runner import CouncilRunner, build_all_providers, determine_panel
+from ai_council.runner import build_all_providers, determine_panel
 from config.config_loader import (
     AppConfig,
     ModeConfig,

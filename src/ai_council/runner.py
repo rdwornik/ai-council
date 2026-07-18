@@ -1,7 +1,7 @@
 """Panel and provider utility functions.
 
-CouncilRunner (the debate orchestrator) lives in src/orchestrator.py.
-This module re-exports it for backward compatibility.
+CouncilRunner (the debate orchestrator) lives in orchestrator.py — import it
+from ai_council.orchestrator directly. This module holds only panel utilities.
 """
 
 import logging
@@ -73,7 +73,3 @@ def pick_synthesizer(
     if preferred in all_providers:
         return all_providers[preferred], True
     return next(iter(all_providers.values())), True
-
-
-# Backward-compat re-export — new code should import from ai_council.orchestrator directly
-from ai_council.orchestrator import CouncilRunner as CouncilRunner  # noqa: E402, F401
