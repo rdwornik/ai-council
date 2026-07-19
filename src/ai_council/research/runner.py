@@ -10,6 +10,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from ai_council.output import RoutingFailure, raise_for_routing_failures
 from ai_council.research.cache import cache_get, cache_put
 from ai_council.research.display import run_research_with_display
 from ai_council.research.merger import make_cache_key, merge_results, summarize_report
@@ -161,9 +162,15 @@ async def run_research(
         cached = cache_get(research_cfg.cache_dir, cache_key, research_cfg.cache_ttl_days)
         if cached is not None:
             console.print(f"\n[dim]Research cache hit (key: {cache_key})[/dim]")
+            # R4 (#62): same record-and-aggregate shape as the debate path — emit the
+            # canonical report and every diagnostic, then fail once if a REQUIRED
+            # --return-dir did not receive it. The cache-hit branch is a second exit from
+            # this function and needs the check as much as the fresh one below.
+            cached_failures: list[RoutingFailure] = []
             saved_paths = save_research_to_file(
                 cached, output_dir, from_cache=True, secondary_dir=secondary_dir,
                 target_paths=target_paths, return_dir=return_dir,
+                routing_failures=cached_failures,
             )
             print_research_summary(cached, saved_paths[0], from_cache=True, console=console)
             _print_research_paths(console, saved_paths, secondary_dir)
@@ -173,6 +180,7 @@ async def run_research(
                 import sys
 
                 print(json.dumps(dataclasses.asdict(cached), indent=2, default=str), file=sys.stdout)
+            raise_for_routing_failures(cached_failures)
             return cached
 
     # Compute selected panel (post --models filter) for degradation denominator.
@@ -210,9 +218,11 @@ async def run_research(
         cache_put(research_cfg.cache_dir, cache_key, report)
 
     # Output
+    routing_failures: list[RoutingFailure] = []
     saved_paths = save_research_to_file(
         report, output_dir, from_cache=False, secondary_dir=secondary_dir,
         target_paths=target_paths, return_dir=return_dir,
+        routing_failures=routing_failures,
     )
     print_research_summary(report, saved_paths[0], from_cache=False, console=console)
     _print_research_paths(console, saved_paths, secondary_dir)
@@ -224,4 +234,5 @@ async def run_research(
 
         print(json.dumps(dataclasses.asdict(report), indent=2, default=str), file=sys.stdout)
 
+    raise_for_routing_failures(routing_failures)
     return report
