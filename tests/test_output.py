@@ -941,6 +941,38 @@ def test_options_fallback_never_clobbers_a_real_synthesis_heading():
     assert opts["heading"] == "Alternatives Considered"  # the synthesis heading, not None
 
 
+def test_options_prose_heading_does_not_hide_a_later_synthesis_section():
+    """#60: a prose options heading must not skip PAST bulleted synthesis options.
+
+    _first_by_priority returns the first matching section, so a prose
+    ## Alternatives Considered followed by a bulleted ## Options used to fall straight
+    through to the question's staler list. Raised by terra in adversarial review.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = (
+        "## Alternatives Considered\nThe panel weighed them at length.\n\n"
+        "## Options\n- Ship the shim\n- Rewrite the adapter\n"
+    )
+    question = "## Options\n- (a) Stale one\n- (b) Stale two\n"
+    opts = _extracted_options(
+        _split_sections(synthesis), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["Ship the shim", "Rewrite the adapter"]  # synthesis, not question
+    assert opts["heading"] == "Options"
+
+
+def test_routing_failure_aggregate_chains_the_underlying_cause():
+    """The accumulator path must chain a real traceback, like the direct path does."""
+    from ai_council.output import OutputRoutingError, RoutingFailure, raise_for_routing_failures
+
+    root = PermissionError("blocked")
+    failures = [RoutingFailure("transcript", Path("x"), "PermissionError: blocked", root)]
+    with pytest.raises(OutputRoutingError) as excinfo:
+        raise_for_routing_failures(failures)
+    assert excinfo.value.__cause__ is root
+
+
 def test_options_synthesis_bullets_still_win_over_the_question():
     """#60 must not change the happy path: a synthesis WITH options is never overridden."""
     from ai_council.output import _extracted_options, _split_sections

@@ -26,6 +26,15 @@ Legs (claim -> shipped code):
   L9  ---  happy path: all four deliverables route to a good --return-dir, no false raise
   L10 #35  ORCHESTRATOR wiring: the aggregate really is raised by CouncilRunner.run after
            every canonical write, not just by the helper in isolation
+  L11 #63  the verdict's OWN manifest entry — KNOWN-OPEN, reported as GAP (see below)
+
+Known GAP (reported every run, never a PASS):
+  L11 — _build_verdict_payload builds the verdict's own artifacts[] entry from
+  guaranteed_dirs BEFORE the write, so with a blocked --return-dir the canonical package
+  advertises a return copy that never landed. Closing it needs a two-pass write and was
+  out of scope for this lane. L7 covers the `written` entries, which ARE filtered.
+  Surfaced by terra in adversarial review: L7 alone excluded kind == "verdict" and so
+  would have reported full PASS while that contract rule was broken.
 
 Failure induction is HARNESS-SIDE only — no provider or shipped code is mutated:
   - return-dir faults: point --return-dir at an existing FILE, so its mkdir raises.
@@ -346,13 +355,54 @@ def leg_l7() -> LegResult:
         )
         data = json.loads(verdict[0].read_text(encoding="utf-8"))
         kinds = {a["kind"] for a in data["artifacts"]}
-        # the verdict's own entry is a prediction built before its write — excluded by design
+        # Scope: the `written` entries. The verdict's OWN entry is a separate, still-open
+        # defect and is checked by L11 — it is not quietly excluded here.
         claimed = [
             p for a in data["artifacts"] if a["kind"] != "verdict" for p in a["paths"]
         ]
         all_real = all(Path(p).exists() for p in claimed)
         ev = f"kinds={sorted(kinds)}; phantom dropped={'metrics' not in kinds}; every claimed path exists={all_real}"
         return _ok("L7", "#63", ev) if "metrics" not in kinds and all_real else _fail("L7", "#63", ev)
+
+
+# --------------------------------------------------------------------------------------------
+# L11 — the verdict's OWN manifest entry: a KNOWN-OPEN defect, reported as a GAP
+# --------------------------------------------------------------------------------------------
+def leg_l11() -> LegResult:
+    """Probes the one manifest path this arc did NOT fix, so it cannot hide.
+
+    _build_verdict_payload builds the verdict's own artifacts[] entry from guaranteed_dirs
+    BEFORE _write_routed runs, so it is a prediction. With a blocked --return-dir in
+    accumulator mode the canonical package still advertises a return copy that was never
+    written. Closing it needs a two-pass write (serialize, route, re-serialize the actual
+    paths), which was explicitly out of scope for this lane.
+
+    Reported as GAP, never PASS: the contract rule is real and currently unmet. Raised by
+    terra in adversarial review of this branch — L7 alone would have let it pass silently.
+    """
+    from ai_council.output import RoutingFailure, save_to_file, save_verdict_package
+
+    with tempfile.TemporaryDirectory(prefix="vow-l11-") as td:
+        root = Path(td)
+        out, blocked = root / "output", _blocker(root)
+        result = _debate_result()
+        transcript = save_to_file(result, out)[0]
+
+        failures: list[RoutingFailure] = []
+        verdict = save_verdict_package(
+            result, out, transcript, return_dir=blocked, routing_failures=failures
+        )
+        data = json.loads(verdict[0].read_text(encoding="utf-8"))
+        own = next(a for a in data["artifacts"] if a["kind"] == "verdict")
+        phantom = [p for p in own["paths"] if not Path(p).exists()]
+
+        if not phantom:
+            return _ok("L11", "#63", "verdict self-entry lists only paths that exist")
+        return _gap(
+            "L11", "#63",
+            f"KNOWN-OPEN: verdict self-entry advertises {len(phantom)} unwritten path(s) "
+            f"(guaranteed_dirs is built pre-write); needs a two-pass write, out of lane scope",
+        )
 
 
 # --------------------------------------------------------------------------------------------
@@ -487,7 +537,10 @@ def leg_l10() -> LegResult:
         return _ok("L10", "#35", ev) if good else _fail("L10", "#35", ev)
 
 
-LEGS = [leg_l1, leg_l2, leg_l3, leg_l4, leg_l5, leg_l6, leg_l7, leg_l8, leg_l9, leg_l10]
+LEGS = [
+    leg_l1, leg_l2, leg_l3, leg_l4, leg_l5, leg_l6,
+    leg_l7, leg_l8, leg_l9, leg_l10, leg_l11,
+]
 
 
 def main() -> int:

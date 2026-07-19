@@ -152,6 +152,11 @@ class RoutingFailure:
     artifact: str
     destination: Path
     cause: str
+    # The originating exception, kept so the aggregate raise can chain a real traceback.
+    # Without it the accumulator path — the one the orchestrators actually use — would
+    # produce an OutputRoutingError with __cause__ None while the direct path chained
+    # properly, losing the root cause exactly where it is hardest to reproduce.
+    error: BaseException | None = None
 
     def __str__(self) -> str:
         return f"{self.artifact} -> {self.destination} ({self.cause})"
@@ -185,7 +190,13 @@ def raise_for_routing_failures(failures: list[RoutingFailure]) -> None:
     an exception raised there would mask the original.
     """
     if failures:
-        raise OutputRoutingError(failures)
+        # Chain the first underlying error so the traceback still reaches the real cause
+        # (PermissionError, NotADirectoryError, ...). Every cause is preserved as text in
+        # the message and on RoutingFailure.error; only the chained one can be a single
+        # exception, and the first failure is the one that started the run down this path.
+        raise OutputRoutingError(failures) from next(
+            (f.error for f in failures if f.error is not None), None
+        )
 
 
 def _write_routed(
@@ -265,7 +276,7 @@ def _write_routed(
         if cause is not None:
             if return_dir_required:
                 logger.error("Required return-dir write failed for %s: %s", return_dir, cause)
-                pending = RoutingFailure(artifact, return_dir, cause)
+                pending = RoutingFailure(artifact, return_dir, cause, pending_exc)
             else:
                 logger.warning("Return-dir write failed for %s: %s", return_dir, cause)
 
@@ -732,6 +743,30 @@ def _top_level_bullets(body: str | None) -> list[str]:
     return items
 
 
+def _options_with_items(sections: list[tuple[str, str]]) -> tuple[str | None, list[str]]:
+    """First options-ish section that actually yields top-level bullets.
+
+    Scans in marker priority like ``_first_by_priority``, but keeps looking when a matching
+    section holds only prose (#60) — a *later* section may carry the real list, e.g. a
+    synthesis with a prose ``## Alternatives Considered`` followed by a bulleted
+    ``## Options``. Taking the first matching heading unconditionally would skip past the
+    live options and fall through to the question's staler ones.
+
+    Returns the first matching heading even when nothing yields items, so the caller can
+    still report which heading was seen rather than claiming none existed.
+    """
+    first_heading: str | None = None
+    for marker in _OPTIONS_HEADING_MARKERS:
+        for heading, body in sections:
+            if marker in heading.lower() and body.strip():
+                if first_heading is None:
+                    first_heading = heading
+                items = _top_level_bullets(body.strip())
+                if items:
+                    return heading, items
+    return first_heading, []
+
+
 def _extracted_field(
     sections: list[tuple[str, str]], markers: tuple[str, ...], *, one_line: bool = False
 ) -> dict:
@@ -758,17 +793,13 @@ def _extracted_options(
 
     Only TOP-LEVEL bullets are kept; see ``_top_level_bullets``.
     """
-    heading, body = _first_by_priority(sections, _OPTIONS_HEADING_MARKERS)
-    items = _top_level_bullets(body)
-    # #60: fall back when the synthesis produced no OPTIONS, not merely no SECTION. The
-    # gate used to be `not body`, so an options heading whose body is prose with no
-    # bullets short-circuited the fallback and returned items=[] under a heading that
-    # listed nothing — reading as "alternatives were considered and there were none".
+    # #60: the gate is "produced no OPTIONS", not "has no SECTION". It used to be
+    # `not body`, so an options heading whose body is prose short-circuited the fallback
+    # and returned items=[] under a heading that listed nothing — reading as "alternatives
+    # were considered and there were none".
+    heading, items = _options_with_items(sections)
     if not items and question_sections is not None:
-        fallback_heading, fallback_body = _first_by_priority(
-            question_sections, _OPTIONS_HEADING_MARKERS
-        )
-        fallback_items = _top_level_bullets(fallback_body)
+        fallback_heading, fallback_items = _options_with_items(question_sections)
         # Adopt the fallback ONLY if it actually yielded options. Rebinding unconditionally
         # would clobber a valid synthesis heading with None whenever the question carries
         # no ## Options of its own.
