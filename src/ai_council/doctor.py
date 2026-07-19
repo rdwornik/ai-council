@@ -11,7 +11,10 @@ runs accumulating stale records (the night-batch audit found ~15 un-cleaned
 ``doctor-*.json``), ``write_record`` prunes the timestamped set to the most recent
 ``_HEALTH_RETENTION`` (=10) on every write; ``doctor-latest.json`` is always kept.
 Witness/dev runs that shouldn't touch canonical ``output/`` at all use ``council
---no-persist`` (scratch temp dir) or the ``AICOUNCIL_OUTPUT_DIR`` env override.
+doctor --no-persist`` (scratch temp dir), ``--output <dir>``, or the
+``AICOUNCIL_OUTPUT_DIR`` env override -- resolved by the SAME precedence chain as
+``council run`` (``cli._resolve_output_dir``). Before #65 this paragraph was false:
+``doctor`` honoured none of these and always wrote to canonical ``output/health/``.
 
 v1 scope is liveness + static config validation. Deferred to follow-on arcs:
 pin-currency sweep (DRAFT-DOC-2), CLI-fleet / identity-channel --smoke re-probe
@@ -23,6 +26,7 @@ seat pings; it does not reimplement provider health-checking.
 
 import asyncio
 import json
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +38,8 @@ from ai_council.healthcheck import run_health_checks
 from ai_council.providers.base import AIProvider
 from ai_council.runner import build_all_providers
 from config.config_loader import AppConfig
+
+logger = logging.getLogger(__name__)
 
 # Committed surface (§C.2): version from day one. Field removals/renames are breaking
 # changes once a foreign repo consumes doctor-latest.json (ADR-11 §5 pattern).
@@ -333,6 +339,10 @@ def run_doctor(
 
     ``shell_snapshot`` maps each key-env NAME to its raw value in the launching shell
     (before the doctor's override-load) so env shadowing can be surfaced as an advisory.
+
+    ``output_dir`` is the resolved canonical dir (``cli._resolve_output_dir`` -- honours
+    ``--output`` / ``--no-persist`` / ``AICOUNCIL_OUTPUT_DIR``); ``None`` falls back to the
+    config default. The record lands in ``<output_dir>/health/``.
     """
     console = console or Console(legacy_windows=False)
     shell_snapshot = shell_snapshot or {}
@@ -362,11 +372,22 @@ def run_doctor(
     # doctor (containment) nor flip the health verdict -- a GREEN council whose record
     # could not be written is still GREEN; a Lane-A caller must not be told "don't
     # commission" over a local write error. Warn, keep the verdict, carry on.
+    #
+    # Catch Exception, not OSError (#65): the narrow form only contained filesystem errors,
+    # so a non-OSError raised while BUILDING the payload -- e.g. a json.dumps TypeError on a
+    # non-serializable check value in write_record -- escaped and crashed the doctor, which
+    # is exactly what this comment promises cannot happen. Doctor is deliberately exempt
+    # from the fail-loud contract that governs the run paths: its record is advisory, so
+    # containment (not propagation) is the correct behaviour here.
     try:
         record_path: Path | None = write_record(record, out_dir, filestamp)
-    except OSError as exc:
+    except Exception as exc:
         record_path = None
-        console.print(f"[yellow]WARNING:[/yellow] could not write doctor record to {out_dir}: {exc}")
+        console.print(
+            f"[yellow]WARNING:[/yellow] could not write doctor record to {out_dir}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        logger.warning("Doctor record write failed (contained, verdict unaffected)", exc_info=True)
 
     render_report(console, checks, verdict, record_path, generated_at)
     return _EXIT[verdict]

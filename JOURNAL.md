@@ -19,6 +19,90 @@
 
 ---
 
+### 2026-07-19 — LANE A2: the CLI side of the output contract (#65 · #71 · #74 · boundary fail-loud) — COMMIT-AND-STOP
+
+**Did:** Parallel-lane build in worktree `lane-a2-cli-output-contract` (branch
+`worktree-lane-a2-cli-output-contract`), scope `cli.py` + `doctor.py` only. Lane A1 (`output.py` writer layer)
+ran concurrently in a sibling worktree and was never touched; Lane B's frontmatter guards
+(`cli.py:607`/`:719-721`) left alone. **Not merged — commit-and-stop per the lane contract.**
+
+**(1) One resolver** (`8971fef`). The #39 precedence chain (`--output` > `--no-persist` scratch >
+`AICOUNCIL_OUTPUT_DIR` > config default) lived inside `run`'s body only; lifted to a module-level
+`_resolve_output_dir` both commands call. Behaviour-identical extraction. Recon correction: the chain is
+`cli.py:517-529` with the env read at `:521`, not the briefed `522-529`.
+
+**(2) #74 filed and closed in-arc** (`f90745a`). `--output` never called `.expanduser()` while the env branch
+always did, so `--output ~/foo` created a literal `./~/foo`. Closed rather than deferred because `cli.py` is the
+most contended file in the repo with Lane B queued behind it.
+
+**(3) #65** (`6531ecb`). `doctor` had **zero click options** and called `run_doctor` without `output_dir` — but
+`run_doctor` **already accepted one** (`doctor.py:330`, defaulting at `:358`). A dead seam, not a missing
+parameter. Wired `--output`/`--no-persist` through the shared resolver; corrected the module docstring that
+presented those controls as applying (they did not) and documented `output_dir`. Containment at the record write
+broadened `OSError` → `Exception`: the comment above it promises a write failure can never crash the doctor, but a
+`json.dumps` TypeError escaped and did exactly that. **Doctor stays exempt from fail-loud by design** — its record
+is advisory. Not a CONTRACT §2 entry (§2 is the `run` delegation surface); **Contract-Version stays 1.0**.
+Probe surface (#32) and #72's prune glob untouched.
+
+**(4) #71** (`97fd5a7`). `mkdtemp` had no matching cleanup anywhere in `src/`. Now registered via
+`ctx.call_on_close` at creation, firing on success, `sys.exit`, and exception. **Deliberately NOT**
+`ctx.with_resource(TemporaryDirectory(...))` nor `ignore_cleanup_errors=False`: on Windows `rmtree` raises
+`PermissionError` on any open handle, and because teardown runs during exception unwind a raising cleanup would
+turn a green run red or **chain over the in-flight exception and mask the root cause**. `_remove_scratch_dir`
+catches `OSError` itself — exit code never changes, the warning names the surviving path, the leak stays visible.
+(Operator correction to the approved plan; the original `ignore_cleanup_errors=False` design was the worse trade.)
+
+**(5) Boundary fail-loud** (`9643e31`). Four sites, four contracts, none correct: interactive debate had **no
+handler at all**, interactive research caught only `RuntimeError` (so `OSError` escaped as a traceback), both
+inbox sites swallowed and let the batch exit 0. All four now catch `Exception` and **branch on type** —
+`OutputRoutingError` → "Required write failed" naming the destination; anything else → "Unexpected error" with the
+**full traceback logged, not discarded**. Ordering finding: `OutputRoutingError` **subclasses RuntimeError**
+(`output.py:201`), so the pre-existing `except RuntimeError` was already catching and mislabelling it "Research
+error" — that branch is kept for genuine research RuntimeErrors (expected per CONTRACT §4) but now sits after.
+Inbox batches **never abort**: every file still processed, archive-as-failed bookkeeping unchanged, exit computed
+at the end with **failure dominating degradation** (≥1 failure → 1 even if others degraded; degraded-only → 3).
+
+**(6) `--return-dir` help** (`ea49802`, tightened in `a79484b`) — claimed verdict + minority report; the transcript
+(`orchestrator.py:174`) and research report (`research/runner.py:166`/`:215`) also route. Text only.
+
+**(7) Checker** (`270030e`) — `scripts/verify_cli_output_contract.py`, 11 legs on the
+`verify_night_consolidation.py` pattern, adding **GAP as a real runtime verdict** (the sibling carries it as
+docstring prose only). **10/11 PASS + 1 GAP, exit 0, idempotent** (scratch census stable across repeat runs).
+
+**Result:** **#66 NOT DISCHARGED — the approved plan's `$0` premise was false.** L11 was designed to discharge #66
+via a live `$0` CLI-seat run; against the committed config that is impossible — `settings.yaml` declares **no
+`backend: cli` seat**, `seat_router.py:134` defaults `requested_backend="api"`, and there is **no `codex` seat** at
+all, so a live run bills the API. The ADR-12 §5 flip is gated on **#27**, outside this lane. L11 now prices the run
+from live config and **refuses to spend by default**, naming #66 in both states so a GAP can never read as a
+discharge. **Criterion 3 proven at boundary level only** (injected exceptions) — the writer layer still swallows
+most required-write failures until A1 merges; the end-to-end witness belongs to the primary post-integration.
+**Neither lane may claim fail-loud alone.**
+
+**Review:** **terra** full-diff pass — **4 findings, no Critical**, and it independently confirmed the
+`OutputRoutingError` catch ordering. Its HIGH was real and mine: the cleanup-masking test blocked `rmtree` but
+never removed the survivor, leaking one scratch dir per run — **the exact census drift 12→13→14 observed mid-build
+and initially misattributed**. All four closed in `a79484b` (both blocked-cleanup tests now clean up in a
+`finally`; the "not fatal" test now actually asserts `exit_code == 0`; checker L6 now requires a zero exit **and**
+proof it dispatched to a scratch path now gone, since a census match alone would pass a run that never created
+one). **luna** sweep: **NO DUPLICATE** — `cli.py:408` is the sole `AICOUNCIL_OUTPUT_DIR` read, `cli.py:415` the
+sole scratch construction in `src/`. `check.ps1` **GREEN 558 passed**, mypy 38 files, ruff clean.
+
+**Changes:** `src/ai_council/cli.py` (resolver + `#74` + doctor options + `#71` cleanup + 4 boundary sites + help),
+`src/ai_council/doctor.py` (docstrings + containment + logger), `tests/test_cli.py` (+13), `tests/test_doctor.py`
+(+6), `scripts/verify_cli_output_contract.py` (new), `BACKLOG.md` (grooming: #74 filed+closed; #66 premise
+correction), `JOURNAL.md`.
+
+**Abandoned:** the `ctx.with_resource(TemporaryDirectory)` cleanup design (masks in-flight exceptions on Windows);
+the `$0` live-witness for #66 (premise falsified against committed config).
+
+**Next:** #66 needs either the #27 `backend=cli` flip or an explicitly authorized billed run. **#65/#71/#74 are
+NOT struck — this lane commits and stops; they close when the branch merges to main.** 15 pre-existing
+`aicouncil-scratch-*` dirs remain in `%TEMP%` (real #71 residue, one predating the session) — removal pending
+operator approval. Branch-naming divergence (provisioner `worktree-lane-*` vs CLAUDE.md §4 `feat/fix/docs/chore`)
+reported upward, deliberately unresolved here.
+
+---
+
 ### 2026-07-19 — PRE-HANDOFF CAPTURE: review-runner ambiguity filed, registry obligation bound to #27
 
 **Did:** Three loose ends captured before handoff. No new folders, no immutable edits, no code touched.

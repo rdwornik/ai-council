@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -22,6 +23,7 @@ from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, 
 from ai_council.mode_detector import detect_mode
 from ai_council.models import Question, RunRequest
 from ai_council.orchestrator import CouncilRunner
+from ai_council.output import OutputRoutingError
 from ai_council.policy import RunPolicy
 from ai_council.providers.anthropic import AnthropicProvider
 from ai_council.providers.base import AIProvider
@@ -338,6 +340,89 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
+def _report_boundary_failure(exc: BaseException, *, what: str) -> None:
+    """Print a clean, type-appropriate message for a failure at the CLI boundary.
+
+    The four run/research boundary sites catch broadly (so a raw traceback never reaches the
+    operator) but must NOT collapse every failure into one label. Branching on type:
+
+    * ``OutputRoutingError`` (and anything Lane A1 subclasses from it) means a REQUIRED
+      deliverable did not land -- the message names the destination and reads as a routing
+      failure, which is what the caller must act on.
+    * anything else is an internal defect (a TypeError in synthesis, a KeyError in parsing).
+      Calling that a "required-write failure" would mislabel it and, worse, discard the
+      traceback needed to debug it -- so the full traceback goes to the log.
+
+    Callers exit non-zero afterwards; this function only reports.
+    """
+    if isinstance(exc, OutputRoutingError):
+        console.print(f"[bold red]Required write failed[/bold red] ({what}): {exc}")
+        logger.error("Required output write failed (%s): %s", what, exc)
+    else:
+        console.print(
+            f"[bold red]Unexpected error[/bold red] ({what}): {type(exc).__name__}: {exc}\n"
+            "[dim]This is an internal failure, not an output-routing problem. "
+            "Re-run with --verbose for the full traceback.[/dim]"
+        )
+        logger.error("Unexpected failure (%s)", what, exc_info=True)
+
+
+def _remove_scratch_dir(path: Path) -> None:
+    """Remove a ``--no-persist`` scratch dir. NEVER raises (#71).
+
+    Registered via ``ctx.call_on_close``, so this runs inside Click's context teardown --
+    which also runs while an exception from the command is propagating. A raising cleanup
+    would therefore either turn a successful run red, or chain over the in-flight exception
+    and mask the root cause the run was already reporting. On Windows that is not
+    hypothetical: ``rmtree`` raises PermissionError whenever a handle is still open.
+
+    #71's harm is a leftover directory; trading it for a crash or a swallowed root cause is
+    a bad trade. So a cleanup failure never changes the exit code -- it warns loudly, naming
+    the path that survived, and leaves the leak visible.
+    """
+    try:
+        shutil.rmtree(path)
+    except OSError as exc:
+        console.print(
+            f"[yellow]WARNING:[/yellow] could not remove scratch dir {path}: {exc} "
+            "-- it is still on disk; remove it manually."
+        )
+        logger.warning("Scratch dir cleanup failed for %s (non-fatal)", path, exc_info=True)
+
+
+def _resolve_output_dir(
+    ctx: click.Context, config: AppConfig, output_path: str | None, no_persist: bool
+) -> Path:
+    """Resolve the canonical output dir for ANY command (#39, #65).
+
+    Precedence, highest first: ``--output`` flag > ``--no-persist`` (scratch temp, canonical
+    output/ untouched) > ``AICOUNCIL_OUTPUT_DIR`` env override > config default. No routing
+    redesign -- this only chooses the canonical dir the writers already write to.
+
+    Single source of truth: every command resolves here, so ``run`` and ``doctor`` cannot
+    drift apart (they did -- ``doctor`` honoured none of these controls before #65).
+
+    The ``--no-persist`` scratch dir's removal is registered on ``ctx`` at creation, so
+    cleanup fires on success, on ``sys.exit``, and on an unhandled exception (#71).
+    """
+    env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
+    if output_path:
+        # #74: expand ~ here too. The env branch below always did; --output did not, so
+        # `--output ~/foo` created a literal './~/foo' directory instead of resolving to
+        # the home dir. Both string-sourced branches now expand symmetrically.
+        return Path(output_path).expanduser()
+    if no_persist:
+        scratch = Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
+        # Registered immediately after creation: nothing between here and the command body
+        # can leave the dir unregistered. Click runs close callbacks from the context's
+        # ExitStack in main()'s finally -- success, sys.exit, and exception alike.
+        ctx.call_on_close(lambda: _remove_scratch_dir(scratch))
+        return scratch
+    if env_output:
+        return Path(env_output).expanduser()
+    return config.defaults.output_dir
+
+
 class _DefaultGroup(click.Group):
     """Group that falls back to a default subcommand when the first token is not a
     registered command -- preserves the bare ``council "question"`` invocation
@@ -418,9 +503,12 @@ def main() -> None:
 @click.option(
     "--return-dir", "return_dir",
     default=None,
-    help="ADR-10 deterministic return: also route the verdict (and any minority report) "
-         "to this directory, in addition to the canonical ./output/ write. When unset, "
-         "output goes to ./output/ only (the hub is never a default).",
+    help="ADR-10 deterministic return: also route this run's artifacts to this directory, "
+         "in addition to the resolved canonical output dir (./output/ by default, or "
+         "whatever --output / --no-persist / AICOUNCIL_OUTPUT_DIR resolve to). That means "
+         "the debate transcript, the verdict package JSON, any minority report, and -- in "
+         "research mode -- the research report. When unset, artifacts go to the canonical "
+         "dir only (the hub is never a default).",
 )
 @click.option(
     "--synthesizer", default=None,
@@ -459,7 +547,9 @@ def main() -> None:
         "Must be a name in the config/settings.yaml target_projects list; path resolved under dev_root."
     ),
 )
+@click.pass_context
 def run(
+    ctx: click.Context,
     question: str | None,
     question_file: str | None,
     rounds: int | None,
@@ -514,19 +604,8 @@ def run(
         load_dotenv(override=False)
         config = load_config()
 
-    # Output-dir resolution (#39). Precedence, highest first: --output flag >
-    # --no-persist (scratch temp, canonical output/ untouched) > AICOUNCIL_OUTPUT_DIR
-    # env override > config default. No routing redesign — this only chooses the
-    # canonical dir that _write_routed already writes to.
-    _env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
-    if output_path:
-        effective_output = Path(output_path)
-    elif no_persist:
-        effective_output = Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
-    elif _env_output:
-        effective_output = Path(_env_output).expanduser()
-    else:
-        effective_output = config.defaults.output_dir
+    # Output-dir resolution (#39) -- one resolver shared with `doctor` (#65).
+    effective_output = _resolve_output_dir(ctx, config, output_path, no_persist)
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
     # ADR-10 deterministic return directory. Precedence (highest first):
@@ -594,6 +673,7 @@ def run(
 
         # ADR-08: track degraded research runs across the batch; exit 3 at end.
         inbox_any_degraded = False
+        inbox_any_failed = False
         for file_path in all_files:
             try:
                 question_text, meta = parse_file(file_path, resolver=resolver)
@@ -650,7 +730,11 @@ def run(
                         click.echo(f"Archived: {file_path.name} -> {archived.name}")
                 except Exception as exc:
                     logger.error("Research failed: %s -- %s", file_path.name, exc)
+                    _report_boundary_failure(exc, what=f"research: {file_path.name}")
                     archive_file(file_path, archive_dir, failed=True)
+                    # Bookkeeping unchanged (still archived as failed, batch continues);
+                    # only the batch's final exit code changes -- see below.
+                    inbox_any_failed = True
                 continue
 
             mode_cfg = config.modes.get(fm_mode)
@@ -685,7 +769,16 @@ def run(
                     click.echo(f"Archived: {file_path.name} -> {archived.name}")
             except Exception as e:
                 logger.error("Failed: %s -- %s", file_path.name, e)
+                _report_boundary_failure(e, what=f"debate: {file_path.name}")
                 archive_file(file_path, archive_dir, failed=True)
+                inbox_any_failed = True
+
+        # Exit code computed at the END, after every file has been attempted -- a failure
+        # must never abort the batch. Failure DOMINATES degradation: >=1 hard failure is a
+        # hard error (1) even if other files merely degraded; degraded-only batches stay 3.
+        # Before this, a batch that failed every single file still exited 0.
+        if inbox_any_failed:
+            sys.exit(1)
         if inbox_any_degraded:
             sys.exit(3)
         return
@@ -764,8 +857,20 @@ def run(
                 target_paths=eff_target_paths or None,
                 return_dir=effective_return_dir,
             )
+        # OutputRoutingError subclasses RuntimeError, so it MUST be caught FIRST -- the
+        # pre-existing `except RuntimeError` below would otherwise swallow a required-write
+        # failure and mislabel it as a research error.
+        except OutputRoutingError as exc:
+            _report_boundary_failure(exc, what="research")
+            sys.exit(1)
         except RuntimeError as exc:
+            # An expected hard error (CONTRACT §4: research RuntimeError -> exit 1), not an
+            # internal defect -- keep the original, accurate wording.
             console.print(f"[bold red]Research error:[/bold red] {exc}")
+            sys.exit(1)
+        except Exception as exc:
+            # Previously escaped as a raw Click traceback (e.g. OSError).
+            _report_boundary_failure(exc, what="research")
             sys.exit(1)
         # Exit-code convention (ADR-08): 0 ok / 1 hard error / 2 Click usage / 3 degraded.
         if report is not None and report.degraded:
@@ -796,13 +901,35 @@ def run(
         target_paths=eff_target_paths,
         return_dir=effective_return_dir,
     )
-    asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
+    # Boundary: this site had NO handler at all, so every failure -- including a required
+    # -write failure -- reached the operator as a raw Click traceback.
+    try:
+        asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
+    except Exception as exc:
+        _report_boundary_failure(exc, what="debate")
+        sys.exit(1)
 
 
 @main.command("doctor")
-def doctor() -> None:
+@click.option(
+    "--output", "output_path",
+    default=None,
+    help="Canonical output dir override for the health record (default ./output/).",
+)
+@click.option(
+    "--no-persist", "no_persist",
+    is_flag=True,
+    default=False,
+    help="Write the health record to a scratch temp dir, leaving canonical ./output/ "
+         "untouched; the scratch dir is removed when the command exits.",
+)
+@click.pass_context
+def doctor(ctx: click.Context, output_path: str | None, no_persist: bool) -> None:
     """Liveness + config pre-flight: a GREEN/YELLOW/RED truth table over keys, seats, and
-    config. Writes a machine-readable record to output/health/. Never blocks a run."""
+    config. Writes a machine-readable record to <output-dir>/health/. Never blocks a run.
+
+    The output dir honours --output / --no-persist / AICOUNCIL_OUTPUT_DIR via the same
+    precedence chain as `council run` (#65)."""
     if sys.platform == "win32":
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -847,8 +974,16 @@ def doctor() -> None:
         console.print(f"[bold red]Config error:[/bold red] {exc}")
         sys.exit(1)
 
+    # #65: resolve through the SAME chain as `run` -- before this, doctor ignored every
+    # output control and always wrote to canonical ./output/health/.
+    effective_output = _resolve_output_dir(ctx, config, output_path, no_persist)
+
     exit_code = run_doctor(
-        config, PROVIDER_CLASSES, shell_snapshot=shell_snapshot, console=console
+        config,
+        PROVIDER_CLASSES,
+        shell_snapshot=shell_snapshot,
+        console=console,
+        output_dir=effective_output,
     )
     sys.exit(exit_code)
 
