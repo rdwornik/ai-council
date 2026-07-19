@@ -235,7 +235,50 @@ Recorded so the next reader does not over-trust these guards.
 
 1. **#68 polices what git can see.** An empty directory can never enter the repo and is therefore out of scope by ruling, not by oversight (see #68's done-when). A populated unauthorized directory *is* caught; empty residue on local disk is not, and belongs to the `check.ps1` / `verify_*` family.
 2. **#68's grandfathering is by design.** Every directory already tracked in HEAD is admissible without a registry row. Existing unregistered directories are therefore not retroactively policed — the guard is prospective-only, matching the peer casing gate.
-3. **Deeper new directories under an admissible parent.** A new directory named `archive` is admissible at any depth (invariant class b is generic). A new *non-`archive`* directory below `docs/audits/archive/` is blocked, but this shape has not been exercised against a real commit.
+3. **Anything inside an `archive/` is deliberately out of scope.** Invariant class b reads *"`archive/` — governed by its own `archive/README.md`"*, so the Live-corpora table does not police archive contents. A new directory at `docs/audits/archive/<anything>/` therefore passes. This is a deliberate scoping decision, not an oversight — see the finding below.
 4. **The registry parse is shape-dependent.** It requires a backticked `` `<dir>/` `` in the first column of the Live-corpora table. That is deliberately strict and fails closed (case 3c) rather than degrading — but it does mean a well-intentioned reformat of the README will block commits until fixed.
 5. **The #67 override has no repository-side audit trail** (§4 above). If that becomes unacceptable, the override needs to move to something `git log` can see.
 6. **Neither guard was exercised on a merge commit or a rebase**, only on ordinary `git commit`.
+
+---
+
+## Findings raised during proof
+
+### F-A — #68 initially blocked the sanctioned corpus-exit path (FIXED)
+
+Testing #27's required unseal move revealed a false positive: a corpus moving to
+`docs/audits/archive/<corpus>/` was **rejected**, because its parent is `docs/audits/archive`
+rather than `docs/audits` and its name is not itself `archive`.
+
+```
+before fix:  'docs/audits/archive/2026-07-18-cli4-parity/' is a new directory under docs/
+             that is neither a sanctioned taxonomy folder nor a registered live corpus
+             exit=1  (blocks the exact move #27 must perform at unseal)
+
+after fix:   exit=0
+```
+
+Fix: anything **inside** an admissible taxonomy folder is governed by that folder's own
+README (invariant class b), not by the Live-corpora table. Regression-checked — every case in
+§2 still behaves as proven, and `docs/smoke/`, `docs/decisions/sneaky/`, and an unregistered
+`docs/audits/<corpus>/` all still block.
+
+Consequence, stated plainly: `docs/audits/archive/` contents are **not** policed by this guard.
+The archive's own README governs them.
+
+### F-B — #68 does not detect a stale registry row
+
+#68 catches *a corpus with no row*. It does **not** catch *a row with no corpus* — a registry
+row left behind after its corpus has exited to `archive/`. Both are "table rot"; only the first
+is mechanised.
+
+This matters for #27, whose done-when carries the by-hand obligation to retire the
+`2026-07-18-cli4-parity` row at unseal *"so the table cannot rot while #68 is unbuilt."* #68
+being armed does not fully replace that obligation.
+
+A disk-based stale-row check is also not straightforwardly available: the `2026-07-17-epi1-archaeology`
+row is gitignored, so its directory is legitimately absent in a worktree and present in the
+primary checkout — the exact worktree/primary divergence the staged-only design (R2) was chosen
+to avoid.
+
+Raised to the operator rather than resolved unilaterally.

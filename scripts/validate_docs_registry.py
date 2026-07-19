@@ -175,6 +175,13 @@ def violation(directory: str, registered: set[str], taxonomy: set[str]) -> str |
     parent = "/".join(parts[:-1])
     if name in taxonomy:
         return None  # e.g. an `archive/` child -- invariant class b
+    # Anything INSIDE an admissible taxonomy folder is governed by that folder's own README,
+    # not by the Live-corpora table: invariant class b reads "`archive/` -- governed by its own
+    # `archive/README.md`". Without this, the guard would block the sanctioned EXIT path -- a
+    # corpus moving to `docs/audits/archive/<corpus>/` at unseal, which is exactly what #27
+    # must do. Proven: that move was rejected before this branch existed.
+    if any(seg in taxonomy for seg in parts[:-1]):
+        return None
     if parent == REGISTERED_PARENT and name in registered:
         return None  # a registered live corpus
     if parent == REGISTERED_PARENT:
