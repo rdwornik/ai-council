@@ -503,9 +503,11 @@ def main() -> None:
 @click.option(
     "--return-dir", "return_dir",
     default=None,
-    help="ADR-10 deterministic return: also route the verdict (and any minority report) "
-         "to this directory, in addition to the canonical ./output/ write. When unset, "
-         "output goes to ./output/ only (the hub is never a default).",
+    help="ADR-10 deterministic return: also route this run's artifacts to this directory, "
+         "in addition to the canonical ./output/ write. That means the debate transcript, "
+         "the verdict package JSON, any minority report, and -- in research mode -- the "
+         "research report. When unset, output goes to ./output/ only (the hub is never a "
+         "default).",
 )
 @click.option(
     "--synthesizer", default=None,
