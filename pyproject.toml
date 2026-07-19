@@ -25,6 +25,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.15.5",        # fleet floor == [tool.ruff] required-version (ARC-4 leg 1)
     "mypy>=1.10",
+    "types-PyYAML>=6.0",   # PyYAML ships no py.typed -> import-untyped (NOT covered by ignore_missing_imports); stub package keeps `mypy src/` clean without a per-line ignore
     "pre-commit>=4.5",  # in-venv so the SessionStart `python -m pre_commit install` hook resolves under an active .venv (G8); matches hub [dev] floor
 ]
 
