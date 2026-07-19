@@ -481,7 +481,27 @@ def save_to_file(
     logger.info("Debate saved to: %s", saved[0])
 
     if result.metrics:
-        _save_metrics_json(result, saved[0])
+        try:
+            _save_metrics_json(result, saved[0])
+        except Exception:
+            # #63: telemetry loss must not suppress the caller's deliverables. Before this,
+            # a sidecar failure propagated out of save_to_file and the orchestrator never
+            # reached save_verdict_package, so no contract_version package was emitted at all.
+            # logger.exception, not .error: this also covers the internal assert and any
+            # malformed-payload TypeError — real bugs whose traceback must stay visible.
+            logger.exception("Metrics sidecar write failed alongside %s", saved[0])
+            # Report it MACHINE-READABLY, not in the log alone — a consumer of the verdict
+            # package would otherwise see a complete package with no metrics entry and no way
+            # to tell "metrics failed" from "metrics never produced", which is the same
+            # silent-failure shape this contract exists to remove. Carried on the existing
+            # #26 exit-0-plus-degradation two-signal: _build_verdict_payload already
+            # serializes these two fields into the package's degradation block, so this
+            # needs no new field, flag, or CONTRACT entry, and exit_semantics stays 0.
+            note = f"metrics sidecar not written for {saved[0].name}"
+            result.degraded = True
+            result.degradation_summary = (
+                f"{result.degradation_summary}; {note}" if result.degradation_summary else note
+            )
 
     return saved
 
@@ -816,11 +836,24 @@ def _build_verdict_payload(
         verdict_author["model"] = result.synthesis_metrics.synthesizer_model
         verdict_author["error_class"] = result.synthesis_metrics.error_class
 
-    artifacts: list[dict] = [
-        {"kind": kind, "filename": paths[0].name, "paths": [str(p) for p in paths]}
-        for kind, paths in written.items()
-        if paths
-    ]
+    # Never advertise a path that is not on disk (#63). The verdict package is the
+    # inter-repo delegation surface at Contract-Version 1.0: a manifest naming a file a
+    # consumer then fails to find is worse than the original defect. The orchestrator
+    # already guards the one known case (a degraded metrics sidecar); this filter makes it
+    # structurally impossible regardless of who populates `written`.
+    artifacts: list[dict] = []
+    for kind, paths in written.items():
+        present = [p for p in paths if p.exists()]
+        if len(present) != len(paths):
+            missing = [str(p) for p in paths if p not in present]
+            logger.warning(
+                "Verdict manifest: omitting %d %s path(s) not on disk: %s",
+                len(missing), kind, ", ".join(missing),
+            )
+        if present:
+            artifacts.append(
+                {"kind": kind, "filename": present[0].name, "paths": [str(p) for p in present]}
+            )
     artifacts.append(
         {
             "kind": "verdict",

@@ -606,6 +606,124 @@ def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):
 
 
 # ---------------------------------------------------------------------------
+# #63: a metrics-sidecar failure degrades, it does not suppress the deliverable
+# ---------------------------------------------------------------------------
+
+def _fail_sidecar_write(monkeypatch) -> None:
+    """Break only the *_metrics.json write, harness-side. No provider code is touched."""
+    original_write = Path.write_text
+
+    def _selective(self: Path, *args, **kwargs):
+        if self.name.endswith("_metrics.json"):
+            raise PermissionError("sidecar blocked")
+        return original_write(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _selective)
+
+
+def _result_with_metrics(sample_question, sample_round, **overrides) -> DebateResult:
+    return _pick_result(sample_question, sample_round, metrics=DebateMetrics(), **overrides)
+
+
+def test_sidecar_failure_does_not_abort_the_transcript(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: save_to_file absorbs the sidecar failure and still returns its paths.
+
+    Previously the exception propagated, so the orchestrator never reached
+    save_verdict_package and no contract_version package was emitted at all.
+    """
+    result = _result_with_metrics(sample_question, sample_round)
+    _fail_sidecar_write(monkeypatch)
+
+    saved = save_to_file(result, tmp_path / "out")
+
+    assert saved[0].exists()
+    assert not list((tmp_path / "out").glob("*_metrics.json"))
+
+
+def test_sidecar_failure_is_machine_readable_not_log_only(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: the failure rides the existing #26 degradation two-signal, not a log line alone.
+
+    A consumer must be able to tell "metrics failed" from "metrics never produced". No new
+    field or flag — degraded/degradation_summary are what _build_verdict_payload already
+    serializes, and exit_semantics stays 0.
+    """
+    result = _result_with_metrics(sample_question, sample_round)
+    assert result.degraded is False
+    _fail_sidecar_write(monkeypatch)
+
+    save_to_file(result, tmp_path / "out")
+
+    assert result.degraded is True
+    assert "metrics sidecar not written" in (result.degradation_summary or "")
+
+
+def test_sidecar_failure_preserves_an_existing_degradation_summary(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: the sidecar note is appended, never clobbering a provider-degradation summary."""
+    result = _result_with_metrics(
+        sample_question, sample_round,
+        degraded=True, degradation_summary="2 of 5 providers failed",
+    )
+    _fail_sidecar_write(monkeypatch)
+
+    save_to_file(result, tmp_path / "out")
+
+    assert "2 of 5 providers failed" in (result.degradation_summary or "")
+    assert "metrics sidecar not written" in (result.degradation_summary or "")
+
+
+def test_sidecar_failure_still_emits_verdict_package_carrying_the_degradation(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63 end to end at the writer seam: package present AND the degradation is visible."""
+    import json as _json
+
+    result = _result_with_metrics(sample_question, sample_round)
+    out = tmp_path / "out"
+    _fail_sidecar_write(monkeypatch)
+
+    transcript = save_to_file(result, out)[0]
+    verdict = save_verdict_package(result, out, transcript, written={"transcript": [transcript]})
+
+    data = _json.loads(verdict[0].read_text(encoding="utf-8"))
+    assert data["contract_version"] == "1.0"
+    assert data["exit_semantics"] == 0  # two-signal: exit 0 + degradation flag
+    assert data["degradation"]["degraded"] is True
+    assert "metrics sidecar not written" in data["degradation"]["summary"]
+
+
+def test_verdict_manifest_omits_paths_not_on_disk(
+    tmp_path, sample_question, sample_round
+):
+    """#63: the manifest never advertises a file a consumer would then fail to find."""
+    import json as _json
+
+    result = _pick_result(sample_question, sample_round)
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]
+    phantom = out / "council-out-phantom_metrics.json"  # never written
+
+    verdict = save_verdict_package(
+        result, out, transcript,
+        written={"transcript": [transcript], "metrics": [phantom]},
+    )
+
+    data = _json.loads(verdict[0].read_text(encoding="utf-8"))
+    kinds = {a["kind"] for a in data["artifacts"]}
+    assert "transcript" in kinds
+    assert "metrics" not in kinds  # dropped: the path does not exist
+    for artifact in data["artifacts"]:
+        for p in artifact["paths"]:
+            if artifact["kind"] != "verdict":  # verdict lists its own not-yet-written paths
+                assert Path(p).exists()
+
+
+# ---------------------------------------------------------------------------
 # Verdict package (DRAFT-INT-1, #26) — the transcript-free caller deliverable
 # ---------------------------------------------------------------------------
 

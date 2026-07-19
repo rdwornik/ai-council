@@ -217,9 +217,12 @@ class CouncilRunner:
         # routed to the same destinations; inherits the transcript's deterministic <ts>.
         written: dict[str, list[Path]] = {"transcript": saved_paths}
         if result.metrics:
-            written["metrics"] = [
-                saved_paths[0].with_name(saved_paths[0].stem + "_metrics.json")
-            ]
+            # Never record a path that was not written: the sidecar write can fail and
+            # degrade rather than abort (#63), and a manifest advertising a missing file is
+            # worse than the original defect — a consumer repo follows it and gets nothing.
+            metrics_path = saved_paths[0].with_name(saved_paths[0].stem + "_metrics.json")
+            if metrics_path.exists():
+                written["metrics"] = [metrics_path]
         if minority_paths:
             written["minority"] = minority_paths
         verdict_paths = save_verdict_package(
