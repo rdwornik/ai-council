@@ -4,9 +4,17 @@
 > **Format:** `### YYYY-MM-DD | source | lesson | category | [scope: X] | action taken`
 > New entries go at the top of the Entries section. Never edit old entries. Never delete.
 > Grandfathered: earlier entries below use a `### YYYY-MM-DD | title` header + `CONTEXT / MISTAKE / RULE` body (never rewritten to the newer schema — append-only per ADR-29).
-> Last updated: 2026-07-13
+> Last updated: 2026-07-19
 
 ---
+
+### 2026-07-19 | night-consolidation verification | verification discipline + worktree safety | process | [scope: hybrid] | filed docs/audits/2026-07-19-night-consolidation-verification.md + BACKLOG #59-#68
+- RULE (worktree isolation): a parallel worktree is warranted by SIDE EFFECTS (writes to canonical `output/`, provider calls, git ops), not by task size. A "small" leg that writes artifacts still needs isolation; a large read-only sweep does not. This session ran 8 legs + 4 evidence probes read-only in one worktree because none mutated tracked state.
+- RULE (parameter-space matrix): a trial's parameters (model pins, seats, modes, sealed keys) must be enumerated as ONE matrix up front, or the gates arrive serially and each late-discovered dimension silently reopens a "closed" trial.
+- RULE (path-naming in orders): any instruction that COULD create a path must NAME the path. "Put the report under `docs/audits/`" is safe; "file it appropriately" invites an unsanctioned new folder. The prompt named the target dir + cited the sibling files as its authority — that is the pattern.
+- RULE (git-add safety near an exclusion zone): `git add -A` nearly staged a `SEALED-KEY*.json` during the 2026-07-18 smoke-pair merge. Never blanket-add near an exclusion zone; stage explicit paths. Proposed a pre-commit guard that rejects staged sealed artifacts (#67).
+- RULE (verification-as-code): verification PROSE rots and cannot be re-run. Codify each leg as a script that prints PASS/FAIL (`scripts/verify_night_consolidation.py`, 8/8) — the report cites it, the script re-proves it. A report without a re-runnable checker is a claim, not a witness.
+- RULE (mock-witness reconciliation): when a "live witness" would cost money or need a gated config flip (here the ADR-12 §5 `backend: cli` flip, gated on #27 scoring), exercise the SHIPPED code with `MockProvider`/canned inputs at $0 and record the un-exercisable remainder as an explicit GAP. Running real shipped code on controlled inputs IS empirical proof; reading the diff is not.
 
 ### 2026-05-12 | Architect failure mode — defending local config as "by-design"
 - CONTEXT: Scrum-master addendum (2026-05-12) — strażnik caught that `tasks/lessons.md` location was non-canonical after main review implementation
