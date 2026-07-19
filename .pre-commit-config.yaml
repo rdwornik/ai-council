@@ -41,6 +41,29 @@ repos:
     language: system
     files: '^BACKLOG\.md$'
     pass_filenames: false
+  # validate-sealed-keys: #67 sealed-key staging guard. Defence in depth behind .gitignore:61
+  # and :65 -- the 2026-07-18 near-miss showed a `git mv` can break an ignore rule. Match is
+  # deliberately WIDER than #67's literal `SEALED-KEY*.json` (operator ruling 2026-07-19): the
+  # two real keys are named `SEALED-KEY.json` and `...-KEY-SEALED.json`, so either order must
+  # match. Fails CLOSED (unlike the casing gate) -- it protects a secret, not a convention.
+  - id: validate-sealed-keys
+    name: Reject a staged sealed key (#67)
+    entry: python scripts/validate_sealed_keys.py
+    language: system
+    always_run: true
+    pass_filenames: false
+  # validate-docs-registry: #68 registry check on new docs/ directories. NOT a blanket ban --
+  # a blanket ban would reject docs/audits/archive/ itself and both registered live corpora.
+  # The registry is read at runtime from docs/audits/README.md and deliberately NOT restated
+  # in the script. Fails CLOSED on an unparseable registry, labelled GUARD MALFUNCTION so it
+  # stays distinguishable from a policy violation. Empty directories are explicitly out of
+  # scope (git cannot see one, so one can never enter the repo) -- see #68's done-when.
+  - id: validate-docs-registry
+    name: Registry check for new docs/ directories (#68)
+    entry: python scripts/validate_docs_registry.py
+    language: system
+    always_run: true
+    pass_filenames: false
 - repo: https://github.com/rdwornik/dev-knowledge
   rev: v1.3.1
   hooks:

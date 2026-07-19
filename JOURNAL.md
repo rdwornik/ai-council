@@ -19,6 +19,86 @@
 
 ---
 
+### 2026-07-19 — LANE C: the two guards (#67, #68) — both were bypassable, proven and fixed
+
+**Did:** Turned two hand-maintained hygiene rules into pre-commit mechanisms on `feat/c-guards`
+(9 commits, `702dc08`..`d440107`; **not merged** — commit-and-stop lane, merges LAST after A2/A1).
+Step 1 derived, rather
+than invented, where each file belongs: a repo-tracked hook is a `repo: local` stanza in
+`.pre-commit-config.yaml` (`.git/hooks/*` are pre-commit-generated shims, `core.hooksPath` unset,
+seeded by `python -m pre_commit install` in `.claude/settings.json:26`), and a validator is
+`scripts/validate_*.py`. The `validate_*.py` vs `*_gate.py` split turned out to be **ownership,
+not function** — `*_gate.py` + an underscored hook id is reserved for what the hub carrier
+deploys and locates *by name* (`canonical_freshness_gate.py:10-11`).
+
+**Result — the headline: both guards were trivially bypassable, and only proof-by-violation found it.**
+A non-ASCII path defeated *both*. `core.quotePath` is on by default, so `git diff --name-only`
+C-quotes the path and the **trailing** `"` breaks the `\.json$` anchor: `docs/évasion/SEALED-KEY.json`
+was **admitted, exit 0**. That one surfaced only because I wrote it up as an *assumed* limitation
+and then tested the assumption. sol found three more in #68 (a `` `docs/` `` token in the invariant
+table became a global allow-rule; `git rm --cached` the README while parsing the untracked
+working-tree copy; a submodule/symlink staged as one path with no directory prefix). terra found two
+lifecycle bugs: a registered corpus gaining a subdirectory was blocked (`cli4-parity`'s `blinded/`
+passes only by grandfathering), and an **empty-but-valid registry table was a malfunction** — which
+would have bricked every commit at #27's unseal, the exact moment the table legitimately empties.
+All fixed and re-proven; `check.ps1` green (543 passed) at final HEAD.
+
+Per operator ruling the #67 match is deliberately **wider** than the ticket's literal
+`SEALED-KEY*.json`: the two real keys are named inconsistently (`SEALED-KEY.json` and
+`...-KEY-SEALED.json`), so the literal pattern would have missed one — and a guard that misses one
+of two actual keys converts vigilance into false confidence. Proven to match **zero** tracked files
+before arming. #68 is a **registry check, never a blanket ban**, reading `docs/audits/README.md` at
+runtime; it fails **CLOSED** and labels that `GUARD MALFUNCTION`, distinguishable from a policy
+violation — proven three ways. #68's empty-directory arm was **dropped from scope** (not deferred,
+no ticket): git cannot see an empty directory, so one can never enter the repo — evidence a commit
+gate is the wrong mechanism, not a limitation to work around.
+
+**Changes:** `+scripts/validate_sealed_keys.py`, `+scripts/validate_docs_registry.py`,
+`.pre-commit-config.yaml` (two additive `repo: local` stanzas, insertions only — no existing hook
+disarmed), `+docs/audits/2026-07-19-guards-violation-proof.md`, `BACKLOG.md`.
+`.gitignore` **untouched** (lines 61/65 verbatim); `src/` untouched (Lanes A1/A2 own it).
+
+**Abandoned:** #27's obligation was **narrowed, not retired** — the architect amended the frozen
+criterion mid-lane after I flagged its premise as half-true. #68 catches a corpus with no row but
+**not a row with no corpus**; the stale-row half is retained and marked *not mechanised*, with the
+reason inline so nobody strikes it later believing #68 covers it (a disk-based check would
+false-block every worktree, since the co-registered `epi1-archaeology/` is gitignored). This also
+**corrects a contradiction in the previous entry's item (2)**: that rider said a corpus move rewrites
+its ignore rules *in the same change* — the exact condition behind the 2026-07-18 near-leak.
+Superseded with move → verify key still ignored → drop the ignore line only once it is out of the tree.
+
+**Next:** (1) ~~**No unit tests** for either guard~~ — **RESOLVED same session, `d440107`** (see the
+amendment below). (2) #67/#68 still read as open proposals in `BACKLOG.md`
+— closure belongs to `/review-closures`. (3) Accepted scope limits recorded in the proof file:
+essence-markdown not enforced (the `cli4-parity` essence cell is legitimately prose), and a flat or
+packed corpus at the audits root creates no directory and is invariant-class-(a) enforcement, a
+different guard.
+
+**Amendment (same session, after the entry above was written) — validator tests, `d440107`.**
+Operator ruled the test gap required, not optional: this is repo-wide enforcement running on every
+future commit, the guard code changed three times after its violation-proof transcripts were
+written, and `check.ps1` runs mypy on `src/` and ruff on `src/`+`tests/` only — `scripts/` had zero
+durable coverage. Transcripts are point-in-time; tests are what stop a regression. Added
+`tests/test_validate_sealed_keys.py` and `tests/test_validate_docs_registry.py` on the
+`test_validate_audit_casing.py` precedent (direct classifier tests + end-to-end against a real temp
+git repo): **43 tests, no new folder**; `check.ps1` 586 passed (was 543). One named regression per
+bypass — the unicode C-quoting that defeated both guards, sol's five, terra's two (with the
+empty-but-valid-registry-read-as-MALFUNCTION variant named explicitly, since that one would have
+bricked every commit at #27's unseal), and the corpus-exit move #27 itself must perform.
+**The tests were themselves verified against the broken code:** both guards were temporarily
+reverted to the pre-fix `--name-only` form and the two unicode tests FAILED as they must, then
+passed once restored — a regression test that passes against broken code is worthless, so that
+check is the point.
+
+Also checked, and the answer was no: the operator asked whether a mangled-subject commit needed
+amending. Nothing was mangled. The suspect subject (`1848909`) carries a correctly-encoded UTF-8
+em dash (`M-bM-^@M-^T` = U+2014), renders properly, has no `encoding` header, and a grep for
+replacement chars / `Ã` / `â€` / `Â` across every subject and body on the branch found nothing.
+History left alone — and it was not HEAD by then either, which under the operator's own rule
+would have meant leaving it regardless.
+
+---
+
 ### 2026-07-19 — LANE A1: fail-loud write semantics (#35 #62 #63 #60) — branch only, NOT merged
 
 **Did:** Made the writer layer keep the guarantee it already declared. `_write_routed` becomes the single
