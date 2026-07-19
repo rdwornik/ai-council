@@ -134,19 +134,28 @@ def parse_registry(text: str) -> tuple[set[str], set[str]]:
         raise RegistryError(
             "the 'Live corpora' section contains no table rows (registry table missing or "
             "reformatted)")
+    # Row 0 is the header. Its presence is what proves the table is structurally intact, which
+    # is what lets ZERO live corpora be represented as a valid state rather than a malfunction
+    # -- once the last corpus exits to archive/ the table is legitimately empty, and #27's
+    # unseal is exactly the event that produces it. Bricking every commit at that moment would
+    # be a lifecycle bug, not a guard.
+    header, data = rows[0], rows[1:]
+    if not header or "path" not in header[0].strip().lower():
+        raise RegistryError(
+            "the 'Live corpora' table has no recognisable 'Path' header column (column order "
+            "or formatting changed)")
     registered: set[str] = set()
-    for row in rows:
+    for row in data:
         if not row:
             continue
         m = _BACKTICKED_DIR.search(row[0])  # Path is the first column
         if m:
             registered.add(m.group(1).strip("/"))
-    # A registry with a table but zero parseable paths means the Path column changed shape.
-    # An empty registry is only legitimate if the table itself is gone, which is the case
-    # above; here, rows exist but none parsed -> malfunction.
-    if not registered:
+    # Data rows that exist but none of which parse means the Path column changed shape --
+    # distinct from a structurally valid table with zero data rows (an empty registry).
+    if data and not registered:
         raise RegistryError(
-            "the 'Live corpora' table has rows but no parseable path in its first column "
+            "the 'Live corpora' table has data rows but no parseable path in the first column "
             "(expected a backticked `<dir>/`; column order or formatting changed)")
     return registered, taxonomy
 
@@ -220,6 +229,12 @@ def violation(directory: str, registered: set[str], taxonomy: set[str]) -> str |
             return None
     if parent == REGISTERED_PARENT and name in registered:
         return None  # a registered live corpus
+    # A registered corpus owns its internal structure -- the registry registers the CORPUS, not
+    # each folder inside it. cli4-parity already carries a `blinded/` child; that one passes
+    # today only because it is grandfathered, so a corpus gaining new internal structure after
+    # registration would otherwise be blocked (terra finding).
+    if len(parts) > 3 and parts[0] == "docs" and parts[1] == "audits" and parts[2] in registered:
+        return None
     if parent == REGISTERED_PARENT:
         return (f"'{directory}/' is a new directory in {REGISTERED_PARENT}/ with no row in the "
                 f"'Live corpora' table of {REGISTRY.as_posix()}. An unregistered folder is "

@@ -90,14 +90,22 @@ def check(added_paths: list[str], allowed: set[str]) -> tuple[list[str], list[st
 
 def staged_added_paths() -> list[str]:
     """Paths staged with status A (added). `--no-renames` forces a rename to surface as
-    delete+ADD, so a `git mv` of a key into a tracked path is caught. Raises on git error."""
+    delete+ADD, so a `git mv` of a key into a tracked path is caught.
+
+    `-z` is load-bearing, not a style choice. Without it `core.quotePath` (on by default)
+    C-quotes any non-ASCII path, so `docs/évasion/SEALED-KEY.json` arrives as
+    `"docs/\\303\\251vasion/SEALED-KEY.json"` -- with a TRAILING double quote that defeats the
+    `\\.json$` anchor, letting a sealed key through. Reproduced before this fix.
+
+    Raises on git error (caller fails CLOSED).
+    """
     out = subprocess.run(
-        ["git", "diff", "--cached", "--diff-filter=A", "--no-renames", "--name-only"],
+        ["git", "diff", "--cached", "--diff-filter=A", "--no-renames", "--name-only", "-z"],
         capture_output=True, text=True, encoding="utf-8",
     )
     if out.returncode != 0:
         raise RuntimeError(out.stderr.strip() or f"git exited {out.returncode}")
-    return [ln for ln in out.stdout.splitlines() if ln.strip()]
+    return [p for p in out.stdout.split("\0") if p.strip()]
 
 
 def main() -> int:
