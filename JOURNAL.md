@@ -19,6 +19,51 @@
 
 ---
 
+### 2026-07-19 — EPI-1 CONDENSATION: essence captured, pack retained in place (relocation declined on the record)
+
+**Did:** Condensed the EPI-1 archaeology pack into one additive audit at the audits root —
+`docs/audits/2026-07-19-epi1-archaeology-pack-condensation.md` — so the instrument's essence is knowable without
+opening the pack. **Sealed key NOT opened** (it is the reversal instrument for the live G3 synthesizer ruling;
+opening destroys its value); the segregated LLM-judge second opinion deliberately **not read either**, since
+reading it before scoring would bias the blind it exists to protect. Pack read strictly read-only. Nothing deleted,
+nothing existing edited.
+
+**Conventions derived + quoted from primary sources before acting** (per the ask): (a) naming, from
+`docs/audits/README.md` — "*Naming: `YYYY-MM-DD-<topic>.md` (date prefix enables chronological sort by filename)*";
+(b) preservation archive, from `docs/audits/archive/README.md` — "*Preservation zone for **completed** audit
+artifacts whose findings are fully DEPLOYED with no open remainder*", explicitly "*not*" the ADR-60
+`docs/archive/` triage queue, which is "*default-to-deletion after two reviews*". Those two zones have **opposite**
+contracts, and only `docs/audits/archive/` is a preservation archive.
+
+**Relocation NOT executed — stopped and asked, operator confirmed keep-in-place.** The record already held a
+contrary ruling: the 2026-07-18 consolidation pass (the pass that *created* `docs/audits/archive/`) recorded
+**rider (a)** — the EPI-1 instrument "*does not move*". Two further reasons pointed the same way and are now
+recorded in §6 of the new audit so no future session re-litigates them: (1) **destination semantics** — the
+preservation archive admits *completed* artifacts with *no open remainder*, while EPI-1 is unscored by design and
+explicitly retained as actionable, so filing it there would mislabel a live instrument; (2) **seal-exposure
+hazard** — `.gitignore:60-62` are **path-literal**, so moving the artifacts without rewriting those rules in the
+same change would leave the sealed key untracked-but-no-longer-ignored, which is precisely the 2026-07-18
+near-miss condition where `git add -A` staged a `SEALED-KEY.json`. §6 also records the exact procedure any future
+move must carry (byte-identical filesystem move, simultaneous `.gitignore` rewrite, `git check-ignore` proof,
+empty-origin check).
+
+**Captured in the condensation:** corpus shape (239 files mined → 138 identity-readable; strata gemini 20-of-20
+vs openai 20-sampled-of-50, both clearing the n≥10 floor; matched on mode + 4-model panel + month-grain era;
+`SEED=20260716`, shuffled `ITEM-01..40`), the scoring sheet's 40×5 Y/N structure — **all 200 cells blank**, the
+physical proof the pack was retained *unscored* — what the sealed key holds **structurally** (item→segment mapping
+plus `date`/`month`/`debate_mode`/`panel_size`/`author`) without revealing contents, the three disclosed residual
+caveats (blind residual tell, month-grain era matching, modest n=20), the retention ruling verbatim, and the
+6-step reopen path including seal expiry.
+
+**Verified:** `validate_audit_casing --all` exit 0 (new filename conforms); `validate_backlog` OK (7 themes, 14
+stories, 49 tasks, 0 warnings); `git check-ignore` confirms the sealed key still matched by `.gitignore:61`;
+`git status` shows only the new markdown — **the seal is provably intact and unstaged**.
+
+**Not done (by decision, not omission):** the relocation, and therefore the §5 ref-fixing pass — nothing moved, so
+every existing reference to `docs/audits/2026-07-17-epi1-archaeology/` still resolves and none needed changing.
+Also noted while surveying: the audits root cannot reduce to markdown-only regardless — `archive/` is a sanctioned
+subfolder per both READMEs, and `2026-07-18-cli4-parity/` is the separate live #27 exclusion zone, untouched.
+
 ### 2026-07-19 — REVIEW DEBT CLOSED: #44 arc set fully terra-reviewed, #33 PASS-3 CLEAN, type-stub hygiene fixed
 
 **Did:** Closed the terra review debt now that the credits-exhausted premise is dead. Re-probed terra first rather than assuming (`TERRA-OK`, exit 0, $0 under subscription), then ran **read-only** `codex exec --sandbox read-only -c model=gpt-5.6-terra` reviews for the **three surfaces the 2026-07-19 pass never reached** — **#22** (`cli.py` frontmatter + precedence, `3e64e81`), **#42** (`research/output.py` leading-token strip, `5b139ad`), **#39** (`--no-persist` / `AICOUNCIL_OUTPUT_DIR` / health retention, `e140c5d`) — each prompted with the already-known adjacent findings (#64, #59, #65/#66) so duplicates would merge rather than double-file. Then ran **#33 verdict-package pass-3** → **PASS-3 CLEAN (no Critical/High)**; #33 struck per ADR-65.
