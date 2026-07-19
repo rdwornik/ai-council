@@ -19,6 +19,62 @@
 
 ---
 
+### 2026-07-20 — SOL DISPOSITION: 2 regressions repaired, 6 filed; codex severity-summary defect measured
+
+**Did:** Closed out the sol adversarial pass on Lane A1's merged diff. Classified all 8 High findings
+**REGRESSION vs PRE-EXISTING by differential run against `27a45d1`** — a temporary detached worktree running
+identical inputs through both trees — rather than by reading the diff. Anchors the two merges that landed
+after the reintegration entry: **`5efcb95`** (F8/F2 repair) and **`eabd962`** (#77/#78/#79 filings). Pushed
+`27a45d1..eabd962`; `main` 0 ahead / 0 behind.
+
+**2 REGRESSIONS, repaired on main immediately per the operator's repair-regressions-now rule.**
+**F8** (`_OPTIONS_HEADING_MARKERS`): a bare `"considered"` marker matched as a SUBSTRING, so `## Risks
+Considered` qualified as an options heading. Harmless while the scan stopped at the first match; #60 made it
+CONTINUE past a prose-only section, so a later `...Considered` section could be promoted over the question's
+real options. Same input: `27a45d1` → `items=[]`, merged main → `items=['Risk one']`. **`[]` is honestly
+empty; `['Risk one']` is plausibly wrong and consumed silently off the delegation surface.** Fixed by
+removing the defective marker, NOT by narrowing the scan — the operator rejected that: when `## Risks
+Considered` is the only options-ish heading it is also the FIRST match, so scan-narrowing still emits risks
+as options. That case is pinned by its own test. Cost accepted: `Approaches Considered` now falls through to
+the question fallback. Under-match toward the loud failure.
+**F2** (`save_to_file`): direct mode let `_write_routed` raise before the canonical metrics sidecar was
+written, costing a CANONICAL artifact and violating this lane's own invariant that canonical writes land
+before any raise. Scope was explicitly NOT the argument — the orchestrator's accumulator mode already
+honoured it. Fixed by accumulating locally, emitting the sidecar, then raising.
+Both **proven by reversion** (Lane C's pattern): each reverted individually, the relevant test observed
+FAILING, then restored green.
+
+**6 PRE-EXISTING, filed not patched** — reproduce byte-identically on both trees: #75/#76 (already filed from
+the lane's own escalations; sol independently confirmed #76 exactly), **#77** (F6+F7 as ONE contract-scoped
+ticket), **#78** (F3 `target_paths` shapes), **#79** (F4 metrics-manifest existence check). #77 is one ticket
+deliberately: this is the *second* window in which `options_considered` is known-broken and half-fixed, and a
+third round of partial patches on the same function is the pattern this arc exists to remove. **Recorded
+explicitly: `options_considered` IS corrupted on main today** (`- 3D printing` → `D printing`), so a
+consuming repo reads mangled option text out of the verdict package right now.
+
+**Result:** `check.ps1` **622 passed** (543 +15 A2 +16 A1 +2 seam +43 C +3 repair; A1's one removed test was
+inverted, not dropped), mypy + ruff clean. All four checkers exit 0 — the e2e witness **held at 4/4**.
+`validate_backlog` OK, 7 themes / 14 stories / 47 tasks / 0 warnings.
+
+**Changes:** `src/ai_council/output.py` (F8 marker, F2 accumulate-then-raise), `tests/test_output.py` (+3
+regression tests), `BACKLOG.md` (#77/#78/#79 + grooming log). Cleanup: 14 of 15 `aicouncil-scratch-*` dirs
+removed (L6/L7 re-read `before=1 after=1`, still PASS — the set-delta property proven by observation, not by
+reading source); both empty provisioner stub branches deleted; `main` is the only branch and only worktree.
+
+**Abandoned:** editing `~/.claude/bin/codex-review.ps1` — operator-owned, report-only. Its severity heuristic
+(`:270`) requires the label to be followed by `:` or `-`, but Codex now emits `### [HIGH] file:line — …`, so
+`[` breaks the prefix class and `]` is not an accepted terminator. Measured across **68 codex audits in four
+repos: 8 reports printed High=0 while their bodies carried 26 High findings**, earliest 2026-05-22. **The
+counts were never written to any file** (`Set-Content` at `:262` precedes the count at `:272`; the result is
+`Write-Host` only, and `$finalContent` at `:267` is dead), so **no committed audit is wrong** — every body is
+complete. The damage is transient console output that could have been read as "clean" at review time.
+
+**Next:** operator ruling on the one held-back scratch dir (`qfm_mhrt` — a 2026-07-18 CLI-seat witness run,
+unreferenced anywhere in the repo); the codex-review one-line regex fix; and routing the hub-owned
+`/review-closures` staleness class upward.
+
+---
+
 ### 2026-07-19 — REINTEGRATION: three lanes merged serially, cross-lane seam defect found and closed
 
 **Did:** Serial `--no-ff` reintegration of the three parallel lanes with the operator as the gate at every
