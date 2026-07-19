@@ -712,6 +712,26 @@ def _first_by_priority(
     return None, None
 
 
+def _top_level_bullets(body: str | None) -> list[str]:
+    """Top-level bullet/numbered items in a section body.
+
+    A nested (indented) sub-bullet — e.g. an ideas entry's ``Who endorsed it`` annotation —
+    is dropped rather than scooped as its own option. Wrapping markdown emphasis is
+    stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    """
+    items: list[str] = []
+    for raw in (body or "").splitlines():
+        if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
+            continue
+        t = raw.strip()
+        first_token = t.split(" ", 1)[0].rstrip(".")
+        if t[:1] in ("-", "*") or first_token.isdigit():
+            cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
+            if cleaned:
+                items.append(cleaned)
+    return items
+
+
 def _extracted_field(
     sections: list[tuple[str, str]], markers: tuple[str, ...], *, one_line: bool = False
 ) -> dict:
@@ -730,28 +750,30 @@ def _extracted_options(
 
     Sources the options section from the synthesis first — an ideas verdict's ``## Top Tier``
     (or a synthesis that carries an explicit ``## Alternatives Considered``). When the synthesis
-    carries no matching heading — the pick synthesis template (``prompts.synthesis``) prescribes
-    none (#40) — falls back to the debate QUESTION's own ``## Options`` section, which is where a
-    pick debate's alternatives actually live.
+    yields no options — because it carries no matching heading, the pick synthesis template
+    (``prompts.synthesis``) prescribing none (#40), or because the heading it does carry holds
+    only prose (#60) — falls back to the debate QUESTION's own ``## Options`` section, which is
+    where a pick debate's alternatives actually live. The fallback is adopted only when it
+    yields options, so it can never replace a real synthesis heading with nothing.
 
-    Only TOP-LEVEL bullets are kept: a nested (indented) sub-bullet — e.g. an ideas entry's
-    ``Who endorsed it`` annotation — is dropped rather than scooped as its own option. Wrapping
-    markdown emphasis is stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    Only TOP-LEVEL bullets are kept; see ``_top_level_bullets``.
     """
     heading, body = _first_by_priority(sections, _OPTIONS_HEADING_MARKERS)
-    if not body and question_sections is not None:
-        heading, body = _first_by_priority(question_sections, _OPTIONS_HEADING_MARKERS)
-    items: list[str] = []
-    if body:
-        for raw in body.splitlines():
-            if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
-                continue
-            t = raw.strip()
-            first_token = t.split(" ", 1)[0].rstrip(".")
-            if t[:1] in ("-", "*") or first_token.isdigit():
-                cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
-                if cleaned:
-                    items.append(cleaned)
+    items = _top_level_bullets(body)
+    # #60: fall back when the synthesis produced no OPTIONS, not merely no SECTION. The
+    # gate used to be `not body`, so an options heading whose body is prose with no
+    # bullets short-circuited the fallback and returned items=[] under a heading that
+    # listed nothing — reading as "alternatives were considered and there were none".
+    if not items and question_sections is not None:
+        fallback_heading, fallback_body = _first_by_priority(
+            question_sections, _OPTIONS_HEADING_MARKERS
+        )
+        fallback_items = _top_level_bullets(fallback_body)
+        # Adopt the fallback ONLY if it actually yielded options. Rebinding unconditionally
+        # would clobber a valid synthesis heading with None whenever the question carries
+        # no ## Options of its own.
+        if fallback_items:
+            heading, items = fallback_heading, fallback_items
     return {"items": items, "source": "extraction", "heading": heading}
 
 

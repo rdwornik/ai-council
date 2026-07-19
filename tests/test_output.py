@@ -897,6 +897,63 @@ def test_options_ideas_top_tier_top_level_only_and_clean(tmp_path, sample_round)
     assert all("Who endorsed it" not in it for it in items)     # nested sub-bullet dropped
 
 
+# ---------------------------------------------------------------------------
+# #60 — a synthesis options heading with no bullets must not suppress the fallback
+# ---------------------------------------------------------------------------
+
+_PROSE_ONLY_OPTIONS = (
+    "## Recommendation\nAdopt YAML.\n\n"
+    "## Alternatives Considered\n"
+    "The panel weighed the alternatives at length and converged quickly.\n"
+)
+
+
+def test_options_prose_only_heading_falls_back_to_question():
+    """#60: the gate is 'no options extracted', not 'no section present'.
+
+    A synthesis heading whose body is prose used to short-circuit the fallback, yielding
+    items=[] under a heading that listed nothing.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    question = "Which config format?\n\n## Options\n- (a) Keep YAML\n- (b) Move to TOML\n"
+    opts = _extracted_options(
+        _split_sections(_PROSE_ONLY_OPTIONS), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["(a) Keep YAML", "(b) Move to TOML"]
+    assert opts["heading"] == "Options"  # adopted from the question
+    assert opts["source"] == "extraction"
+
+
+def test_options_fallback_never_clobbers_a_real_synthesis_heading():
+    """#60 clobber guard: a fallback that finds nothing must not overwrite the heading.
+
+    Gating on items alone — without checking the fallback actually produced any — would
+    rebind heading to None whenever the question carries no ## Options of its own.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    question = "Which config format? No options section here.\n"
+    opts = _extracted_options(
+        _split_sections(_PROSE_ONLY_OPTIONS), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == []
+    assert opts["heading"] == "Alternatives Considered"  # the synthesis heading, not None
+
+
+def test_options_synthesis_bullets_still_win_over_the_question():
+    """#60 must not change the happy path: a synthesis WITH options is never overridden."""
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = "## Alternatives Considered\n- JSON: no comments\n- TOML: less familiar\n"
+    question = "## Options\n- (a) Keep YAML\n- (b) Move to TOML\n"
+    opts = _extracted_options(
+        _split_sections(synthesis), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["JSON: no comments", "TOML: less familiar"]
+    assert opts["heading"] == "Alternatives Considered"
+
+
 def test_verdict_decision_strips_wrapping_emphasis(tmp_path, sample_question, sample_round):
     """A bold-wrapped one-line decision is extracted clean (no leading/trailing ** )."""
     synthesis = "## Recommended Decision\n**Default to a monorepo with lightweight tooling.**\n"
