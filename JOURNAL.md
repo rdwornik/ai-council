@@ -19,6 +19,62 @@
 
 ---
 
+### 2026-07-19 — REINTEGRATION: three lanes merged serially, cross-lane seam defect found and closed
+
+**Did:** Serial `--no-ff` reintegration of the three parallel lanes with the operator as the gate at every
+merge. Order **A2 → A1 → C** was load-bearing and held: A1 adds raises in the writer layer, and the
+interactive-debate boundary (`cli.py:799`) had **no handler at all**, so A2 first closed that window.
+Merges: **A2 `2492371`**, **A1 `a48080f`**, **C `34964a9`**. Gate green before and after each.
+
+**The finding this session exists for.** A1 green + A2 green + merged main **RED**. A1 changed
+`OutputRoutingError`'s constructor from a message string to a `list[RoutingFailure]` without a type guard;
+`str` is iterable, so `list()` silently shredded a message into **one "deliverable" per character** ("58
+deliverables not delivered: v; e; r; d; i; c; t; ..."). **Four** call sites still passed a string and only
+**one** had an assertion strong enough to notice — the other three asserted on label text that survived the
+mangling. Two per-lane checkers are structurally blind to this: each half is sound, the composition is
+broken. Repaired fix-forward at **`74e8359`** (type guard rejecting str/bytes explicitly, non-list, and
+non-`RoutingFailure` elements; all four sites corrected; assertions strengthened to check the deliverable
+COUNT and the destination path, both of which the mangle breaks). The whole-repo blast-radius sweep caught
+two sites my earlier branch-scoped check had missed — scoping a seam question to one branch was the wrong
+scope, and the operator's instruction to sweep `scripts/` too is what surfaced them.
+
+**Result — END-TO-END WITNESS, the closure criterion neither lane could claim alone.** A required
+`--return-dir` write to an unwritable destination now raises at the writer, propagates through the boundary,
+exits non-zero naming the destination, reports every lost deliverable, and leaves the canonical artifacts on
+disk — **4/4 paths** (interactive debate, interactive research, inbox debate, inbox research), driven by a
+REAL filesystem failure with providers mocked. **Negative control against original main `27a45d1`** (temporary
+detached worktree, removed and verified absent): **1/4** — three paths exited **0, silently**. Persisted as
+`scripts/verify_output_contract_e2e.py` (`6e67a6f`) so the blind spot is mechanized, not just fixed; a
+`no_traceback` criterion was DROPPED because `CliRunner` captures `SystemExit` and it passed pre-fix too.
+All three checkers exit 0: 10/11+GAP, 10/11+GAP, **4/4**. `check.ps1` **619 passed** — reconciles exactly as
+543 +15 (A2) +16 (A1: 17 added, 1 removed) +2 (seam) +0 +43 (C).
+
+**Changes:** `src/ai_council/{cli,doctor,output,orchestrator}.py`, `research/{output,runner}.py`,
+`scripts/verify_output_contract_e2e.py` (new), `scripts/validate_{sealed_keys,docs_registry}.py` (new),
+`.pre-commit-config.yaml`, `BACKLOG.md`, `docs/audits/2026-07-19-codex-a1-failloud-adversarial.md`.
+Struck **#35/#62/#63/#60/#65/#71**; closed **#67/#68** via `/review-closures` (ADR-70 Tier-1, WEAK tier,
+each named individually) citing Lane C's merge — **not** the gate's stale pre-merge evidence. Filed **#75**
+(`secondary_dir` raises where `target_paths` swallows) and **#76** (verdict `artifacts[]` built pre-write;
+Contract-Version 1.1 candidate alongside #34). **#74** needed no strike — A2 filed and closed it in-arc.
+**#66 stays OPEN**, gated on #27; no billed witness authorized. Teardown: all three worktrees removed,
+pruned, branches deleted, verified absent.
+
+**Abandoned:** fixing A1's escalations in this pass — reported, filed, not fixed. The sol adversarial pass
+returned **8 High** on A1's merged diff (`docs/audits/2026-07-19-codex-a1-failloud-adversarial.md`),
+independently confirming **#76** and adjacent to **#75**. Three were verified empirically against shipping
+code before recording: `- 3D printing` → `D printing`, `- **Alpha** - fast` → `Alpha** - fast`, `+`/`1)`
+lists → `[]`, and a later `## Risks Considered` section promoted over the question's real options — all
+landing in the verdict package's `options_considered`, the authoritative delegation artifact. Not filed
+pending operator direction.
+
+**Next:** operator go on (1) the 8 sol Highs → filings, (2) the 15 `aicouncil-scratch-*` dirs in `%TEMP%`
+(checker legs L6/L7 use before/after **set deltas**, not an absolute census — deletion cannot break them),
+(3) the two empty provisioner stub branches `worktree-lane-a1-failloud-writes` / `worktree-lane-c-guards`
+at `27a45d1`, (4) the hub-owned `/review-closures` staleness defect, (5) **push — main is 40 commits ahead
+of `origin/main`.**
+
+---
+
 ### 2026-07-19 — LANE C: the two guards (#67, #68) — both were bypassable, proven and fixed
 
 **Did:** Turned two hand-maintained hygiene rules into pre-commit mechanisms on `feat/c-guards`
