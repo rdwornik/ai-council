@@ -41,6 +41,17 @@ repos:
     language: system
     files: '^BACKLOG\.md$'
     pass_filenames: false
+  # validate-sealed-keys: #67 sealed-key staging guard. Defence in depth behind .gitignore:61
+  # and :65 -- the 2026-07-18 near-miss showed a `git mv` can break an ignore rule. Match is
+  # deliberately WIDER than #67's literal `SEALED-KEY*.json` (operator ruling 2026-07-19): the
+  # two real keys are named `SEALED-KEY.json` and `...-KEY-SEALED.json`, so either order must
+  # match. Fails CLOSED (unlike the casing gate) -- it protects a secret, not a convention.
+  - id: validate-sealed-keys
+    name: Reject a staged sealed key (#67)
+    entry: python scripts/validate_sealed_keys.py
+    language: system
+    always_run: true
+    pass_filenames: false
 - repo: https://github.com/rdwornik/dev-knowledge
   rev: v1.3.1
   hooks:
