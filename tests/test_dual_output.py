@@ -146,7 +146,7 @@ def test_research_both_files_identical(tmp_path, sample_research_report):
 def test_research_return_dir_written(tmp_path, sample_research_report):
     """#23: a research commission lands a copy in the caller's return dir (auto-mkdir)."""
     primary = tmp_path / "primary"
-    return_dir = tmp_path / "caller_return"  # does not exist yet -> best-effort mkdir
+    return_dir = tmp_path / "caller_return"  # does not exist yet -> auto-mkdir
     saved = save_research_to_file(sample_research_report, primary, return_dir=return_dir)
 
     # canonical is always written first and present
@@ -173,6 +173,50 @@ def test_research_return_dir_is_additive_canonical_unchanged(tmp_path, sample_re
     assert canonical[0].exists()
     # exactly canonical + return-dir here (no secondary/targets configured)
     assert len(saved) == 2
+
+
+# ---------------------------------------------------------------------------
+# #62: research R4 parity — a required return-dir miss is never swallowed
+# ---------------------------------------------------------------------------
+
+def test_research_required_return_dir_failure_raises(tmp_path, sample_research_report):
+    """#62: before this, the research path had no required-destination check at all.
+
+    A mkdir/write failure was logged and swallowed, so run_research returned success with
+    the commissioned report absent. Now it raises, and the canonical copy still lands.
+    """
+    from ai_council.output import OutputRoutingError
+
+    primary = tmp_path / "primary"
+    # point return_dir at an existing FILE so its mkdir fails inside _write_routed
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        save_research_to_file(sample_research_report, primary, return_dir=blocker)
+
+    assert [f.artifact for f in excinfo.value.failures] == ["research report"]
+    assert len(list(primary.glob("council-out-*research*.md"))) == 1
+
+
+def test_research_required_return_dir_failure_recorded_when_accumulating(
+    tmp_path, sample_research_report
+):
+    """#62: with an accumulator the writer records and returns, matching the debate path."""
+    from ai_council.output import RoutingFailure
+
+    primary = tmp_path / "primary"
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    failures: list[RoutingFailure] = []
+    saved = save_research_to_file(
+        sample_research_report, primary, return_dir=blocker, routing_failures=failures
+    )
+
+    assert len(saved) == 1 and saved[0].exists()  # canonical only
+    assert [f.artifact for f in failures] == ["research report"]
+    assert failures[0].destination == blocker
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -140,6 +141,64 @@ def print_cost_summary(metrics: DebateMetrics) -> None:
     console.print(Panel(tree, border_style="dim"))
 
 
+@dataclass(frozen=True)
+class RoutingFailure:
+    """A required destination that did not receive its artifact.
+
+    Recorded rather than raised on the spot so the caller can finish emitting every
+    remaining CANONICAL artifact before failing the run — see ``OutputRoutingError``.
+    """
+
+    artifact: str
+    destination: Path
+    cause: str
+    # The originating exception, kept so the aggregate raise can chain a real traceback.
+    # Without it the accumulator path — the one the orchestrators actually use — would
+    # produce an OutputRoutingError with __cause__ None while the direct path chained
+    # properly, losing the root cause exactly where it is hardest to reproduce.
+    error: BaseException | None = None
+
+    def __str__(self) -> str:
+        return f"{self.artifact} -> {self.destination} ({self.cause})"
+
+
+class OutputRoutingError(RuntimeError):
+    """A required output destination (e.g. an explicit --return-dir) was not written.
+
+    Raised for the caller's *required* deliverables so a routing failure surfaces loudly
+    instead of yielding a bare exit 0 (DRAFT-INT-1 R4). Optional mirrors stay best-effort.
+
+    Carries EVERY failure in the run, not just the first: the debate writers all target the
+    same --return-dir, so a return-dir fault is normally common-mode, and naming one
+    artifact would understate what the caller did not receive.
+    """
+
+    def __init__(self, failures: list["RoutingFailure"]) -> None:
+        self.failures = list(failures)
+        joined = "; ".join(str(f) for f in self.failures)
+        noun = "deliverable" if len(self.failures) == 1 else "deliverables"
+        super().__init__(
+            f"required return-dir unusable — {len(self.failures)} {noun} not delivered: {joined}"
+        )
+
+
+def raise_for_routing_failures(failures: list[RoutingFailure]) -> None:
+    """Fail the run if any required destination was missed; no-op when the list is empty.
+
+    The single aggregate raise point. Callers accumulate across every writer, emit every
+    canonical artifact, then call this ONCE at the end. Never call it from a ``finally`` —
+    an exception raised there would mask the original.
+    """
+    if failures:
+        # Chain the first underlying error so the traceback still reaches the real cause
+        # (PermissionError, NotADirectoryError, ...). Every cause is preserved as text in
+        # the message and on RoutingFailure.error; only the chained one can be a single
+        # exception, and the first failure is the one that started the run down this path.
+        raise OutputRoutingError(failures) from next(
+            (f.error for f in failures if f.error is not None), None
+        )
+
+
 def _write_routed(
     content: str,
     filename: str,
@@ -147,14 +206,32 @@ def _write_routed(
     secondary_dir: Path | None,
     target_paths: list[Path] | None,
     return_dir: Path | None,
+    *,
+    artifact: str,
+    return_dir_required: bool,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Write `content` as `filename` to the canonical dir plus any optional routes.
 
     The canonical `output_dir` is ALWAYS written first (ADR-10 / ADR-43: the return
     is a copy/route, never a replacement). Then, in order:
       - `secondary_dir`: legacy mirror, written only if it already exists on disk;
-      - `return_dir`: ADR-10 deterministic return (auto-mkdir, best-effort);
+      - `return_dir`: ADR-10 deterministic return (auto-mkdir), verified after the write;
       - each `target_paths` dir: ADR-43 per-invocation mirror (auto-mkdir, best-effort).
+
+    `return_dir_required` states whether the deterministic return is a REQUIRED deliverable
+    or a best-effort copy. It is an explicit decision at every call site, never inferred.
+    When required, a miss is reported one of two ways (the caller chooses):
+
+      - `routing_failures` supplied -> the miss is appended and this call returns normally,
+        so the caller can finish emitting its remaining canonical artifacts and raise once
+        with the aggregate via ``raise_for_routing_failures``. This is what orchestrators do.
+      - `routing_failures` omitted -> ``OutputRoutingError`` is raised before returning.
+        The fallback for a direct caller that opts out of collecting: a required miss must
+        never be silent, whichever mode is in play.
+
+    `artifact` names the deliverable in that report. Best-effort destinations
+    (`secondary_dir`, `target_paths`) are never reported this way — they only warn.
 
     Returns the list of paths written, canonical first.
     """
@@ -175,15 +252,33 @@ def _write_routed(
                 secondary_dir,
             )
 
+    pending: RoutingFailure | None = None
+    pending_exc: BaseException | None = None
     if return_dir is not None:
+        cause: str | None = None
         try:
             return_dir.mkdir(parents=True, exist_ok=True)
             return_path = return_dir / filename
             return_path.write_text(content, encoding="utf-8")
-            logger.info("Deterministic return written to: %s", return_path)
-            saved.append(return_path)
+            # Verify it landed: a raised write is not the only way to miss a destination.
+            # is_file(), not exists() — exists() is also true for a directory. Deliberately
+            # no size assertion: write_text uses text mode, so \n -> \r\n on Windows and
+            # st_size never equals len(content.encode()) for a multi-line artifact.
+            if return_path.is_file():
+                logger.info("Deterministic return written to: %s", return_path)
+                saved.append(return_path)
+            else:
+                cause = "write reported success but no file at the destination"
         except Exception as exc:
-            logger.warning("Return-dir write failed for %s: %s", return_dir, exc)
+            cause = f"{type(exc).__name__}: {exc}"
+            pending_exc = exc
+
+        if cause is not None:
+            if return_dir_required:
+                logger.error("Required return-dir write failed for %s: %s", return_dir, cause)
+                pending = RoutingFailure(artifact, return_dir, cause, pending_exc)
+            else:
+                logger.warning("Return-dir write failed for %s: %s", return_dir, cause)
 
     for target_dir in target_paths or []:
         try:
@@ -195,15 +290,14 @@ def _write_routed(
         except Exception as exc:
             logger.warning("Mirror write failed for %s: %s", target_dir, exc)
 
+    # Deferred to here so a required-return miss still lets the best-effort mirrors run.
+    if pending is not None:
+        if routing_failures is not None:
+            routing_failures.append(pending)
+        else:
+            raise OutputRoutingError([pending]) from pending_exc
+
     return saved
-
-
-class OutputRoutingError(RuntimeError):
-    """A required output destination (e.g. an explicit --return-dir) was not written.
-
-    Raised for the caller's *required* deliverable so a routing failure surfaces loudly
-    instead of yielding a bare exit 0 (DRAFT-INT-1 R4). Optional mirrors stay best-effort.
-    """
 
 
 def _fallback_payload(fe: FallbackEvent) -> dict:
@@ -354,14 +448,19 @@ def save_to_file(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Save the full debate transcript as a markdown file.
 
     Pure orchestration (audit A4): filename derivation, content assembly via
     ``_build_header``/``_build_body``, routed write, metrics trigger. Writes to
     output_dir (always, canonical), secondary_dir (if it exists on disk), return_dir
-    (ADR-10 deterministic return; auto-mkdir, best-effort), and each path in
+    (ADR-10 deterministic return; auto-mkdir, REQUIRED per R4), and each path in
     target_paths (auto-mkdir, best-effort).
+
+    An explicit ``return_dir`` is a required deliverable (#35): a write that does not
+    land there is reported into ``routing_failures`` when the caller is accumulating, and
+    raises ``OutputRoutingError`` when it is not. Never silently dropped either way.
 
     Returns:
         List of paths written. First entry is always the primary path.
@@ -380,12 +479,40 @@ def save_to_file(
     ]
 
     saved = _write_routed(
-        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+        "\n".join(lines),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="transcript",
+        return_dir_required=True,
+        routing_failures=routing_failures,
     )
     logger.info("Debate saved to: %s", saved[0])
 
     if result.metrics:
-        _save_metrics_json(result, saved[0])
+        try:
+            _save_metrics_json(result, saved[0])
+        except Exception:
+            # #63: telemetry loss must not suppress the caller's deliverables. Before this,
+            # a sidecar failure propagated out of save_to_file and the orchestrator never
+            # reached save_verdict_package, so no contract_version package was emitted at all.
+            # logger.exception, not .error: this also covers the internal assert and any
+            # malformed-payload TypeError — real bugs whose traceback must stay visible.
+            logger.exception("Metrics sidecar write failed alongside %s", saved[0])
+            # Report it MACHINE-READABLY, not in the log alone — a consumer of the verdict
+            # package would otherwise see a complete package with no metrics entry and no way
+            # to tell "metrics failed" from "metrics never produced", which is the same
+            # silent-failure shape this contract exists to remove. Carried on the existing
+            # #26 exit-0-plus-degradation two-signal: _build_verdict_payload already
+            # serializes these two fields into the package's degradation block, so this
+            # needs no new field, flag, or CONTRACT entry, and exit_semantics stays 0.
+            note = f"metrics sidecar not written for {saved[0].name}"
+            result.degraded = True
+            result.degradation_summary = (
+                f"{result.degradation_summary}; {note}" if result.degradation_summary else note
+            )
 
     return saved
 
@@ -482,12 +609,19 @@ def save_minority_report(
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
     stem_base: str | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Emit the minority/dissent report as a discrete, durable artifact (Rama 4, #15).
 
     Fires only when the verdict is non-unanimous (see extract_dissent). Routed to the
     same destinations as the verdict via _write_routed (canonical + secondary + return +
-    targets), so a --return-dir also receives it. Returns [] when there is no dissent.
+    targets). Returns [] when there is no dissent.
+
+    An explicit ``return_dir`` is a required deliverable and carries the same R4 guarantee
+    as the verdict (#35): a write that does not land there is reported into
+    ``routing_failures`` when the caller is accumulating, and raises ``OutputRoutingError``
+    when it is not. Until #35 this docstring claimed "so a --return-dir also receives it",
+    which the code did not honour — the write was best-effort and a miss was swallowed.
 
     ``stem_base`` (``<ts>-<mode>-<slug>``, from the transcript) makes this report share the
     transcript's exact <ts> — so the verdict package's minority pointer always resolves and
@@ -522,7 +656,15 @@ def save_minority_report(
         "",
     ]
     saved = _write_routed(
-        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+        "\n".join(lines),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="minority report",
+        return_dir_required=True,
+        routing_failures=routing_failures,
     )
     logger.info("Minority report saved to: %s", saved[0])
     return saved
@@ -581,6 +723,50 @@ def _first_by_priority(
     return None, None
 
 
+def _top_level_bullets(body: str | None) -> list[str]:
+    """Top-level bullet/numbered items in a section body.
+
+    A nested (indented) sub-bullet — e.g. an ideas entry's ``Who endorsed it`` annotation —
+    is dropped rather than scooped as its own option. Wrapping markdown emphasis is
+    stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    """
+    items: list[str] = []
+    for raw in (body or "").splitlines():
+        if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
+            continue
+        t = raw.strip()
+        first_token = t.split(" ", 1)[0].rstrip(".")
+        if t[:1] in ("-", "*") or first_token.isdigit():
+            cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
+            if cleaned:
+                items.append(cleaned)
+    return items
+
+
+def _options_with_items(sections: list[tuple[str, str]]) -> tuple[str | None, list[str]]:
+    """First options-ish section that actually yields top-level bullets.
+
+    Scans in marker priority like ``_first_by_priority``, but keeps looking when a matching
+    section holds only prose (#60) — a *later* section may carry the real list, e.g. a
+    synthesis with a prose ``## Alternatives Considered`` followed by a bulleted
+    ``## Options``. Taking the first matching heading unconditionally would skip past the
+    live options and fall through to the question's staler ones.
+
+    Returns the first matching heading even when nothing yields items, so the caller can
+    still report which heading was seen rather than claiming none existed.
+    """
+    first_heading: str | None = None
+    for marker in _OPTIONS_HEADING_MARKERS:
+        for heading, body in sections:
+            if marker in heading.lower() and body.strip():
+                if first_heading is None:
+                    first_heading = heading
+                items = _top_level_bullets(body.strip())
+                if items:
+                    return heading, items
+    return first_heading, []
+
+
 def _extracted_field(
     sections: list[tuple[str, str]], markers: tuple[str, ...], *, one_line: bool = False
 ) -> dict:
@@ -599,28 +785,26 @@ def _extracted_options(
 
     Sources the options section from the synthesis first — an ideas verdict's ``## Top Tier``
     (or a synthesis that carries an explicit ``## Alternatives Considered``). When the synthesis
-    carries no matching heading — the pick synthesis template (``prompts.synthesis``) prescribes
-    none (#40) — falls back to the debate QUESTION's own ``## Options`` section, which is where a
-    pick debate's alternatives actually live.
+    yields no options — because it carries no matching heading, the pick synthesis template
+    (``prompts.synthesis``) prescribing none (#40), or because the heading it does carry holds
+    only prose (#60) — falls back to the debate QUESTION's own ``## Options`` section, which is
+    where a pick debate's alternatives actually live. The fallback is adopted only when it
+    yields options, so it can never replace a real synthesis heading with nothing.
 
-    Only TOP-LEVEL bullets are kept: a nested (indented) sub-bullet — e.g. an ideas entry's
-    ``Who endorsed it`` annotation — is dropped rather than scooped as its own option. Wrapping
-    markdown emphasis is stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    Only TOP-LEVEL bullets are kept; see ``_top_level_bullets``.
     """
-    heading, body = _first_by_priority(sections, _OPTIONS_HEADING_MARKERS)
-    if not body and question_sections is not None:
-        heading, body = _first_by_priority(question_sections, _OPTIONS_HEADING_MARKERS)
-    items: list[str] = []
-    if body:
-        for raw in body.splitlines():
-            if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
-                continue
-            t = raw.strip()
-            first_token = t.split(" ", 1)[0].rstrip(".")
-            if t[:1] in ("-", "*") or first_token.isdigit():
-                cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
-                if cleaned:
-                    items.append(cleaned)
+    # #60: the gate is "produced no OPTIONS", not "has no SECTION". It used to be
+    # `not body`, so an options heading whose body is prose short-circuited the fallback
+    # and returned items=[] under a heading that listed nothing — reading as "alternatives
+    # were considered and there were none".
+    heading, items = _options_with_items(sections)
+    if not items and question_sections is not None:
+        fallback_heading, fallback_items = _options_with_items(question_sections)
+        # Adopt the fallback ONLY if it actually yielded options. Rebinding unconditionally
+        # would clobber a valid synthesis heading with None whenever the question carries
+        # no ## Options of its own.
+        if fallback_items:
+            heading, items = fallback_heading, fallback_items
     return {"items": items, "source": "extraction", "heading": heading}
 
 
@@ -669,8 +853,8 @@ def _build_verdict_payload(
 
     ``guaranteed_dirs`` are the destinations known to receive the verdict when the call
     returns normally (canonical, always written; and an explicit return_dir, which R4
-    verifies-or-raises). Best-effort mirrors are deliberately excluded so the manifest
-    never claims a path that a best-effort write may have skipped.
+    verifies-or-reports in ``_write_routed``). Best-effort mirrors are deliberately excluded
+    so the manifest never claims a path that a best-effort write may have skipped.
     """
     sections = _split_sections(result.synthesis)
     seats = result.metrics.seats if result.metrics else []
@@ -705,11 +889,24 @@ def _build_verdict_payload(
         verdict_author["model"] = result.synthesis_metrics.synthesizer_model
         verdict_author["error_class"] = result.synthesis_metrics.error_class
 
-    artifacts: list[dict] = [
-        {"kind": kind, "filename": paths[0].name, "paths": [str(p) for p in paths]}
-        for kind, paths in written.items()
-        if paths
-    ]
+    # Never advertise a path that is not on disk (#63). The verdict package is the
+    # inter-repo delegation surface at Contract-Version 1.0: a manifest naming a file a
+    # consumer then fails to find is worse than the original defect. The orchestrator
+    # already guards the one known case (a degraded metrics sidecar); this filter makes it
+    # structurally impossible regardless of who populates `written`.
+    artifacts: list[dict] = []
+    for kind, paths in written.items():
+        present = [p for p in paths if p.exists()]
+        if len(present) != len(paths):
+            missing = [str(p) for p in paths if p not in present]
+            logger.warning(
+                "Verdict manifest: omitting %d %s path(s) not on disk: %s",
+                len(missing), kind, ", ".join(missing),
+            )
+        if present:
+            artifacts.append(
+                {"kind": kind, "filename": present[0].name, "paths": [str(p) for p in present]}
+            )
     artifacts.append(
         {
             "kind": "verdict",
@@ -770,6 +967,7 @@ def save_verdict_package(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Emit the DRAFT-INT-1 verdict package as a sibling of save_to_file (#26).
 
@@ -785,19 +983,26 @@ def save_verdict_package(
     base = run_id[len("council-out-"):]  # <ts>-<mode>-<slug>
     filename = f"council-verdict-{base}.json"
     # Destinations guaranteed once this call returns normally: canonical (always written) and
-    # an explicit return_dir (verified-or-raised below). Best-effort mirrors are excluded.
+    # an explicit return_dir (which _write_routed verifies-or-reports). Best-effort mirrors
+    # are excluded.
     guaranteed_dirs = [output_dir] + ([return_dir] if return_dir is not None else [])
     payload = _build_verdict_payload(result, run_id, filename, written or {}, guaranteed_dirs)
-    saved = _write_routed(
-        json.dumps(payload, indent=2), filename, output_dir, secondary_dir, target_paths, return_dir
-    )
     # R4: the verdict is the caller's *required* deliverable. If an explicit --return-dir was
     # requested but the package did not land there, fail loud rather than yield a bare exit 0.
     # (Optional --target-project mirrors and the legacy secondary_dir stay best-effort.)
-    if return_dir is not None and not any(p.parent == return_dir for p in saved):
-        raise OutputRoutingError(
-            f"verdict package failed to reach required return-dir: {return_dir}"
-        )
+    # _write_routed now owns that guarantee — it verifies the write on disk rather than
+    # inferring success from list membership, and every deliverable inherits it.
+    saved = _write_routed(
+        json.dumps(payload, indent=2),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="verdict package",
+        return_dir_required=True,
+        routing_failures=routing_failures,
+    )
     logger.info("Verdict package saved to: %s", saved[0])
     return saved
 

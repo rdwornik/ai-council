@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.rule import Rule
 
-from ai_council.output import _write_routed
+from ai_council.output import RoutingFailure, _write_routed
 from ai_council.research.models import MergedResearchReport
 
 # #42: the research filename already carries the `research-` mode token, so a slug
@@ -40,12 +40,20 @@ def save_research_to_file(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Save merged research report as markdown. Returns list of paths written.
 
     Routing (canonical always first, then secondary / return-dir / target copies)
     is delegated to the shared debate-path writer so research honors --return-dir
     identically to the debate path (#23).
+
+    That parity now extends to the R4 guarantee (#62): an explicit ``return_dir`` is a
+    required deliverable, so a write that does not land there is reported into
+    ``routing_failures`` when the caller is accumulating and raises ``OutputRoutingError``
+    when it is not. Before #62 this path had no required-destination check at all — a
+    failure was logged and swallowed, and run_research returned success with the
+    commissioned report absent.
     """
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = _slug(report.query)
@@ -99,7 +107,17 @@ def save_research_to_file(
     lines.append(report.merged_report)
 
     content = "\n".join(lines)
-    return _write_routed(content, filename, output_dir, secondary_dir, target_paths, return_dir)
+    return _write_routed(
+        content,
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="research report",
+        return_dir_required=True,
+        routing_failures=routing_failures,
+    )
 
 
 def print_research_summary(

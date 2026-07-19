@@ -19,6 +19,69 @@
 
 ---
 
+### 2026-07-19 — LANE A1: fail-loud write semantics (#35 #62 #63 #60) — branch only, NOT merged
+
+**Did:** Made the writer layer keep the guarantee it already declared. `_write_routed` becomes the single
+place that decides required-vs-best-effort, verifies the write landed, and reports a miss; every deliverable
+inherits it and the verdict's hand-rolled in-memory check is deleted. Branch `fix/a1-failloud-writes`,
+7 commits `cf24055` -> `9696f05`, in worktree `lane-a1-failloud-writes`. **Stopped at the merge gate by
+instruction — operator is the serial merge gate.**
+
+**Design ruling that shaped the lane.** The obvious fix — raise inside `save_to_file` — is wrong here, and a
+Plan-agent stress pass caught it before any code was written. All three debate writers target the *same*
+`--return-dir` (`orchestrator.py:174/195/221`), so a fault there is normally common-mode; raising inline aborts
+`CouncilRunner.run` on the transcript and costs the minority report and verdict package their **canonical**
+copies, which today always land. That trades a silent miss for actual data loss. Operator ruled
+**record-and-aggregate**: writers record into a caller-supplied accumulator, every canonical artifact is
+emitted, the orchestrator raises once with the aggregate. No `try/finally` (an exception there masks the
+original). A writer called *without* an accumulator still raises itself, so a required miss is never silent in
+either mode — which also kept `tests/test_output.py:719` at its existing seam.
+
+**#63 reports machine-readably, not log-only.** Operator rejected a bare `logger.exception` as fixing
+swallow-and-log with swallow-and-log. `DebateResult` is a plain `@dataclass` and the orchestrator hands the
+*same object* to `save_to_file` and `save_verdict_package`, so setting `degraded` / appending to
+`degradation_summary` reaches the package's existing `degradation` block. Rides the #26 exit-0-plus-degradation
+two-signal: **no new field, no flag, `exit_semantics` stays 0, Contract-Version stays 1.0, CONTRACT untouched.**
+
+**Result:** `check.ps1` exit 0 (559 passed, 6 deselected; mypy clean; ruff clean). New
+`scripts/verify_output_writes.py` exits 0 at 10/11 PASS + 1 GAP, offline, $0, byte-identical across runs. Its
+L10 drives the real `CouncilRunner.run` with `MockProvider` — coverage the repo's own orchestrator tests cannot
+give, since they patch `save_to_file` out entirely.
+
+**Recon corrected four claims in the brief** before any edit: `research/output.py:102` performs no write (it
+delegates to `_write_routed`, so there was never a separate research write path); `research/runner.py` performs
+no writes either and is in scope only as the raise site, with **two** exits — the cache-hit branch at `:176` is
+easy to miss; the minority docstring is `488-490`; and `output.py:797` was an in-memory list check, not a
+filesystem one, resting on the undocumented invariant that `saved.append` sat inside the `try`.
+
+**terra returned FAIL (5 HIGH) and was right.** Worst finding was in my own checker: L7 excluded
+`kind == "verdict"` — exactly the manifest entry that can still advertise a missing file — so it could have
+reported full PASS while the contract rule was broken, defeating the lane's own criterion 4. Now L11, probing
+the defect directly and reporting **GAP** every run. Also fixed: #60 could skip *past* bulleted synthesis
+options to the question's staler list (`_first_by_priority` returns the first match, not the first useful one),
+and the accumulator path — the one orchestrators actually use — lost `__cause__`. Remediation in `9696f05`.
+
+**Changes:** `src/ai_council/output.py` (`RoutingFailure`, `_write_routed` rework, four writers threaded,
+`#63` wrap + manifest filter, `#60` `_options_with_items`), `src/ai_council/orchestrator.py` (accumulator,
+aggregate raise, `written["metrics"]` guard), `src/ai_council/research/{output,runner}.py`,
+`tests/test_output.py` + `tests/test_dual_output.py` (+16 tests; `test_return_dir_failure_canonical_still_written`
+**inverted**, not deleted — it pinned the swallow), `scripts/verify_output_writes.py` (new).
+
+**Abandoned / not done:** `sol` was not run — a Plan agent did the blind design derivation instead. It caught
+the decisive defect, but it was not an independent model deriving the destination matrix from source, which is
+what the brief asked for. Recorded rather than glossed.
+
+**Next (needs an operator ruling, both escalated not absorbed):** (1) `secondary_dir` raises where
+`target_paths` swallows — pre-existing and ticketless, but terra is right that an existing-but-unwritable
+`secondary_dir` aborts `save_to_file` and costs the minority report and verdict package their canonical copies,
+the exact loss class this lane exists to prevent; ~4 lines mirroring `target_paths`, but a behaviour change
+outside the frozen contract. (2) The verdict's own `artifacts[]` entry is built from `guaranteed_dirs`
+*pre-write*, so in accumulator mode the canonical package advertises a return copy that never landed; needs a
+two-pass write. Surfaced as L11/GAP. BACKLOG deliberately left untouched: #35/#62/#63/#60 are implemented but
+**not merged**, and closure should follow the merge, not precede it.
+
+---
+
 ### 2026-07-19 — LANE A2: the CLI side of the output contract (#65 · #71 · #74 · boundary fail-loud) — COMMIT-AND-STOP
 
 **Did:** Parallel-lane build in worktree `lane-a2-cli-output-contract` (branch

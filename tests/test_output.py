@@ -116,6 +116,73 @@ def test_save_minority_report_routes_to_return_dir(tmp_path: Path, sample_questi
     assert saved[0].name == saved[1].name
 
 
+def test_minority_report_fails_loud_when_required_return_dir_unwritten(
+    tmp_path: Path, sample_question, sample_round
+) -> None:
+    """#35: the minority report now really carries the verdict's R4 guarantee.
+
+    Its docstring claimed "so a --return-dir also receives it" while the write was in fact
+    best-effort and a miss was swallowed. This pins the claim to the behaviour.
+    """
+    from ai_council.output import OutputRoutingError
+
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    canonical = tmp_path / "output"
+    # point return_dir at an existing FILE so its mkdir fails inside _write_routed
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        save_minority_report(result, canonical, return_dir=blocker)
+
+    assert [f.artifact for f in excinfo.value.failures] == ["minority report"]
+    assert len(list(canonical.glob("council-minority-*.md"))) == 1
+
+
+def test_routing_failures_aggregate_names_every_missed_deliverable(
+    tmp_path: Path, sample_question, sample_round
+) -> None:
+    """#35: a common-mode return-dir fault reports ALL deliverables, not just the first.
+
+    The writers share one --return-dir, so reporting only the first would understate what
+    the caller did not receive.
+    """
+    from ai_council.output import OutputRoutingError, RoutingFailure, raise_for_routing_failures
+
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    canonical = tmp_path / "output"
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    failures: list[RoutingFailure] = []
+    transcript = save_to_file(result, canonical, return_dir=blocker, routing_failures=failures)
+    minority = save_minority_report(
+        result, canonical, return_dir=blocker, stem_base=transcript[0].stem[len("council-out-"):],
+        routing_failures=failures,
+    )
+    save_verdict_package(
+        result, canonical, transcript[0], written={"minority": minority},
+        return_dir=blocker, routing_failures=failures,
+    )
+
+    # every canonical artifact landed despite the common-mode return-dir fault
+    assert transcript[0].exists() and minority[0].exists()
+    assert len(list(canonical.glob("council-verdict-*.json"))) == 1
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        raise_for_routing_failures(failures)
+    assert [f.artifact for f in excinfo.value.failures] == [
+        "transcript", "minority report", "verdict package",
+    ]
+    assert "3 deliverables not delivered" in str(excinfo.value)
+
+
+def test_raise_for_routing_failures_is_noop_when_empty() -> None:
+    from ai_council.output import raise_for_routing_failures
+
+    raise_for_routing_failures([])  # must not raise
+
+
 def test_minority_and_verdict_share_slug(tmp_path: Path, sample_question, sample_round) -> None:
     """The minority artifact sits alongside the verdict with the matching slug."""
     result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
@@ -439,23 +506,58 @@ def test_return_dir_content_identical_to_canonical(tmp_path: Path, sample_debate
     assert saved[0].name == saved[1].name
 
 
-def test_return_dir_failure_canonical_still_written(tmp_path: Path, sample_debate_result, monkeypatch, caplog) -> None:
-    """A return_dir write failure is best-effort: canonical is still written, warning logged."""
-    import logging
-    ret = tmp_path / "return"
+def _fail_mkdir_for(monkeypatch, doomed: Path) -> None:
+    """Make mkdir raise for exactly one dir, so only that destination fails."""
     original_mkdir = Path.mkdir
 
     def _selective_fail(self: Path, *args, **kwargs):
-        if self == ret:
+        if self == doomed:
             raise PermissionError("blocked")
         return original_mkdir(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "mkdir", _selective_fail)
-    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
-        saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
-    assert len(saved) == 1
-    assert saved[0].exists()
-    assert any("Return-dir write failed" in r.message for r in caplog.records)
+
+
+def test_return_dir_failure_raises_and_canonical_still_written(
+    tmp_path: Path, sample_debate_result, monkeypatch
+) -> None:
+    """#35/R4: a required return_dir miss raises rather than logging a warning and exiting 0.
+
+    Polarity inverted from the pre-#35 contract, which asserted this was best-effort. The
+    canonical write still lands first — R4 buys a loud failure, never a lost artifact.
+    """
+    from ai_council.output import OutputRoutingError
+
+    ret = tmp_path / "return"
+    canonical = tmp_path / "output"
+    _fail_mkdir_for(monkeypatch, ret)
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        save_to_file(sample_debate_result, canonical, return_dir=ret)
+
+    assert "transcript" in str(excinfo.value)
+    assert [f.artifact for f in excinfo.value.failures] == ["transcript"]
+    # canonical is written before the return-dir attempt, so it survives the raise
+    assert len(list(canonical.glob("council-out-*.md"))) == 1
+
+
+def test_return_dir_failure_recorded_when_caller_accumulates(
+    tmp_path: Path, sample_debate_result, monkeypatch
+) -> None:
+    """#35: with an accumulator the writer records and returns, so the caller can raise once."""
+    from ai_council.output import RoutingFailure
+
+    ret = tmp_path / "return"
+    canonical = tmp_path / "output"
+    _fail_mkdir_for(monkeypatch, ret)
+
+    failures: list[RoutingFailure] = []
+    saved = save_to_file(sample_debate_result, canonical, return_dir=ret, routing_failures=failures)
+
+    assert len(saved) == 1 and saved[0].exists()  # canonical only
+    assert [f.artifact for f in failures] == ["transcript"]
+    assert failures[0].destination == ret
+    assert "PermissionError" in failures[0].cause
 
 
 def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):
@@ -501,6 +603,124 @@ def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):
     assert by_seat["openai"]["fallback_events"][0]["cause"] == "timeout"
     # additive namespace: calls[] still present, seats[] alongside (not nested)
     assert "calls" in data and "seats" in data
+
+
+# ---------------------------------------------------------------------------
+# #63: a metrics-sidecar failure degrades, it does not suppress the deliverable
+# ---------------------------------------------------------------------------
+
+def _fail_sidecar_write(monkeypatch) -> None:
+    """Break only the *_metrics.json write, harness-side. No provider code is touched."""
+    original_write = Path.write_text
+
+    def _selective(self: Path, *args, **kwargs):
+        if self.name.endswith("_metrics.json"):
+            raise PermissionError("sidecar blocked")
+        return original_write(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _selective)
+
+
+def _result_with_metrics(sample_question, sample_round, **overrides) -> DebateResult:
+    return _pick_result(sample_question, sample_round, metrics=DebateMetrics(), **overrides)
+
+
+def test_sidecar_failure_does_not_abort_the_transcript(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: save_to_file absorbs the sidecar failure and still returns its paths.
+
+    Previously the exception propagated, so the orchestrator never reached
+    save_verdict_package and no contract_version package was emitted at all.
+    """
+    result = _result_with_metrics(sample_question, sample_round)
+    _fail_sidecar_write(monkeypatch)
+
+    saved = save_to_file(result, tmp_path / "out")
+
+    assert saved[0].exists()
+    assert not list((tmp_path / "out").glob("*_metrics.json"))
+
+
+def test_sidecar_failure_is_machine_readable_not_log_only(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: the failure rides the existing #26 degradation two-signal, not a log line alone.
+
+    A consumer must be able to tell "metrics failed" from "metrics never produced". No new
+    field or flag — degraded/degradation_summary are what _build_verdict_payload already
+    serializes, and exit_semantics stays 0.
+    """
+    result = _result_with_metrics(sample_question, sample_round)
+    assert result.degraded is False
+    _fail_sidecar_write(monkeypatch)
+
+    save_to_file(result, tmp_path / "out")
+
+    assert result.degraded is True
+    assert "metrics sidecar not written" in (result.degradation_summary or "")
+
+
+def test_sidecar_failure_preserves_an_existing_degradation_summary(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63: the sidecar note is appended, never clobbering a provider-degradation summary."""
+    result = _result_with_metrics(
+        sample_question, sample_round,
+        degraded=True, degradation_summary="2 of 5 providers failed",
+    )
+    _fail_sidecar_write(monkeypatch)
+
+    save_to_file(result, tmp_path / "out")
+
+    assert "2 of 5 providers failed" in (result.degradation_summary or "")
+    assert "metrics sidecar not written" in (result.degradation_summary or "")
+
+
+def test_sidecar_failure_still_emits_verdict_package_carrying_the_degradation(
+    tmp_path, sample_question, sample_round, monkeypatch
+):
+    """#63 end to end at the writer seam: package present AND the degradation is visible."""
+    import json as _json
+
+    result = _result_with_metrics(sample_question, sample_round)
+    out = tmp_path / "out"
+    _fail_sidecar_write(monkeypatch)
+
+    transcript = save_to_file(result, out)[0]
+    verdict = save_verdict_package(result, out, transcript, written={"transcript": [transcript]})
+
+    data = _json.loads(verdict[0].read_text(encoding="utf-8"))
+    assert data["contract_version"] == "1.0"
+    assert data["exit_semantics"] == 0  # two-signal: exit 0 + degradation flag
+    assert data["degradation"]["degraded"] is True
+    assert "metrics sidecar not written" in data["degradation"]["summary"]
+
+
+def test_verdict_manifest_omits_paths_not_on_disk(
+    tmp_path, sample_question, sample_round
+):
+    """#63: the manifest never advertises a file a consumer would then fail to find."""
+    import json as _json
+
+    result = _pick_result(sample_question, sample_round)
+    out = tmp_path / "out"
+    transcript = save_to_file(result, out)[0]
+    phantom = out / "council-out-phantom_metrics.json"  # never written
+
+    verdict = save_verdict_package(
+        result, out, transcript,
+        written={"transcript": [transcript], "metrics": [phantom]},
+    )
+
+    data = _json.loads(verdict[0].read_text(encoding="utf-8"))
+    kinds = {a["kind"] for a in data["artifacts"]}
+    assert "transcript" in kinds
+    assert "metrics" not in kinds  # dropped: the path does not exist
+    for artifact in data["artifacts"]:
+        for p in artifact["paths"]:
+            if artifact["kind"] != "verdict":  # verdict lists its own not-yet-written paths
+                assert Path(p).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -675,6 +895,95 @@ def test_options_ideas_top_tier_top_level_only_and_clean(tmp_path, sample_round)
     assert "Provider-specific API/model listing adapters" in items   # clean, no trailing **
     assert all("**" not in it for it in items)                  # emphasis stripped
     assert all("Who endorsed it" not in it for it in items)     # nested sub-bullet dropped
+
+
+# ---------------------------------------------------------------------------
+# #60 — a synthesis options heading with no bullets must not suppress the fallback
+# ---------------------------------------------------------------------------
+
+_PROSE_ONLY_OPTIONS = (
+    "## Recommendation\nAdopt YAML.\n\n"
+    "## Alternatives Considered\n"
+    "The panel weighed the alternatives at length and converged quickly.\n"
+)
+
+
+def test_options_prose_only_heading_falls_back_to_question():
+    """#60: the gate is 'no options extracted', not 'no section present'.
+
+    A synthesis heading whose body is prose used to short-circuit the fallback, yielding
+    items=[] under a heading that listed nothing.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    question = "Which config format?\n\n## Options\n- (a) Keep YAML\n- (b) Move to TOML\n"
+    opts = _extracted_options(
+        _split_sections(_PROSE_ONLY_OPTIONS), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["(a) Keep YAML", "(b) Move to TOML"]
+    assert opts["heading"] == "Options"  # adopted from the question
+    assert opts["source"] == "extraction"
+
+
+def test_options_fallback_never_clobbers_a_real_synthesis_heading():
+    """#60 clobber guard: a fallback that finds nothing must not overwrite the heading.
+
+    Gating on items alone — without checking the fallback actually produced any — would
+    rebind heading to None whenever the question carries no ## Options of its own.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    question = "Which config format? No options section here.\n"
+    opts = _extracted_options(
+        _split_sections(_PROSE_ONLY_OPTIONS), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == []
+    assert opts["heading"] == "Alternatives Considered"  # the synthesis heading, not None
+
+
+def test_options_prose_heading_does_not_hide_a_later_synthesis_section():
+    """#60: a prose options heading must not skip PAST bulleted synthesis options.
+
+    _first_by_priority returns the first matching section, so a prose
+    ## Alternatives Considered followed by a bulleted ## Options used to fall straight
+    through to the question's staler list. Raised by terra in adversarial review.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = (
+        "## Alternatives Considered\nThe panel weighed them at length.\n\n"
+        "## Options\n- Ship the shim\n- Rewrite the adapter\n"
+    )
+    question = "## Options\n- (a) Stale one\n- (b) Stale two\n"
+    opts = _extracted_options(
+        _split_sections(synthesis), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["Ship the shim", "Rewrite the adapter"]  # synthesis, not question
+    assert opts["heading"] == "Options"
+
+
+def test_routing_failure_aggregate_chains_the_underlying_cause():
+    """The accumulator path must chain a real traceback, like the direct path does."""
+    from ai_council.output import OutputRoutingError, RoutingFailure, raise_for_routing_failures
+
+    root = PermissionError("blocked")
+    failures = [RoutingFailure("transcript", Path("x"), "PermissionError: blocked", root)]
+    with pytest.raises(OutputRoutingError) as excinfo:
+        raise_for_routing_failures(failures)
+    assert excinfo.value.__cause__ is root
+
+
+def test_options_synthesis_bullets_still_win_over_the_question():
+    """#60 must not change the happy path: a synthesis WITH options is never overridden."""
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = "## Alternatives Considered\n- JSON: no comments\n- TOML: less familiar\n"
+    question = "## Options\n- (a) Keep YAML\n- (b) Move to TOML\n"
+    opts = _extracted_options(
+        _split_sections(synthesis), question_sections=_split_sections(question)
+    )
+    assert opts["items"] == ["JSON: no comments", "TOML: less familiar"]
+    assert opts["heading"] == "Alternatives Considered"
 
 
 def test_verdict_decision_strips_wrapping_emphasis(tmp_path, sample_question, sample_round):
