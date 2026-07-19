@@ -19,6 +19,38 @@
 
 ---
 
+### 2026-07-19 — PRE-HANDOFF CAPTURE: review-runner ambiguity filed, registry obligation bound to #27
+
+**Did:** Three loose ends captured before handoff. No new folders, no immutable edits, no code touched.
+
+**(1) Filed #73** ([S15]) for the stale review-runner reference. The finding is sharper than "the script is missing":
+**the script is mis-addressed, not absent.** #33 and #44 both cited `codex-review.ps1 -Topic <x>`, and no
+`scripts/codex-review.ps1` exists in this repo — but a functional-looking one (param block `-Topic`/`-DiffRange`/
+`-Focus`) lives at the **user level, `~/.claude/bin/codex-review.ps1`**, beside the `/codex-review` command that
+`docs/audits/2026-07-09-qa-lived-exercise.md` N5a witnessed running end-to-end on codex-cli 0.141.0. Every review
+this session ran through direct `codex exec --sandbox read-only` instead. Scoped **findings-only**: verify the
+global script still runs against current codex-cli (0.144.5 observed today), then decide and record the standing
+convention — `/codex-review`, direct `codex exec`, or a re-homed repo-local wrapper — reconciling CLAUDE.md §8.
+Explicitly **no `~/.claude/` edit**: core-invariant #6 makes global-infra changes exception-with-ruling, so if the
+answer is a global change it gets filed, not made.
+
+**(2) Bound the registry obligation to #27**, the task that triggers it: its done-when now also requires that **at
+unseal** the `2026-07-18-cli4-parity` row is retired from the `docs/audits/README.md` "Live corpora" table and the
+corpus moves to `docs/audits/archive/`, leaving the parity report as its essence markdown. Added a rider the
+registry alone would have missed — the move must also drop the now-dead `.gitignore:65` `SEALED-KEY.json` rule,
+since those rules are path-literal (the epi1 §6 procedure). This is what keeps the table from rotting while #68 is
+unbuilt: the obligation travels with the event, not with a guard that does not exist yet.
+
+**(3) #33 caveat — verified already present, deliberately NOT re-appended.** It is at `JOURNAL.md:111` in the
+2026-07-19 review-debt entry, carrying both halves: the `codex-review.ps1` staleness *and* terra's `tempfile`
+`FileNotFoundError` mid-pass-3, with the CLEAN verdict marked as carrying that asterisk and re-runnable. Appending
+a duplicate to an append-only record would have degraded it; confirming was the correct action.
+
+**Verified:** `validate_backlog` OK (7 themes, 14 stories, **50** tasks, 0 warnings); #73 placed in [S15]; #27's
+done-when re-read after edit. Note: a `print()` in the filing script hit the Windows cp1252 gotcha (CLAUDE.md §10)
+on a `↔` glyph — the file write had already completed with `encoding="utf-8"`, so the record is intact; the
+traceback was cosmetic, and it is logged here rather than passed off as a clean run.
+
 ### 2026-07-19 — AUDITS HYGIENE RULING: directory invariant corrected, live-corpus registry stood up
 
 **Did:** Docs-only ruling pass on `docs/audits/` — **no moves, no deletions, no new folders.** Nothing relocated:
