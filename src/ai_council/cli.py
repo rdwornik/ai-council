@@ -23,6 +23,7 @@ from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, 
 from ai_council.mode_detector import detect_mode
 from ai_council.models import Question, RunRequest
 from ai_council.orchestrator import CouncilRunner
+from ai_council.output import OutputRoutingError
 from ai_council.policy import RunPolicy
 from ai_council.providers.anthropic import AnthropicProvider
 from ai_council.providers.base import AIProvider
@@ -339,6 +340,33 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
+def _report_boundary_failure(exc: BaseException, *, what: str) -> None:
+    """Print a clean, type-appropriate message for a failure at the CLI boundary.
+
+    The four run/research boundary sites catch broadly (so a raw traceback never reaches the
+    operator) but must NOT collapse every failure into one label. Branching on type:
+
+    * ``OutputRoutingError`` (and anything Lane A1 subclasses from it) means a REQUIRED
+      deliverable did not land -- the message names the destination and reads as a routing
+      failure, which is what the caller must act on.
+    * anything else is an internal defect (a TypeError in synthesis, a KeyError in parsing).
+      Calling that a "required-write failure" would mislabel it and, worse, discard the
+      traceback needed to debug it -- so the full traceback goes to the log.
+
+    Callers exit non-zero afterwards; this function only reports.
+    """
+    if isinstance(exc, OutputRoutingError):
+        console.print(f"[bold red]Required write failed[/bold red] ({what}): {exc}")
+        logger.error("Required output write failed (%s): %s", what, exc)
+    else:
+        console.print(
+            f"[bold red]Unexpected error[/bold red] ({what}): {type(exc).__name__}: {exc}\n"
+            "[dim]This is an internal failure, not an output-routing problem. "
+            "Re-run with --verbose for the full traceback.[/dim]"
+        )
+        logger.error("Unexpected failure (%s)", what, exc_info=True)
+
+
 def _remove_scratch_dir(path: Path) -> None:
     """Remove a ``--no-persist`` scratch dir. NEVER raises (#71).
 
@@ -642,6 +670,7 @@ def run(
 
         # ADR-08: track degraded research runs across the batch; exit 3 at end.
         inbox_any_degraded = False
+        inbox_any_failed = False
         for file_path in all_files:
             try:
                 question_text, meta = parse_file(file_path, resolver=resolver)
@@ -698,7 +727,11 @@ def run(
                         click.echo(f"Archived: {file_path.name} -> {archived.name}")
                 except Exception as exc:
                     logger.error("Research failed: %s -- %s", file_path.name, exc)
+                    _report_boundary_failure(exc, what=f"research: {file_path.name}")
                     archive_file(file_path, archive_dir, failed=True)
+                    # Bookkeeping unchanged (still archived as failed, batch continues);
+                    # only the batch's final exit code changes -- see below.
+                    inbox_any_failed = True
                 continue
 
             mode_cfg = config.modes.get(fm_mode)
@@ -733,7 +766,16 @@ def run(
                     click.echo(f"Archived: {file_path.name} -> {archived.name}")
             except Exception as e:
                 logger.error("Failed: %s -- %s", file_path.name, e)
+                _report_boundary_failure(e, what=f"debate: {file_path.name}")
                 archive_file(file_path, archive_dir, failed=True)
+                inbox_any_failed = True
+
+        # Exit code computed at the END, after every file has been attempted -- a failure
+        # must never abort the batch. Failure DOMINATES degradation: >=1 hard failure is a
+        # hard error (1) even if other files merely degraded; degraded-only batches stay 3.
+        # Before this, a batch that failed every single file still exited 0.
+        if inbox_any_failed:
+            sys.exit(1)
         if inbox_any_degraded:
             sys.exit(3)
         return
@@ -812,8 +854,20 @@ def run(
                 target_paths=eff_target_paths or None,
                 return_dir=effective_return_dir,
             )
+        # OutputRoutingError subclasses RuntimeError, so it MUST be caught FIRST -- the
+        # pre-existing `except RuntimeError` below would otherwise swallow a required-write
+        # failure and mislabel it as a research error.
+        except OutputRoutingError as exc:
+            _report_boundary_failure(exc, what="research")
+            sys.exit(1)
         except RuntimeError as exc:
+            # An expected hard error (CONTRACT §4: research RuntimeError -> exit 1), not an
+            # internal defect -- keep the original, accurate wording.
             console.print(f"[bold red]Research error:[/bold red] {exc}")
+            sys.exit(1)
+        except Exception as exc:
+            # Previously escaped as a raw Click traceback (e.g. OSError).
+            _report_boundary_failure(exc, what="research")
             sys.exit(1)
         # Exit-code convention (ADR-08): 0 ok / 1 hard error / 2 Click usage / 3 degraded.
         if report is not None and report.degraded:
@@ -844,7 +898,13 @@ def run(
         target_paths=eff_target_paths,
         return_dir=effective_return_dir,
     )
-    asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
+    # Boundary: this site had NO handler at all, so every failure -- including a required
+    # -write failure -- reached the operator as a raw Click traceback.
+    try:
+        asyncio.run(runner.run(request, output_dir=effective_output, output_format=output_format))
+    except Exception as exc:
+        _report_boundary_failure(exc, what="debate")
+        sys.exit(1)
 
 
 @main.command("doctor")

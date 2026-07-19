@@ -11,6 +11,7 @@ from click.testing import CliRunner
 from ai_council import cli as cli_module
 from ai_council.cli import main
 from ai_council.models import DebateResult, Question, Round
+from ai_council.output import OutputRoutingError
 from ai_council.runner import (
     determine_panel as _determine_panel,
 )
@@ -768,6 +769,148 @@ def test_no_persist_beats_env(tmp_path, monkeypatch):
     assert "aicouncil-scratch-" in out.name
     assert out != tmp_path / "env_out"
     shutil.rmtree(out, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Required-write failures surface at the CLI boundary (all four sites)
+# ---------------------------------------------------------------------------
+
+def _research_capable_config(tmp_path):
+    """Test config whose mode table + research section let `--mode research` actually route
+    to the research code path (the minimal config has neither)."""
+    from config.config_loader import ModeConfig
+
+    config = _make_test_config(tmp_path)
+    config.modes = {
+        "pick": ModeConfig(
+            description="pick", emoji="*", aliases=["p"], default=True,
+            max_rounds=2, token_budget=1000,
+        ),
+        "research": ModeConfig(
+            description="research", emoji="*", aliases=["r"], default=False,
+            max_rounds=1, token_budget=1000,
+        ),
+    }
+    config.research = _research_cfg(summary_model="claude")
+    return config
+
+
+def _run_with_failure(config, args, exc, *, research=False):
+    """Invoke the CLI with the run/research call raising `exc`; return the CliRunner result."""
+    fake_provider = MockProvider("claude")
+
+    async def _boom(request, output_dir=None, output_format="text"):
+        raise exc
+
+    stack = [
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+    ]
+    if research:
+        stack.append(patch("ai_council.cli._run_research_dispatch", side_effect=exc))
+        with stack[0], stack[1], stack[2]:
+            return CliRunner().invoke(main, args)
+    with stack[0], stack[1], patch("ai_council.cli.CouncilRunner") as MockRunner:
+        MockRunner.return_value.run = _boom
+        return CliRunner().invoke(main, args)
+
+
+def test_interactive_debate_required_write_failure_exits_nonzero(tmp_path, monkeypatch):
+    """Criterion 3: the interactive debate site had NO handler -- a required-write failure
+    escaped as a raw traceback. It must now exit 1 with a clean message."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    exc = OutputRoutingError("verdict package failed to reach required return-dir: /nope")
+    result = _run_with_failure(config, ["--skip-health-check", "--mode", "pick", "q"], exc)
+
+    assert result.exit_code == 1
+    assert "Required write failed" in result.output
+    assert "/nope" in result.output
+    assert "Traceback (most recent call last)" not in result.output
+
+
+def test_interactive_debate_internal_error_is_not_mislabelled(tmp_path, monkeypatch):
+    """A programming bug must NOT be reported as a routing problem, and must still exit 1."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    result = _run_with_failure(
+        config, ["--skip-health-check", "--mode", "pick", "q"], TypeError("bad synthesis")
+    )
+
+    assert result.exit_code == 1
+    assert "Unexpected error" in result.output
+    assert "TypeError" in result.output
+    assert "Required write failed" not in result.output
+    assert "Traceback (most recent call last)" not in result.output
+
+
+def test_interactive_research_required_write_beats_runtimeerror_branch(tmp_path, monkeypatch):
+    """OutputRoutingError subclasses RuntimeError -- the pre-existing `except RuntimeError`
+    would otherwise catch it and mislabel it 'Research error'."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _research_capable_config(tmp_path)
+    exc = OutputRoutingError("research report failed to reach required return-dir: /nope")
+    result = _run_with_failure(
+        config, ["--skip-health-check", "--mode", "research", "q"], exc, research=True
+    )
+
+    assert result.exit_code == 1
+    assert "Required write failed" in result.output
+    assert "Research error" not in result.output, "mislabelled as a research error"
+
+
+def test_interactive_research_oserror_no_longer_escapes(tmp_path, monkeypatch):
+    """The narrow `except RuntimeError` let OSError escape as a raw traceback."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _research_capable_config(tmp_path)
+    result = _run_with_failure(
+        config, ["--skip-health-check", "--mode", "research", "q"],
+        OSError("disk full"), research=True,
+    )
+
+    assert result.exit_code == 1
+    assert "Unexpected error" in result.output
+    assert "Traceback (most recent call last)" not in result.output
+
+
+def test_inbox_batch_does_not_abort_and_exits_nonzero(tmp_path, monkeypatch):
+    """Criterion 3 + the no-abort constraint: a required-write failure on ONE file must not
+    stop the batch. Every remaining file is still processed and archived (bookkeeping
+    unchanged); only the final exit code changes -- previously a bare 0.
+    """
+    from config.config_loader import InboxConfig
+
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    inbox_dir, archive_dir = tmp_path / "inbox", tmp_path / "archive"
+    config.inbox = InboxConfig(dir=inbox_dir, archive_dir=archive_dir, scan_downloads=False)
+    inbox_dir.mkdir(parents=True)
+    for name in ("a", "b", "c"):
+        (inbox_dir / f"{name}.md").write_text(f"question {name}\n", encoding="utf-8")
+
+    seen: list[str] = []
+
+    async def _run(request, output_dir=None, output_format="text"):
+        seen.append(Path(request.question.source).stem)
+        if Path(request.question.source).stem == "b":  # middle file fails
+            raise OutputRoutingError("failed to reach required return-dir: /nope")
+        return DebateResult(
+            question=request.question, rounds=[Round(number=1, responses=[])],
+            synthesis="ok", synthesizer="claude", total_duration_sec=1.0, panel_mode="custom",
+        )
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": MockProvider("claude")}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _run
+        result = CliRunner().invoke(main, ["--skip-health-check", "--inbox"])
+
+    assert seen == ["a", "b", "c"], f"batch aborted early: {seen}"
+    assert result.exit_code == 1, "a required-write failure must not exit 0"
+    assert not list(inbox_dir.glob("*.md")), "every file should have left the inbox"
+    assert len(list(archive_dir.rglob("*.md"))) == 3, "archive-as-failed bookkeeping changed"
 
 
 # ---------------------------------------------------------------------------
