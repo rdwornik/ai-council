@@ -766,3 +766,20 @@ def test_no_persist_beats_env(tmp_path, monkeypatch):
     assert "aicouncil-scratch-" in out.name
     assert out != tmp_path / "env_out"
     shutil.rmtree(out, ignore_errors=True)
+
+
+def test_output_flag_expands_user(tmp_path, monkeypatch):
+    """#74: --output honours ~ expansion, symmetric with the env branch.
+
+    Before the fix `--output ~/foo` produced a literal './~/foo' directory because only
+    the AICOUNCIL_OUTPUT_DIR branch called .expanduser().
+    """
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows home resolution
+    config = _make_test_config(tmp_path)
+    out = _capture_output_dir(
+        config, ["--skip-health-check", "--mode", "pick", "--output", "~/council_out", "q"]
+    )
+    assert out == tmp_path / "council_out"
+    assert "~" not in str(out)

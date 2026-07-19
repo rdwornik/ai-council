@@ -350,7 +350,10 @@ def _resolve_output_dir(config: AppConfig, output_path: str | None, no_persist: 
     """
     env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
     if output_path:
-        return Path(output_path)
+        # #74: expand ~ here too. The env branch below always did; --output did not, so
+        # `--output ~/foo` created a literal './~/foo' directory instead of resolving to
+        # the home dir. Both string-sourced branches now expand symmetrically.
+        return Path(output_path).expanduser()
     if no_persist:
         return Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
     if env_output:
