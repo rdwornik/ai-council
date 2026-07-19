@@ -1,12 +1,14 @@
 """Tests for CLI panel/synthesizer selection logic in src/cli.py."""
 
 import os
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
+from ai_council import cli as cli_module
 from ai_council.cli import main
 from ai_council.models import DebateResult, Question, Round
 from ai_council.runner import (
@@ -766,6 +768,116 @@ def test_no_persist_beats_env(tmp_path, monkeypatch):
     assert "aicouncil-scratch-" in out.name
     assert out != tmp_path / "env_out"
     shutil.rmtree(out, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# #71: --no-persist removes its scratch dir on exit AND on abort
+# ---------------------------------------------------------------------------
+
+def _scratch_dirs() -> set:
+    """Names of aicouncil scratch dirs currently in the system temp dir."""
+    import tempfile as _tf
+    return {p.name for p in Path(_tf.gettempdir()).glob("aicouncil-scratch-*")}
+
+
+def test_no_persist_removes_scratch_on_success(tmp_path, monkeypatch):
+    """#71: before/after temp-dir count is unchanged after a successful --no-persist run."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    before = _scratch_dirs()
+    out = _capture_output_dir(config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"])
+    after = _scratch_dirs()
+    assert "aicouncil-scratch-" in out.name  # it really did use a scratch dir
+    assert not out.exists(), "scratch dir survived a successful run"
+    assert after == before, f"leaked scratch dir(s): {after - before}"
+
+
+def test_no_persist_removes_scratch_on_abort(tmp_path, monkeypatch):
+    """#71: cleanup fires even when the command body raises (CLAUDE.md §5.9 -- cleanup
+    fires even on abort). A happy-path-only cleanup would leak here."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    fake_provider = MockProvider("claude")
+    captured: dict = {}
+
+    async def _boom(request, output_dir=None, output_format="text"):
+        captured["output_dir"] = output_dir
+        raise RuntimeError("injected mid-run failure")
+
+    before = _scratch_dirs()
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _boom
+        result = CliRunner().invoke(
+            main, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
+        )
+    after = _scratch_dirs()
+
+    assert result.exit_code != 0, "an injected failure must not exit 0"
+    assert captured["output_dir"] is not None
+    assert not captured["output_dir"].exists(), "scratch dir survived an aborted run"
+    assert after == before, f"leaked scratch dir(s) on abort: {after - before}"
+
+
+def test_scratch_cleanup_failure_is_not_fatal(tmp_path, monkeypatch):
+    """#71: a cleanup blocked by an open handle must NOT change the exit code, must name
+    the path it could not remove, and must not mask an in-flight exception.
+
+    On Windows rmtree raises PermissionError whenever a handle is still open -- if that
+    escaped through Click's context teardown it would turn a green run red, or chain over
+    the real error the run was already reporting.
+    """
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    blocked = PermissionError(13, "The process cannot access the file")
+
+    # `console` is a module-level Rich Console bound to stdout at import, so capsys cannot
+    # see it -- capture the call instead.
+    printed: list[str] = []
+    with (
+        patch("ai_council.cli.shutil.rmtree", side_effect=blocked),
+        patch.object(cli_module.console, "print", side_effect=lambda *a, **k: printed.append(str(a[0]))),
+    ):
+        out = _capture_output_dir(
+            config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
+        )
+    warning = "\n".join(printed)
+
+    assert out is not None
+    assert "could not remove scratch dir" in warning
+    assert str(out) in warning, "the warning must name the path that survived"
+    assert "still on disk" in warning, "the leak must stay visible, not be silently swallowed"
+    shutil.rmtree(out, ignore_errors=True)  # no leftovers from this test
+
+
+def test_scratch_cleanup_failure_does_not_mask_in_flight_exception(tmp_path, monkeypatch):
+    """#71: when the command already failed, the ORIGINAL error is what reaches the caller
+    -- a cleanup PermissionError must not replace it during unwind."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_test_config(tmp_path)
+    fake_provider = MockProvider("claude")
+
+    async def _boom(request, output_dir=None, output_format="text"):
+        raise RuntimeError("the real root cause")
+
+    with (
+        patch("ai_council.cli.load_config", return_value=config),
+        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+        patch("ai_council.cli.shutil.rmtree", side_effect=PermissionError(13, "handle open")),
+        patch("ai_council.cli.CouncilRunner") as MockRunner,
+    ):
+        MockRunner.return_value.run = _boom
+        result = CliRunner().invoke(
+            main, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
+        )
+
+    assert result.exit_code != 0
+    # The surviving exception is the run's, not the cleanup's.
+    assert "the real root cause" in result.output or isinstance(result.exception, RuntimeError)
+    assert not isinstance(result.exception, PermissionError), "cleanup masked the root cause"
 
 
 def test_output_flag_expands_user(tmp_path, monkeypatch):

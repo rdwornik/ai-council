@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -338,7 +339,32 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
-def _resolve_output_dir(config: AppConfig, output_path: str | None, no_persist: bool) -> Path:
+def _remove_scratch_dir(path: Path) -> None:
+    """Remove a ``--no-persist`` scratch dir. NEVER raises (#71).
+
+    Registered via ``ctx.call_on_close``, so this runs inside Click's context teardown --
+    which also runs while an exception from the command is propagating. A raising cleanup
+    would therefore either turn a successful run red, or chain over the in-flight exception
+    and mask the root cause the run was already reporting. On Windows that is not
+    hypothetical: ``rmtree`` raises PermissionError whenever a handle is still open.
+
+    #71's harm is a leftover directory; trading it for a crash or a swallowed root cause is
+    a bad trade. So a cleanup failure never changes the exit code -- it warns loudly, naming
+    the path that survived, and leaves the leak visible.
+    """
+    try:
+        shutil.rmtree(path)
+    except OSError as exc:
+        console.print(
+            f"[yellow]WARNING:[/yellow] could not remove scratch dir {path}: {exc} "
+            "-- it is still on disk; remove it manually."
+        )
+        logger.warning("Scratch dir cleanup failed for %s (non-fatal)", path, exc_info=True)
+
+
+def _resolve_output_dir(
+    ctx: click.Context, config: AppConfig, output_path: str | None, no_persist: bool
+) -> Path:
     """Resolve the canonical output dir for ANY command (#39, #65).
 
     Precedence, highest first: ``--output`` flag > ``--no-persist`` (scratch temp, canonical
@@ -347,6 +373,9 @@ def _resolve_output_dir(config: AppConfig, output_path: str | None, no_persist: 
 
     Single source of truth: every command resolves here, so ``run`` and ``doctor`` cannot
     drift apart (they did -- ``doctor`` honoured none of these controls before #65).
+
+    The ``--no-persist`` scratch dir's removal is registered on ``ctx`` at creation, so
+    cleanup fires on success, on ``sys.exit``, and on an unhandled exception (#71).
     """
     env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
     if output_path:
@@ -355,7 +384,12 @@ def _resolve_output_dir(config: AppConfig, output_path: str | None, no_persist: 
         # the home dir. Both string-sourced branches now expand symmetrically.
         return Path(output_path).expanduser()
     if no_persist:
-        return Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
+        scratch = Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
+        # Registered immediately after creation: nothing between here and the command body
+        # can leave the dir unregistered. Click runs close callbacks from the context's
+        # ExitStack in main()'s finally -- success, sys.exit, and exception alike.
+        ctx.call_on_close(lambda: _remove_scratch_dir(scratch))
+        return scratch
     if env_output:
         return Path(env_output).expanduser()
     return config.defaults.output_dir
@@ -482,7 +516,9 @@ def main() -> None:
         "Must be a name in the config/settings.yaml target_projects list; path resolved under dev_root."
     ),
 )
+@click.pass_context
 def run(
+    ctx: click.Context,
     question: str | None,
     question_file: str | None,
     rounds: int | None,
@@ -538,7 +574,7 @@ def run(
         config = load_config()
 
     # Output-dir resolution (#39) -- one resolver shared with `doctor` (#65).
-    effective_output = _resolve_output_dir(config, output_path, no_persist)
+    effective_output = _resolve_output_dir(ctx, config, output_path, no_persist)
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
     # ADR-10 deterministic return directory. Precedence (highest first):
@@ -824,7 +860,8 @@ def run(
     help="Write the health record to a scratch temp dir, leaving canonical ./output/ "
          "untouched; the scratch dir is removed when the command exits.",
 )
-def doctor(output_path: str | None, no_persist: bool) -> None:
+@click.pass_context
+def doctor(ctx: click.Context, output_path: str | None, no_persist: bool) -> None:
     """Liveness + config pre-flight: a GREEN/YELLOW/RED truth table over keys, seats, and
     config. Writes a machine-readable record to <output-dir>/health/. Never blocks a run.
 
@@ -876,7 +913,7 @@ def doctor(output_path: str | None, no_persist: bool) -> None:
 
     # #65: resolve through the SAME chain as `run` -- before this, doctor ignored every
     # output control and always wrote to canonical ./output/health/.
-    effective_output = _resolve_output_dir(config, output_path, no_persist)
+    effective_output = _resolve_output_dir(ctx, config, output_path, no_persist)
 
     exit_code = run_doctor(
         config,

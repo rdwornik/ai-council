@@ -455,15 +455,17 @@ def test_doctor_honours_env_output_dir(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_doctor_no_persist_leaves_canonical_untouched(tmp_path: Path, monkeypatch) -> None:
-    """#65: --no-persist keeps the health record out of canonical output/health/.
-
-    (Scratch-dir CLEANUP is #71's contract, asserted separately in test_cli.py.)
-    """
+    """#65 + #71: doctor --no-persist keeps the record out of canonical output/health/ AND
+    leaves no scratch dir behind -- doctor shares run's resolver, so it shares its cleanup."""
+    import tempfile as _tf
     monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
     config = _make_config(tmp_path)
+    before = {p.name for p in Path(_tf.gettempdir()).glob("aicouncil-scratch-*")}
     result = _invoke_doctor(config, ["--no-persist"])
+    after = {p.name for p in Path(_tf.gettempdir()).glob("aicouncil-scratch-*")}
     assert result.exit_code == 0
     assert not (config.defaults.output_dir / "health").exists()
+    assert after == before, f"leaked scratch dir(s): {after - before}"
 
 
 def test_doctor_output_flag_beats_env(tmp_path: Path, monkeypatch) -> None:
