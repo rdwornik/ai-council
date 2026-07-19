@@ -10,9 +10,11 @@ from pathlib import Path
 from ai_council.debate import run_debate
 from ai_council.models import DebateOutcome, DebateResult, RunRequest
 from ai_council.output import (
+    RoutingFailure,
     print_cost_summary,
     print_round_summary,
     print_synthesis,
+    raise_for_routing_failures,
     save_minority_report,
     save_to_file,
     save_verdict_package,
@@ -165,6 +167,13 @@ class CouncilRunner:
         if result.metrics:
             print_cost_summary(result.metrics)
 
+        # R4 (#35/#62): every writer below targets the SAME --return-dir, so a fault there is
+        # normally common-mode. Accumulate the misses instead of raising at the first one, so
+        # each deliverable still reaches the CANONICAL dir, then fail once with the aggregate
+        # after the last write. Raising inline would abort this function on the transcript and
+        # cost the minority report and verdict package their canonical copies too.
+        routing_failures: list[RoutingFailure] = []
+
         saved_paths = save_to_file(
             result,
             output_dir,
@@ -172,6 +181,7 @@ class CouncilRunner:
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
             return_dir=request.return_dir,
+            routing_failures=routing_failures,
         )
         console.print(f"\n[dim]Saved: {saved_paths[0]}[/dim]")
         if len(saved_paths) > 1:
@@ -194,6 +204,7 @@ class CouncilRunner:
             target_paths=request.target_paths,
             return_dir=request.return_dir,
             stem_base=run_base,
+            routing_failures=routing_failures,
         )
         if minority_paths:
             console.print(
@@ -219,6 +230,7 @@ class CouncilRunner:
             secondary_dir=secondary_dir,
             target_paths=request.target_paths,
             return_dir=request.return_dir,
+            routing_failures=routing_failures,
         )
         console.print(f"[dim]Verdict package: {verdict_paths[0]}[/dim]")
         for p in verdict_paths[1:]:
@@ -230,5 +242,10 @@ class CouncilRunner:
             import sys
 
             print(json.dumps(dataclasses.asdict(result), indent=2, default=str), file=sys.stdout)
+
+        # R4: every canonical artifact is now on disk and every diagnostic emitted. If any
+        # REQUIRED --return-dir write missed, fail here with the full set — deliberately not
+        # in a finally, where an exception would mask the original.
+        raise_for_routing_failures(routing_failures)
 
         return result

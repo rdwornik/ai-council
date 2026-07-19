@@ -116,6 +116,73 @@ def test_save_minority_report_routes_to_return_dir(tmp_path: Path, sample_questi
     assert saved[0].name == saved[1].name
 
 
+def test_minority_report_fails_loud_when_required_return_dir_unwritten(
+    tmp_path: Path, sample_question, sample_round
+) -> None:
+    """#35: the minority report now really carries the verdict's R4 guarantee.
+
+    Its docstring claimed "so a --return-dir also receives it" while the write was in fact
+    best-effort and a miss was swallowed. This pins the claim to the behaviour.
+    """
+    from ai_council.output import OutputRoutingError
+
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    canonical = tmp_path / "output"
+    # point return_dir at an existing FILE so its mkdir fails inside _write_routed
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        save_minority_report(result, canonical, return_dir=blocker)
+
+    assert [f.artifact for f in excinfo.value.failures] == ["minority report"]
+    assert len(list(canonical.glob("council-minority-*.md"))) == 1
+
+
+def test_routing_failures_aggregate_names_every_missed_deliverable(
+    tmp_path: Path, sample_question, sample_round
+) -> None:
+    """#35: a common-mode return-dir fault reports ALL deliverables, not just the first.
+
+    The writers share one --return-dir, so reporting only the first would understate what
+    the caller did not receive.
+    """
+    from ai_council.output import OutputRoutingError, RoutingFailure, raise_for_routing_failures
+
+    result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
+    canonical = tmp_path / "output"
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+
+    failures: list[RoutingFailure] = []
+    transcript = save_to_file(result, canonical, return_dir=blocker, routing_failures=failures)
+    minority = save_minority_report(
+        result, canonical, return_dir=blocker, stem_base=transcript[0].stem[len("council-out-"):],
+        routing_failures=failures,
+    )
+    save_verdict_package(
+        result, canonical, transcript[0], written={"minority": minority},
+        return_dir=blocker, routing_failures=failures,
+    )
+
+    # every canonical artifact landed despite the common-mode return-dir fault
+    assert transcript[0].exists() and minority[0].exists()
+    assert len(list(canonical.glob("council-verdict-*.json"))) == 1
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        raise_for_routing_failures(failures)
+    assert [f.artifact for f in excinfo.value.failures] == [
+        "transcript", "minority report", "verdict package",
+    ]
+    assert "3 deliverables not delivered" in str(excinfo.value)
+
+
+def test_raise_for_routing_failures_is_noop_when_empty() -> None:
+    from ai_council.output import raise_for_routing_failures
+
+    raise_for_routing_failures([])  # must not raise
+
+
 def test_minority_and_verdict_share_slug(tmp_path: Path, sample_question, sample_round) -> None:
     """The minority artifact sits alongside the verdict with the matching slug."""
     result = _result_with_synthesis(_DISSENT_SYNTHESIS, sample_question, sample_round)
@@ -439,23 +506,58 @@ def test_return_dir_content_identical_to_canonical(tmp_path: Path, sample_debate
     assert saved[0].name == saved[1].name
 
 
-def test_return_dir_failure_canonical_still_written(tmp_path: Path, sample_debate_result, monkeypatch, caplog) -> None:
-    """A return_dir write failure is best-effort: canonical is still written, warning logged."""
-    import logging
-    ret = tmp_path / "return"
+def _fail_mkdir_for(monkeypatch, doomed: Path) -> None:
+    """Make mkdir raise for exactly one dir, so only that destination fails."""
     original_mkdir = Path.mkdir
 
     def _selective_fail(self: Path, *args, **kwargs):
-        if self == ret:
+        if self == doomed:
             raise PermissionError("blocked")
         return original_mkdir(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "mkdir", _selective_fail)
-    with caplog.at_level(logging.WARNING, logger="ai_council.output"):
-        saved = save_to_file(sample_debate_result, tmp_path / "output", return_dir=ret)
-    assert len(saved) == 1
-    assert saved[0].exists()
-    assert any("Return-dir write failed" in r.message for r in caplog.records)
+
+
+def test_return_dir_failure_raises_and_canonical_still_written(
+    tmp_path: Path, sample_debate_result, monkeypatch
+) -> None:
+    """#35/R4: a required return_dir miss raises rather than logging a warning and exiting 0.
+
+    Polarity inverted from the pre-#35 contract, which asserted this was best-effort. The
+    canonical write still lands first — R4 buys a loud failure, never a lost artifact.
+    """
+    from ai_council.output import OutputRoutingError
+
+    ret = tmp_path / "return"
+    canonical = tmp_path / "output"
+    _fail_mkdir_for(monkeypatch, ret)
+
+    with pytest.raises(OutputRoutingError) as excinfo:
+        save_to_file(sample_debate_result, canonical, return_dir=ret)
+
+    assert "transcript" in str(excinfo.value)
+    assert [f.artifact for f in excinfo.value.failures] == ["transcript"]
+    # canonical is written before the return-dir attempt, so it survives the raise
+    assert len(list(canonical.glob("council-out-*.md"))) == 1
+
+
+def test_return_dir_failure_recorded_when_caller_accumulates(
+    tmp_path: Path, sample_debate_result, monkeypatch
+) -> None:
+    """#35: with an accumulator the writer records and returns, so the caller can raise once."""
+    from ai_council.output import RoutingFailure
+
+    ret = tmp_path / "return"
+    canonical = tmp_path / "output"
+    _fail_mkdir_for(monkeypatch, ret)
+
+    failures: list[RoutingFailure] = []
+    saved = save_to_file(sample_debate_result, canonical, return_dir=ret, routing_failures=failures)
+
+    assert len(saved) == 1 and saved[0].exists()  # canonical only
+    assert [f.artifact for f in failures] == ["transcript"]
+    assert failures[0].destination == ret
+    assert "PermissionError" in failures[0].cause
 
 
 def test_save_metrics_json_emits_seats(tmp_path, sample_question, sample_round):

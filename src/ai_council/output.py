@@ -437,14 +437,19 @@ def save_to_file(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Save the full debate transcript as a markdown file.
 
     Pure orchestration (audit A4): filename derivation, content assembly via
     ``_build_header``/``_build_body``, routed write, metrics trigger. Writes to
     output_dir (always, canonical), secondary_dir (if it exists on disk), return_dir
-    (ADR-10 deterministic return; auto-mkdir, best-effort), and each path in
+    (ADR-10 deterministic return; auto-mkdir, REQUIRED per R4), and each path in
     target_paths (auto-mkdir, best-effort).
+
+    An explicit ``return_dir`` is a required deliverable (#35): a write that does not
+    land there is reported into ``routing_failures`` when the caller is accumulating, and
+    raises ``OutputRoutingError`` when it is not. Never silently dropped either way.
 
     Returns:
         List of paths written. First entry is always the primary path.
@@ -470,7 +475,8 @@ def save_to_file(
         target_paths,
         return_dir,
         artifact="transcript",
-        return_dir_required=False,
+        return_dir_required=True,
+        routing_failures=routing_failures,
     )
     logger.info("Debate saved to: %s", saved[0])
 
@@ -572,12 +578,19 @@ def save_minority_report(
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
     stem_base: str | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Emit the minority/dissent report as a discrete, durable artifact (Rama 4, #15).
 
     Fires only when the verdict is non-unanimous (see extract_dissent). Routed to the
     same destinations as the verdict via _write_routed (canonical + secondary + return +
-    targets), so a --return-dir also receives it. Returns [] when there is no dissent.
+    targets). Returns [] when there is no dissent.
+
+    An explicit ``return_dir`` is a required deliverable and carries the same R4 guarantee
+    as the verdict (#35): a write that does not land there is reported into
+    ``routing_failures`` when the caller is accumulating, and raises ``OutputRoutingError``
+    when it is not. Until #35 this docstring claimed "so a --return-dir also receives it",
+    which the code did not honour — the write was best-effort and a miss was swallowed.
 
     ``stem_base`` (``<ts>-<mode>-<slug>``, from the transcript) makes this report share the
     transcript's exact <ts> — so the verdict package's minority pointer always resolves and
@@ -619,7 +632,8 @@ def save_minority_report(
         target_paths,
         return_dir,
         artifact="minority report",
-        return_dir_required=False,
+        return_dir_required=True,
+        routing_failures=routing_failures,
     )
     logger.info("Minority report saved to: %s", saved[0])
     return saved
@@ -867,6 +881,7 @@ def save_verdict_package(
     secondary_dir: Path | None = None,
     target_paths: list[Path] | None = None,
     return_dir: Path | None = None,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Emit the DRAFT-INT-1 verdict package as a sibling of save_to_file (#26).
 
@@ -900,6 +915,7 @@ def save_verdict_package(
         return_dir,
         artifact="verdict package",
         return_dir_required=True,
+        routing_failures=routing_failures,
     )
     logger.info("Verdict package saved to: %s", saved[0])
     return saved
