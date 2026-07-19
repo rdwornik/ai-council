@@ -282,10 +282,21 @@ Recorded so the next reader does not over-trust these guards.
    today because it legitimately holds prose for a not-yet-written artifact — the `cli4-parity`
    row's essence cell reads *"The parity report written at unseal"*. So the #68 claim is
    narrower than the written invariant: it enforces the row, not the essence file. (terra finding.)
-8. **No unit tests.** `tests/test_validate_audit_casing.py` is the repo's precedent for
-   validator coverage, and neither new guard has an equivalent. Adding test files was outside
-   this lane's approved path list, so this is a **recorded gap, not a waiver** — see the
-   handoff note below.
+8. ~~No unit tests.~~ **RESOLVED.** `tests/test_validate_sealed_keys.py` and
+   `tests/test_validate_docs_registry.py` added on operator instruction, following the
+   `tests/test_validate_audit_casing.py` precedent (direct classifier tests + end-to-end against
+   a real temp git repo). **43 tests**, one named regression per bypass found by sol, terra, or
+   self-review.
+
+   The regression tests were themselves verified: both guards were temporarily reverted to the
+   pre-fix `--name-only` (no `-z`) form and the two unicode tests **failed** as they must, then
+   passed again once restored. A regression test that passes against the broken code is
+   worthless, so this check is the point.
+
+   ```
+   pre-fix guards:  2 failed  (unicode dir BYPASSED the guard: assert 0 == 1)
+   fixed guards:    43 passed
+   ```
 9. **A flat or packed corpus at the audits root** (`raw-trial-001.json …`, or a `.zip`) creates
    no directory and is not caught. That is invariant class (a) enforcement — a different guard
    from #68's directory registry check.
