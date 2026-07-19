@@ -1,5 +1,9 @@
 # EPI-1 archaeology pack — condensation (essence of the retained reversal instrument)
 
+> **Amendment 2026-07-19 (in-file marker; body below unchanged):** this document is the **front door for the
+> still-in-place corpus at `docs/audits/2026-07-17-epi1-archaeology/`** — read it instead of opening the pack.
+> It is the registered essence markdown required by the `docs/audits/README.md` "Live corpora" registry.
+
 **Class:** audits (condensation record) · **Date:** 2026-07-19 · **Status:** ACTIVE INSTRUMENT — retained, unscored
 **Purpose:** capture the essence of the EPI-1 blind-scoring pack so the pack itself need not be opened to know
 what it is, what it can overturn, and how to use it. **Additive — nothing existing was edited; the pack was read

@@ -19,6 +19,40 @@
 
 ---
 
+### 2026-07-19 — AUDITS HYGIENE RULING: directory invariant corrected, live-corpus registry stood up
+
+**Did:** Docs-only ruling pass on `docs/audits/` — **no moves, no deletions, no new folders.** Nothing relocated:
+EPI-1 stays (the three reasons in its §6 stand), `2026-07-18-cli4-parity/` stays until #27 scoring completes, and
+`archive/` is taxonomy rather than clutter.
+
+**Corrected the standing rule.** The invariant was being carried as "markdown only" — which was never true and
+which I had already flagged as unachievable when a prior sweep asked for it. `docs/audits/README.md` now states
+the real three-class invariant: (a) date-slug markdown records, (b) `archive/` governed by its own README, (c) **at
+most a registered live corpus**. A corpus may sit at this root **only while live AND only with both** an essence
+markdown at the root and a registry row — the operative sentence being that an unregistered folder is
+indistinguishable from a leftover.
+
+**Stood up the "Live corpora" registry** — a five-column table (path · what it is · the ruling that keeps it here ·
+its essence markdown · its exit condition), two rows today: **epi1-archaeology** (reversal instrument for the G3
+synthesizer ruling; essence = the 2026-07-19 condensation; exits when that ruling is reversed or permanently
+settled) and **cli4-parity** (live #27 blind trial + exclusion zone; essence = the parity report written at unseal;
+exits to `archive/` once scoring and unseal complete). Both rows verified to resolve to real paths.
+
+**Rewrote #68 as a registry check, not a blanket ban.** The guard now rejects a new `docs/` directory that is
+neither a sanctioned taxonomy folder nor a registered live corpus with an essence markdown — explicitly *not* a
+blanket directory ban, which would have wrongly rejected `archive/` itself and both corpora that legitimately sit
+in `docs/audits/` today. Second arm retained for empty directories (git tracks none, so nothing else surfaces one).
+Its evidence line now carries **two** real same-day instances: the `docs/smoke/` leftover, and the two
+**unregistered** corpus folders whose legitimacy could previously only be established by reading JOURNAL history.
+
+**Immutability respected.** The epi1 condensation was already committed, so the front-door line was added as a
+dated **in-file amendment marker** with the body byte-unchanged — the mechanism CLAUDE.md §5.3 permits and the same
+pattern as the 2026-07-18 `Deployment-Status` stamps. Not edited in place.
+
+**Verified:** `validate_backlog` OK (7 themes, 14 stories, 49 tasks, 0 warnings); `validate_audit_casing --all`
+exit 0; all four registry/taxonomy paths resolve; `git check-ignore` confirms **both** sealed keys still ignored
+(`.gitignore:61` epi1, `:65` cli4) — neither seal was opened or disturbed.
+
 ### 2026-07-19 — EPI-1 CONDENSATION: essence captured, pack retained in place (relocation declined on the record)
 
 **Did:** Condensed the EPI-1 archaeology pack into one additive audit at the audits root —
