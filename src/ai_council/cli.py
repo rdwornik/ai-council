@@ -338,6 +338,26 @@ def _print_modes_callback(ctx: click.Context, _param: click.Parameter, value: bo
     ctx.exit()
 
 
+def _resolve_output_dir(config: AppConfig, output_path: str | None, no_persist: bool) -> Path:
+    """Resolve the canonical output dir for ANY command (#39, #65).
+
+    Precedence, highest first: ``--output`` flag > ``--no-persist`` (scratch temp, canonical
+    output/ untouched) > ``AICOUNCIL_OUTPUT_DIR`` env override > config default. No routing
+    redesign -- this only chooses the canonical dir the writers already write to.
+
+    Single source of truth: every command resolves here, so ``run`` and ``doctor`` cannot
+    drift apart (they did -- ``doctor`` honoured none of these controls before #65).
+    """
+    env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
+    if output_path:
+        return Path(output_path)
+    if no_persist:
+        return Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
+    if env_output:
+        return Path(env_output).expanduser()
+    return config.defaults.output_dir
+
+
 class _DefaultGroup(click.Group):
     """Group that falls back to a default subcommand when the first token is not a
     registered command -- preserves the bare ``council "question"`` invocation
@@ -514,19 +534,8 @@ def run(
         load_dotenv(override=False)
         config = load_config()
 
-    # Output-dir resolution (#39). Precedence, highest first: --output flag >
-    # --no-persist (scratch temp, canonical output/ untouched) > AICOUNCIL_OUTPUT_DIR
-    # env override > config default. No routing redesign — this only chooses the
-    # canonical dir that _write_routed already writes to.
-    _env_output = os.environ.get("AICOUNCIL_OUTPUT_DIR")
-    if output_path:
-        effective_output = Path(output_path)
-    elif no_persist:
-        effective_output = Path(tempfile.mkdtemp(prefix="aicouncil-scratch-"))
-    elif _env_output:
-        effective_output = Path(_env_output).expanduser()
-    else:
-        effective_output = config.defaults.output_dir
+    # Output-dir resolution (#39) -- one resolver shared with `doctor` (#65).
+    effective_output = _resolve_output_dir(config, output_path, no_persist)
     effective_synthesizer = synthesizer if synthesizer else config.defaults.synthesizer
 
     # ADR-10 deterministic return directory. Precedence (highest first):
