@@ -19,6 +19,64 @@
 
 ---
 
+### 2026-07-19 — LANE C: the two guards (#67, #68) — both were bypassable, proven and fixed
+
+**Did:** Turned two hand-maintained hygiene rules into pre-commit mechanisms on `feat/c-guards`
+(7 commits, `702dc08`..`ab407a3`; **not merged** — commit-and-stop lane). Step 1 derived, rather
+than invented, where each file belongs: a repo-tracked hook is a `repo: local` stanza in
+`.pre-commit-config.yaml` (`.git/hooks/*` are pre-commit-generated shims, `core.hooksPath` unset,
+seeded by `python -m pre_commit install` in `.claude/settings.json:26`), and a validator is
+`scripts/validate_*.py`. The `validate_*.py` vs `*_gate.py` split turned out to be **ownership,
+not function** — `*_gate.py` + an underscored hook id is reserved for what the hub carrier
+deploys and locates *by name* (`canonical_freshness_gate.py:10-11`).
+
+**Result — the headline: both guards were trivially bypassable, and only proof-by-violation found it.**
+A non-ASCII path defeated *both*. `core.quotePath` is on by default, so `git diff --name-only`
+C-quotes the path and the **trailing** `"` breaks the `\.json$` anchor: `docs/évasion/SEALED-KEY.json`
+was **admitted, exit 0**. That one surfaced only because I wrote it up as an *assumed* limitation
+and then tested the assumption. sol found three more in #68 (a `` `docs/` `` token in the invariant
+table became a global allow-rule; `git rm --cached` the README while parsing the untracked
+working-tree copy; a submodule/symlink staged as one path with no directory prefix). terra found two
+lifecycle bugs: a registered corpus gaining a subdirectory was blocked (`cli4-parity`'s `blinded/`
+passes only by grandfathering), and an **empty-but-valid registry table was a malfunction** — which
+would have bricked every commit at #27's unseal, the exact moment the table legitimately empties.
+All fixed and re-proven; `check.ps1` green (543 passed) at final HEAD.
+
+Per operator ruling the #67 match is deliberately **wider** than the ticket's literal
+`SEALED-KEY*.json`: the two real keys are named inconsistently (`SEALED-KEY.json` and
+`...-KEY-SEALED.json`), so the literal pattern would have missed one — and a guard that misses one
+of two actual keys converts vigilance into false confidence. Proven to match **zero** tracked files
+before arming. #68 is a **registry check, never a blanket ban**, reading `docs/audits/README.md` at
+runtime; it fails **CLOSED** and labels that `GUARD MALFUNCTION`, distinguishable from a policy
+violation — proven three ways. #68's empty-directory arm was **dropped from scope** (not deferred,
+no ticket): git cannot see an empty directory, so one can never enter the repo — evidence a commit
+gate is the wrong mechanism, not a limitation to work around.
+
+**Changes:** `+scripts/validate_sealed_keys.py`, `+scripts/validate_docs_registry.py`,
+`.pre-commit-config.yaml` (two additive `repo: local` stanzas, insertions only — no existing hook
+disarmed), `+docs/audits/2026-07-19-guards-violation-proof.md`, `BACKLOG.md`.
+`.gitignore` **untouched** (lines 61/65 verbatim); `src/` untouched (Lanes A1/A2 own it).
+
+**Abandoned:** #27's obligation was **narrowed, not retired** — the architect amended the frozen
+criterion mid-lane after I flagged its premise as half-true. #68 catches a corpus with no row but
+**not a row with no corpus**; the stale-row half is retained and marked *not mechanised*, with the
+reason inline so nobody strikes it later believing #68 covers it (a disk-based check would
+false-block every worktree, since the co-registered `epi1-archaeology/` is gitignored). This also
+**corrects a contradiction in the previous entry's item (2)**: that rider said a corpus move rewrites
+its ignore rules *in the same change* — the exact condition behind the 2026-07-18 near-leak.
+Superseded with move → verify key still ignored → drop the ignore line only once it is out of the tree.
+
+**Next:** (1) **No unit tests** for either guard — `tests/test_validate_audit_casing.py` is the repo's
+precedent and I missed it in step 1, so `tests/test_validate_*.py` was never in the approved path list.
+Weakest point in the lane: the code changed three times after the original proof and `check.ps1` only
+covers `src/`. Recorded as a gap, not waived. (2) #67/#68 still read as open proposals in `BACKLOG.md`
+— closure belongs to `/review-closures`. (3) Accepted scope limits recorded in the proof file:
+essence-markdown not enforced (the `cli4-parity` essence cell is legitimately prose), and a flat or
+packed corpus at the audits root creates no directory and is invariant-class-(a) enforcement, a
+different guard.
+
+---
+
 ### 2026-07-19 — PRE-HANDOFF CAPTURE: review-runner ambiguity filed, registry obligation bound to #27
 
 **Did:** Three loose ends captured before handoff. No new folders, no immutable edits, no code touched.
