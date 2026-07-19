@@ -35,8 +35,8 @@ is not a limitation to work around, it is evidence that a commit gate is the wro
 for it. Working-tree hygiene belongs to the `check.ps1` / `verify_*` family, which runs
 against a working tree deliberately. (Operator ruling 2026-07-19; recorded in #68's done-when.)
 
-Read-only: reads the staged name-status, HEAD's tree, and `docs/audits/README.md`; writes
-NOTHING.
+Read-only: reads the staged raw diff, HEAD's tree, and the INDEX copy of
+`docs/audits/README.md`; writes NOTHING.
 
 Authority: BACKLOG #68; `docs/audits/README.md` (directory invariant + Live corpora);
 ADR-60 docs/ taxonomy; CLAUDE.md §5 item 9 (no leftovers).
@@ -55,9 +55,19 @@ REGISTERED_PARENT = "docs/audits"
 _INVARIANT_HEADING = re.compile(r"^#+\s+Directory invariant\b", re.IGNORECASE)
 _CORPORA_HEADING = re.compile(r"^#+\s+Live corpora\b", re.IGNORECASE)
 _HEADING = re.compile(r"^#+\s+")
-# A backticked token that names a directory: ends with `/`. Catches `archive/` in the
-# invariant table and `2026-07-18-cli4-parity/` in the Path column.
-_BACKTICKED_DIR = re.compile(r"`([^`]+/)`")
+# A backticked token that names a SINGLE-SEGMENT directory: ends with `/`, no interior slash.
+# Catches `archive/` in the invariant table and `2026-07-18-cli4-parity/` in the Path column.
+# Single-segment is a hardening requirement, not cosmetics: a multi-segment token such as
+# `docs/` admitted as a taxonomy name would exempt every path below it (sol finding).
+_BACKTICKED_DIR = re.compile(r"`([^`/]+/)`")
+
+# Never admissible as a taxonomy name however the README is edited -- admitting these would
+# disable the guard wholesale.
+_RESERVED_TAXONOMY = frozenset({"docs", ".", "..", ""})
+
+# git raw-format dst modes that are directory-shaped despite being a single staged path.
+_GITLINK_MODE = "160000"
+_SYMLINK_MODE = "120000"
 
 
 class RegistryError(RuntimeError):
@@ -107,7 +117,9 @@ def parse_registry(text: str) -> tuple[set[str], set[str]]:
     for row in _table_rows(inv_lines):
         for cell in row:
             for m in _BACKTICKED_DIR.finditer(cell):
-                taxonomy.add(m.group(1).strip("/"))
+                name = m.group(1).strip("/")
+                if name not in _RESERVED_TAXONOMY:
+                    taxonomy.add(name)
     if not taxonomy:
         raise RegistryError(
             "the 'Directory invariant' table yielded no admissible directory names "
@@ -139,29 +151,47 @@ def parse_registry(text: str) -> tuple[set[str], set[str]]:
     return registered, taxonomy
 
 
-def load_registry(root: Path) -> tuple[set[str], set[str]]:
-    path = root / REGISTRY
-    if not path.is_file():
-        raise RegistryError(f"registry file not found at {REGISTRY.as_posix()}")
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RegistryError(f"could not read {REGISTRY.as_posix()}: {exc}") from exc
-    return parse_registry(text)
+def load_registry() -> tuple[set[str], set[str]]:
+    """Parse the registry AS STAGED, not as it sits in the working tree.
+
+    Reading the working-tree copy is bypassable: `git rm --cached docs/audits/README.md`
+    stages the registry's deletion while leaving an untracked copy on disk, so the guard would
+    happily parse a file that the commit is removing -- and an attacker could add an admitting
+    row to that untracked copy alone (sol finding). `git show :<path>` reads the index, which
+    is exactly what the commit will contain.
+    """
+    out = subprocess.run(
+        ["git", "show", f":{REGISTRY.as_posix()}"],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    if out.returncode != 0:
+        raise RegistryError(
+            f"could not read {REGISTRY.as_posix()} from the git index -- it may be staged for "
+            f"deletion or replaced by a non-file entry ({out.stderr.strip()})")
+    return parse_registry(out.stdout)
 
 
 def _posix(path: str) -> str:
     return path.replace("\\", "/").strip("/")
 
 
-def new_dirs(added_paths: list[str], tracked_dirs: set[str]) -> list[str]:
-    """Directories under `docs/` that the staged adds would introduce, not already in HEAD."""
+def new_dirs(added: list[tuple[str, str]], tracked_dirs: set[str]) -> list[str]:
+    """Directories under `docs/` the staged adds would introduce, not already in HEAD.
+
+    `added` is (mode, path). A gitlink (submodule) or symlink is a single staged path that is
+    nonetheless directory-shaped -- `git submodule add <url> docs/rogue` stages exactly
+    `docs/rogue` with no child component, so treating it as a file would let a fully populated
+    directory enter unregistered (sol finding). Those entries are therefore treated as the
+    directory itself.
+    """
     found: set[str] = set()
-    for raw in added_paths:
+    for mode, raw in added:
         parts = _posix(raw).split("/")
         if len(parts) < 2 or parts[0] != "docs":
             continue
-        for i in range(2, len(parts)):  # every dir prefix below docs/, excluding the filename
+        # A file contributes its parent dirs; a gitlink/symlink contributes ITSELF as a dir.
+        depth = len(parts) + 1 if mode in (_GITLINK_MODE, _SYMLINK_MODE) else len(parts)
+        for i in range(2, depth):
             d = "/".join(parts[:i])
             if d not in tracked_dirs:
                 found.add(d)
@@ -173,15 +203,21 @@ def violation(directory: str, registered: set[str], taxonomy: set[str]) -> str |
     parts = directory.split("/")
     name = parts[-1]
     parent = "/".join(parts[:-1])
-    if name in taxonomy:
-        return None  # e.g. an `archive/` child -- invariant class b
+    # A taxonomy folder is admissible only at a SANCTIONED DEPTH: `docs/<taxonomy>` or
+    # `docs/<section>/<taxonomy>` -- i.e. ADR-60's "each one's own archive/ child". Matching a
+    # taxonomy name at arbitrary depth turns it into an escape hatch: `docs/x/y/archive/`
+    # would launder anything beneath it (sol finding).
+    if name in taxonomy and len(parts) in (2, 3):
+        return None
     # Anything INSIDE an admissible taxonomy folder is governed by that folder's own README,
     # not by the Live-corpora table: invariant class b reads "`archive/` -- governed by its own
-    # `archive/README.md`". Without this, the guard would block the sanctioned EXIT path -- a
-    # corpus moving to `docs/audits/archive/<corpus>/` at unseal, which is exactly what #27
-    # must do. Proven: that move was rejected before this branch existed.
-    if any(seg in taxonomy for seg in parts[:-1]):
-        return None
+    # `archive/README.md`". Without this the guard would block the sanctioned EXIT path -- a
+    # corpus moving to `docs/audits/archive/<corpus>/` at unseal, exactly what #27 must do
+    # (proven: that move was rejected before this branch existed). The ancestor must itself sit
+    # at a sanctioned depth, so the exemption cannot be conjured at arbitrary depth.
+    for i in (2, 3):
+        if len(parts) > i and parts[i - 1] in taxonomy:
+            return None
     if parent == REGISTERED_PARENT and name in registered:
         return None  # a registered live corpus
     if parent == REGISTERED_PARENT:
@@ -193,14 +229,34 @@ def violation(directory: str, registered: set[str], taxonomy: set[str]) -> str |
             f"{REGISTRY.as_posix()}).")
 
 
-def staged_added_paths() -> list[str]:
+def staged_added_paths() -> list[tuple[str, str]]:
+    """Staged additions as (dst-mode, path), read NUL-delimited.
+
+    `--name-only` without `-z` C-quotes any non-ASCII path (`core.quotePath` defaults on), so
+    `docs/audits/évasion/f.md` arrives as `"docs/audits/\\303\\251vasion/f.md"` -- the leading
+    quote makes `parts[0] != "docs"` and the whole path is skipped, silently bypassing the
+    guard entirely (sol finding, reproduced). `-z` emits raw bytes with no quoting. `--raw`
+    additionally yields the dst mode, needed to spot gitlinks and symlinks.
+    """
     out = subprocess.run(
-        ["git", "diff", "--cached", "--diff-filter=A", "--no-renames", "--name-only"],
+        ["git", "diff", "--cached", "--diff-filter=A", "--no-renames", "--raw", "-z"],
         capture_output=True, text=True, encoding="utf-8",
     )
     if out.returncode != 0:
         raise RegistryError(out.stderr.strip() or f"git diff exited {out.returncode}")
-    return [ln for ln in out.stdout.splitlines() if ln.strip()]
+    # -z raw records: ":<srcmode> <dstmode> <srcsha> <dstsha> <status>\0<path>\0"
+    tokens = [t for t in out.stdout.split("\0") if t != ""]
+    entries: list[tuple[str, str]] = []
+    i = 0
+    while i < len(tokens):
+        meta = tokens[i]
+        if meta.startswith(":") and i + 1 < len(tokens):
+            fields = meta[1:].split()
+            entries.append((fields[1] if len(fields) > 1 else "", tokens[i + 1]))
+            i += 2
+        else:
+            i += 1
+    return entries
 
 
 def tracked_dirs() -> set[str]:
@@ -214,16 +270,6 @@ def tracked_dirs() -> set[str]:
             return set()  # unborn HEAD: the initial commit has nothing grandfathered
         raise RegistryError(out.stderr.strip() or f"git ls-tree exited {out.returncode}")
     return {_posix(ln) for ln in out.stdout.splitlines() if ln.strip()}
-
-
-def repo_root() -> Path:
-    out = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, encoding="utf-8",
-    )
-    if out.returncode != 0:
-        raise RegistryError(out.stderr.strip() or "could not resolve the repo root")
-    return Path(out.stdout.strip())
 
 
 def _malfunction(exc: Exception) -> int:
@@ -245,8 +291,7 @@ def main() -> int:
     # The registry is parsed on EVERY run, not only when a docs/ directory is staged, so a
     # broken registry surfaces immediately instead of lying dormant.
     try:
-        root = repo_root()
-        registered, taxonomy = load_registry(root)
+        registered, taxonomy = load_registry()
         added = staged_added_paths()
         tracked = tracked_dirs()
     except (RegistryError, OSError) as exc:

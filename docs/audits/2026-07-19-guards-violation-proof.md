@@ -266,6 +266,46 @@ README (invariant class b), not by the Live-corpora table. Regression-checked �
 Consequence, stated plainly: `docs/audits/archive/` contents are **not** policed by this guard.
 The archive's own README governs them.
 
+### F-C — sol adversarial pass found four real bypasses of #68 (ALL FIXED)
+
+The adversarial pass was run precisely because *a registry guard that can be trivially bypassed
+is worse than none.* It found four. All were reproduced before fixing and re-proven after.
+
+| # | Bypass | Before | After |
+|---|---|---|---|
+| 1 | **Non-ASCII directory name.** `core.quotePath` defaults on, so `--name-only` C-quotes `docs/audits/évasion/f.md` as `"docs/audits/\303\251vasion/f.md"`. The leading `"` makes `parts[0] != "docs"`, so the path is skipped — **the guard was fully bypassed**. | exit 0 | exit 1 |
+| 2 | **`docs/` token injected into the invariant table.** Any backticked `` `docs/` `` anywhere in that table became an admissible taxonomy name matched at *any* depth, admitting everything. | exit 0 | exit 1 |
+| 3 | **Staged registry deletion masked by an untracked copy.** `git rm --cached docs/audits/README.md` stages the deletion while leaving the file on disk; the guard parsed the working-tree copy and passed. | exit 0 | exit 1 (malfunction) |
+| 4 | **Gitlink / directory symlink.** `git submodule add <url> docs/rogue` stages one path with no child component, so no directory prefix was derived. | not detected | treated as a directory |
+
+Fixes: read staged paths NUL-delimited via `--raw -z` (kills 1, and yields the mode for 4);
+reserve `docs`/`.`/`..` as never-admissible taxonomy names and require single-segment tokens
+(kills 2); read the registry from the **index** via `git show :<path>` rather than the working
+tree (kills 3).
+
+A fifth hardening was applied alongside: a taxonomy folder is now admissible only at a
+sanctioned depth (`docs/<taxonomy>` or `docs/<section>/<taxonomy>`). Previously `archive` matched
+at any depth, so `docs/a/b/archive/rogue/` would have laundered anything beneath it.
+
+Re-proof after fixing — every earlier case still behaves, and the deep-laundering shape blocks:
+
+```
+  ok  BLOCK  docs/a/b/archive                          ok  PASS   docs/audits/archive
+  ok  BLOCK  docs/a/b/archive/rogue                    ok  PASS   docs/decisions/archive
+  ok  BLOCK  docs/smoke                                ok  PASS   docs/audits/archive/legacy
+  ok  BLOCK  docs/audits/2026-07-20-unreg              ok  PASS   docs/audits/archive/2026-07-18-cli4-parity
+                                                       ok  PASS   docs/audits/2026-07-18-cli4-parity
+```
+
+**Two sol findings were deliberately NOT fixed**, and are recorded as accepted scope limits:
+
+- *A flat or packed corpus at the audits root* (`docs/audits/raw-trial-001.json …`, or a `.zip`)
+  creates no new directory and is not caught. Enforcing invariant class (a) — root entries must be
+  date-slug markdown — is a **different** guard from #68's directory registry check, and adding it
+  would exceed this lane's frozen contract. Worth a future ticket; not filed here.
+- *Removing a row while its directory stays tracked* is the stale-row case already recorded as
+  **F-B** below, deliberately not mechanised.
+
 ### F-B — #68 does not detect a stale registry row
 
 #68 catches *a corpus with no row*. It does **not** catch *a row with no corpus* — a registry
