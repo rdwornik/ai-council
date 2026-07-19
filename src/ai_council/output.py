@@ -2,6 +2,7 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -140,6 +141,53 @@ def print_cost_summary(metrics: DebateMetrics) -> None:
     console.print(Panel(tree, border_style="dim"))
 
 
+@dataclass(frozen=True)
+class RoutingFailure:
+    """A required destination that did not receive its artifact.
+
+    Recorded rather than raised on the spot so the caller can finish emitting every
+    remaining CANONICAL artifact before failing the run — see ``OutputRoutingError``.
+    """
+
+    artifact: str
+    destination: Path
+    cause: str
+
+    def __str__(self) -> str:
+        return f"{self.artifact} -> {self.destination} ({self.cause})"
+
+
+class OutputRoutingError(RuntimeError):
+    """A required output destination (e.g. an explicit --return-dir) was not written.
+
+    Raised for the caller's *required* deliverables so a routing failure surfaces loudly
+    instead of yielding a bare exit 0 (DRAFT-INT-1 R4). Optional mirrors stay best-effort.
+
+    Carries EVERY failure in the run, not just the first: the debate writers all target the
+    same --return-dir, so a return-dir fault is normally common-mode, and naming one
+    artifact would understate what the caller did not receive.
+    """
+
+    def __init__(self, failures: list["RoutingFailure"]) -> None:
+        self.failures = list(failures)
+        joined = "; ".join(str(f) for f in self.failures)
+        noun = "deliverable" if len(self.failures) == 1 else "deliverables"
+        super().__init__(
+            f"required return-dir unusable — {len(self.failures)} {noun} not delivered: {joined}"
+        )
+
+
+def raise_for_routing_failures(failures: list[RoutingFailure]) -> None:
+    """Fail the run if any required destination was missed; no-op when the list is empty.
+
+    The single aggregate raise point. Callers accumulate across every writer, emit every
+    canonical artifact, then call this ONCE at the end. Never call it from a ``finally`` —
+    an exception raised there would mask the original.
+    """
+    if failures:
+        raise OutputRoutingError(failures)
+
+
 def _write_routed(
     content: str,
     filename: str,
@@ -147,14 +195,32 @@ def _write_routed(
     secondary_dir: Path | None,
     target_paths: list[Path] | None,
     return_dir: Path | None,
+    *,
+    artifact: str,
+    return_dir_required: bool,
+    routing_failures: list[RoutingFailure] | None = None,
 ) -> list[Path]:
     """Write `content` as `filename` to the canonical dir plus any optional routes.
 
     The canonical `output_dir` is ALWAYS written first (ADR-10 / ADR-43: the return
     is a copy/route, never a replacement). Then, in order:
       - `secondary_dir`: legacy mirror, written only if it already exists on disk;
-      - `return_dir`: ADR-10 deterministic return (auto-mkdir, best-effort);
+      - `return_dir`: ADR-10 deterministic return (auto-mkdir), verified after the write;
       - each `target_paths` dir: ADR-43 per-invocation mirror (auto-mkdir, best-effort).
+
+    `return_dir_required` states whether the deterministic return is a REQUIRED deliverable
+    or a best-effort copy. It is an explicit decision at every call site, never inferred.
+    When required, a miss is reported one of two ways (the caller chooses):
+
+      - `routing_failures` supplied -> the miss is appended and this call returns normally,
+        so the caller can finish emitting its remaining canonical artifacts and raise once
+        with the aggregate via ``raise_for_routing_failures``. This is what orchestrators do.
+      - `routing_failures` omitted -> ``OutputRoutingError`` is raised before returning.
+        The fallback for a direct caller that opts out of collecting: a required miss must
+        never be silent, whichever mode is in play.
+
+    `artifact` names the deliverable in that report. Best-effort destinations
+    (`secondary_dir`, `target_paths`) are never reported this way — they only warn.
 
     Returns the list of paths written, canonical first.
     """
@@ -175,15 +241,33 @@ def _write_routed(
                 secondary_dir,
             )
 
+    pending: RoutingFailure | None = None
+    pending_exc: BaseException | None = None
     if return_dir is not None:
+        cause: str | None = None
         try:
             return_dir.mkdir(parents=True, exist_ok=True)
             return_path = return_dir / filename
             return_path.write_text(content, encoding="utf-8")
-            logger.info("Deterministic return written to: %s", return_path)
-            saved.append(return_path)
+            # Verify it landed: a raised write is not the only way to miss a destination.
+            # is_file(), not exists() — exists() is also true for a directory. Deliberately
+            # no size assertion: write_text uses text mode, so \n -> \r\n on Windows and
+            # st_size never equals len(content.encode()) for a multi-line artifact.
+            if return_path.is_file():
+                logger.info("Deterministic return written to: %s", return_path)
+                saved.append(return_path)
+            else:
+                cause = "write reported success but no file at the destination"
         except Exception as exc:
-            logger.warning("Return-dir write failed for %s: %s", return_dir, exc)
+            cause = f"{type(exc).__name__}: {exc}"
+            pending_exc = exc
+
+        if cause is not None:
+            if return_dir_required:
+                logger.error("Required return-dir write failed for %s: %s", return_dir, cause)
+                pending = RoutingFailure(artifact, return_dir, cause)
+            else:
+                logger.warning("Return-dir write failed for %s: %s", return_dir, cause)
 
     for target_dir in target_paths or []:
         try:
@@ -195,15 +279,14 @@ def _write_routed(
         except Exception as exc:
             logger.warning("Mirror write failed for %s: %s", target_dir, exc)
 
+    # Deferred to here so a required-return miss still lets the best-effort mirrors run.
+    if pending is not None:
+        if routing_failures is not None:
+            routing_failures.append(pending)
+        else:
+            raise OutputRoutingError([pending]) from pending_exc
+
     return saved
-
-
-class OutputRoutingError(RuntimeError):
-    """A required output destination (e.g. an explicit --return-dir) was not written.
-
-    Raised for the caller's *required* deliverable so a routing failure surfaces loudly
-    instead of yielding a bare exit 0 (DRAFT-INT-1 R4). Optional mirrors stay best-effort.
-    """
 
 
 def _fallback_payload(fe: FallbackEvent) -> dict:
@@ -380,7 +463,14 @@ def save_to_file(
     ]
 
     saved = _write_routed(
-        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+        "\n".join(lines),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="transcript",
+        return_dir_required=False,
     )
     logger.info("Debate saved to: %s", saved[0])
 
@@ -522,7 +612,14 @@ def save_minority_report(
         "",
     ]
     saved = _write_routed(
-        "\n".join(lines), filename, output_dir, secondary_dir, target_paths, return_dir
+        "\n".join(lines),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="minority report",
+        return_dir_required=False,
     )
     logger.info("Minority report saved to: %s", saved[0])
     return saved
@@ -669,8 +766,8 @@ def _build_verdict_payload(
 
     ``guaranteed_dirs`` are the destinations known to receive the verdict when the call
     returns normally (canonical, always written; and an explicit return_dir, which R4
-    verifies-or-raises). Best-effort mirrors are deliberately excluded so the manifest
-    never claims a path that a best-effort write may have skipped.
+    verifies-or-reports in ``_write_routed``). Best-effort mirrors are deliberately excluded
+    so the manifest never claims a path that a best-effort write may have skipped.
     """
     sections = _split_sections(result.synthesis)
     seats = result.metrics.seats if result.metrics else []
@@ -785,19 +882,25 @@ def save_verdict_package(
     base = run_id[len("council-out-"):]  # <ts>-<mode>-<slug>
     filename = f"council-verdict-{base}.json"
     # Destinations guaranteed once this call returns normally: canonical (always written) and
-    # an explicit return_dir (verified-or-raised below). Best-effort mirrors are excluded.
+    # an explicit return_dir (which _write_routed verifies-or-reports). Best-effort mirrors
+    # are excluded.
     guaranteed_dirs = [output_dir] + ([return_dir] if return_dir is not None else [])
     payload = _build_verdict_payload(result, run_id, filename, written or {}, guaranteed_dirs)
-    saved = _write_routed(
-        json.dumps(payload, indent=2), filename, output_dir, secondary_dir, target_paths, return_dir
-    )
     # R4: the verdict is the caller's *required* deliverable. If an explicit --return-dir was
     # requested but the package did not land there, fail loud rather than yield a bare exit 0.
     # (Optional --target-project mirrors and the legacy secondary_dir stay best-effort.)
-    if return_dir is not None and not any(p.parent == return_dir for p in saved):
-        raise OutputRoutingError(
-            f"verdict package failed to reach required return-dir: {return_dir}"
-        )
+    # _write_routed now owns that guarantee — it verifies the write on disk rather than
+    # inferring success from list membership, and every deliverable inherits it.
+    saved = _write_routed(
+        json.dumps(payload, indent=2),
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="verdict package",
+        return_dir_required=True,
+    )
     logger.info("Verdict package saved to: %s", saved[0])
     return saved
 

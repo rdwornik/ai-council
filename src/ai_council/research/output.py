@@ -99,7 +99,16 @@ def save_research_to_file(
     lines.append(report.merged_report)
 
     content = "\n".join(lines)
-    return _write_routed(content, filename, output_dir, secondary_dir, target_paths, return_dir)
+    return _write_routed(
+        content,
+        filename,
+        output_dir,
+        secondary_dir,
+        target_paths,
+        return_dir,
+        artifact="research report",
+        return_dir_required=False,
+    )
 
 
 def print_research_summary(
