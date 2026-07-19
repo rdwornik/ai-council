@@ -22,7 +22,8 @@
 ### 2026-07-19 — LANE C: the two guards (#67, #68) — both were bypassable, proven and fixed
 
 **Did:** Turned two hand-maintained hygiene rules into pre-commit mechanisms on `feat/c-guards`
-(7 commits, `702dc08`..`ab407a3`; **not merged** — commit-and-stop lane). Step 1 derived, rather
+(9 commits, `702dc08`..`d440107`; **not merged** — commit-and-stop lane, merges LAST after A2/A1).
+Step 1 derived, rather
 than invented, where each file belongs: a repo-tracked hook is a `repo: local` stanza in
 `.pre-commit-config.yaml` (`.git/hooks/*` are pre-commit-generated shims, `core.hooksPath` unset,
 seeded by `python -m pre_commit install` in `.claude/settings.json:26`), and a validator is
@@ -66,14 +67,35 @@ false-block every worktree, since the co-registered `epi1-archaeology/` is gitig
 its ignore rules *in the same change* — the exact condition behind the 2026-07-18 near-leak.
 Superseded with move → verify key still ignored → drop the ignore line only once it is out of the tree.
 
-**Next:** (1) **No unit tests** for either guard — `tests/test_validate_audit_casing.py` is the repo's
-precedent and I missed it in step 1, so `tests/test_validate_*.py` was never in the approved path list.
-Weakest point in the lane: the code changed three times after the original proof and `check.ps1` only
-covers `src/`. Recorded as a gap, not waived. (2) #67/#68 still read as open proposals in `BACKLOG.md`
+**Next:** (1) ~~**No unit tests** for either guard~~ — **RESOLVED same session, `d440107`** (see the
+amendment below). (2) #67/#68 still read as open proposals in `BACKLOG.md`
 — closure belongs to `/review-closures`. (3) Accepted scope limits recorded in the proof file:
 essence-markdown not enforced (the `cli4-parity` essence cell is legitimately prose), and a flat or
 packed corpus at the audits root creates no directory and is invariant-class-(a) enforcement, a
 different guard.
+
+**Amendment (same session, after the entry above was written) — validator tests, `d440107`.**
+Operator ruled the test gap required, not optional: this is repo-wide enforcement running on every
+future commit, the guard code changed three times after its violation-proof transcripts were
+written, and `check.ps1` runs mypy on `src/` and ruff on `src/`+`tests/` only — `scripts/` had zero
+durable coverage. Transcripts are point-in-time; tests are what stop a regression. Added
+`tests/test_validate_sealed_keys.py` and `tests/test_validate_docs_registry.py` on the
+`test_validate_audit_casing.py` precedent (direct classifier tests + end-to-end against a real temp
+git repo): **43 tests, no new folder**; `check.ps1` 586 passed (was 543). One named regression per
+bypass — the unicode C-quoting that defeated both guards, sol's five, terra's two (with the
+empty-but-valid-registry-read-as-MALFUNCTION variant named explicitly, since that one would have
+bricked every commit at #27's unseal), and the corpus-exit move #27 itself must perform.
+**The tests were themselves verified against the broken code:** both guards were temporarily
+reverted to the pre-fix `--name-only` form and the two unicode tests FAILED as they must, then
+passed once restored — a regression test that passes against broken code is worthless, so that
+check is the point.
+
+Also checked, and the answer was no: the operator asked whether a mangled-subject commit needed
+amending. Nothing was mangled. The suspect subject (`1848909`) carries a correctly-encoded UTF-8
+em dash (`M-bM-^@M-^T` = U+2014), renders properly, has no `encoding` header, and a grep for
+replacement chars / `Ã` / `â€` / `Â` across every subject and body on the branch found nothing.
+History left alone — and it was not HEAD by then either, which under the operator's own rule
+would have meant leaving it regardless.
 
 ---
 
