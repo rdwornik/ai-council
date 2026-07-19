@@ -414,6 +414,86 @@ def test_doctor_subcommand_survives_unreadable_secrets_file(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# #65: `council doctor` honours the output controls via the shared resolver
+# ---------------------------------------------------------------------------
+
+def _invoke_doctor(config, args: list[str]):
+    """Invoke `council doctor` with the probe surface patched, returning the CliRunner result.
+
+    Mirrors _capture_output_dir in test_cli.py, which only covers the `run` path -- doctor
+    writes its record itself (doctor.write_record), so the destination is asserted on disk
+    rather than captured from a CouncilRunner call.
+    """
+    with patch("ai_council.cli.load_config", return_value=config), \
+         patch("ai_council.cli.load_dotenv"), \
+         patch.dict(os.environ, {"TEST_KEY": "sk-real"}, clear=False), \
+         patch.object(doc, "build_all_providers", return_value={"claude": MockProvider("claude")}), \
+         patch.object(doc, "run_health_checks_sync", return_value={"claude": (True, "")}):
+        return CliRunner().invoke(main, ["doctor", *args])
+
+
+def test_doctor_honours_output_flag(tmp_path: Path, monkeypatch) -> None:
+    """#65: --output redirects the health record away from canonical ./output/health/."""
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_config(tmp_path)
+    explicit = tmp_path / "explicit_out"
+    result = _invoke_doctor(config, ["--output", str(explicit)])
+    assert result.exit_code == 0
+    assert (explicit / "health" / "doctor-latest.json").exists()
+    assert not (config.defaults.output_dir / "health").exists()
+
+
+def test_doctor_honours_env_output_dir(tmp_path: Path, monkeypatch) -> None:
+    """#65: AICOUNCIL_OUTPUT_DIR redirects the record when no flag is given."""
+    env_dir = tmp_path / "env_out"
+    monkeypatch.setenv("AICOUNCIL_OUTPUT_DIR", str(env_dir))
+    config = _make_config(tmp_path)
+    result = _invoke_doctor(config, [])
+    assert result.exit_code == 0
+    assert (env_dir / "health" / "doctor-latest.json").exists()
+    assert not (config.defaults.output_dir / "health").exists()
+
+
+def test_doctor_no_persist_leaves_canonical_untouched(tmp_path: Path, monkeypatch) -> None:
+    """#65: --no-persist keeps the health record out of canonical output/health/.
+
+    (Scratch-dir CLEANUP is #71's contract, asserted separately in test_cli.py.)
+    """
+    monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
+    config = _make_config(tmp_path)
+    result = _invoke_doctor(config, ["--no-persist"])
+    assert result.exit_code == 0
+    assert not (config.defaults.output_dir / "health").exists()
+
+
+def test_doctor_output_flag_beats_env(tmp_path: Path, monkeypatch) -> None:
+    """#65: doctor shares `run`'s precedence -- --output outranks the env override."""
+    monkeypatch.setenv("AICOUNCIL_OUTPUT_DIR", str(tmp_path / "env_out"))
+    config = _make_config(tmp_path)
+    explicit = tmp_path / "explicit_out"
+    result = _invoke_doctor(config, ["--output", str(explicit)])
+    assert result.exit_code == 0
+    assert (explicit / "health" / "doctor-latest.json").exists()
+    assert not (tmp_path / "env_out").exists()
+
+
+def test_run_doctor_record_write_failure_contained_non_oserror(tmp_path: Path) -> None:
+    """#65: containment covers a NON-OSError too.
+
+    The comment above the guard promises a write failure never crashes the doctor, but the
+    catch was `except OSError`, so a json.dumps TypeError raised while building the payload
+    escaped. Verdict and exit code must be unaffected.
+    """
+    config = _make_config(tmp_path)
+    with patch.object(doc, "write_record", side_effect=TypeError("not JSON serializable")):
+        result = _invoke_doctor(config, [])
+    assert result.exit_code == 0
+    assert "WARNING" in result.output
+    assert "TypeError" in result.output
+    assert "(not written)" in result.output
+
+
+# ---------------------------------------------------------------------------
 # #39: bounded retention for output/health/ doctor records
 # ---------------------------------------------------------------------------
 

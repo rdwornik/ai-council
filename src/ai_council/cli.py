@@ -812,9 +812,24 @@ def run(
 
 
 @main.command("doctor")
-def doctor() -> None:
+@click.option(
+    "--output", "output_path",
+    default=None,
+    help="Canonical output dir override for the health record (default ./output/).",
+)
+@click.option(
+    "--no-persist", "no_persist",
+    is_flag=True,
+    default=False,
+    help="Write the health record to a scratch temp dir, leaving canonical ./output/ "
+         "untouched; the scratch dir is removed when the command exits.",
+)
+def doctor(output_path: str | None, no_persist: bool) -> None:
     """Liveness + config pre-flight: a GREEN/YELLOW/RED truth table over keys, seats, and
-    config. Writes a machine-readable record to output/health/. Never blocks a run."""
+    config. Writes a machine-readable record to <output-dir>/health/. Never blocks a run.
+
+    The output dir honours --output / --no-persist / AICOUNCIL_OUTPUT_DIR via the same
+    precedence chain as `council run` (#65)."""
     if sys.platform == "win32":
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -859,8 +874,16 @@ def doctor() -> None:
         console.print(f"[bold red]Config error:[/bold red] {exc}")
         sys.exit(1)
 
+    # #65: resolve through the SAME chain as `run` -- before this, doctor ignored every
+    # output control and always wrote to canonical ./output/health/.
+    effective_output = _resolve_output_dir(config, output_path, no_persist)
+
     exit_code = run_doctor(
-        config, PROVIDER_CLASSES, shell_snapshot=shell_snapshot, console=console
+        config,
+        PROVIDER_CLASSES,
+        shell_snapshot=shell_snapshot,
+        console=console,
+        output_dir=effective_output,
     )
     sys.exit(exit_code)
 
