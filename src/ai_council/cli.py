@@ -504,10 +504,11 @@ def main() -> None:
     "--return-dir", "return_dir",
     default=None,
     help="ADR-10 deterministic return: also route this run's artifacts to this directory, "
-         "in addition to the canonical ./output/ write. That means the debate transcript, "
-         "the verdict package JSON, any minority report, and -- in research mode -- the "
-         "research report. When unset, output goes to ./output/ only (the hub is never a "
-         "default).",
+         "in addition to the resolved canonical output dir (./output/ by default, or "
+         "whatever --output / --no-persist / AICOUNCIL_OUTPUT_DIR resolve to). That means "
+         "the debate transcript, the verdict package JSON, any minority report, and -- in "
+         "research mode -- the research report. When unset, artifacts go to the canonical "
+         "dir only (the hub is never a default).",
 )
 @click.option(
     "--synthesizer", default=None,

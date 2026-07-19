@@ -980,20 +980,42 @@ def test_scratch_cleanup_failure_is_not_fatal(tmp_path, monkeypatch):
     # `console` is a module-level Rich Console bound to stdout at import, so capsys cannot
     # see it -- capture the call instead.
     printed: list[str] = []
-    with (
-        patch("ai_council.cli.shutil.rmtree", side_effect=blocked),
-        patch.object(cli_module.console, "print", side_effect=lambda *a, **k: printed.append(str(a[0]))),
-    ):
-        out = _capture_output_dir(
-            config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
-        )
-    warning = "\n".join(printed)
+    captured: dict = {}
 
-    assert out is not None
-    assert "could not remove scratch dir" in warning
-    assert str(out) in warning, "the warning must name the path that survived"
-    assert "still on disk" in warning, "the leak must stay visible, not be silently swallowed"
-    shutil.rmtree(out, ignore_errors=True)  # no leftovers from this test
+    async def _ok_run(request, output_dir=None, output_format="text"):
+        captured["dir"] = output_dir
+        return DebateResult(
+            question=request.question, rounds=[Round(number=1, responses=[])],
+            synthesis="ok", synthesizer="claude", total_duration_sec=1.0, panel_mode="custom",
+        )
+
+    try:
+        with (
+            patch("ai_council.cli.load_config", return_value=config),
+            patch("ai_council.cli.build_all_providers", return_value={"claude": MockProvider("claude")}),
+            patch("ai_council.cli.shutil.rmtree", side_effect=blocked),
+            patch.object(cli_module.console, "print",
+                         side_effect=lambda *a, **k: printed.append(str(a[0]))),
+            patch("ai_council.cli.CouncilRunner") as MockRunner,
+        ):
+            MockRunner.return_value.run = _ok_run
+            result = CliRunner().invoke(
+                main, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
+            )
+        warning = "\n".join(printed)
+        out = captured.get("dir")
+
+        # The exit code is the whole point: a blocked cleanup must not turn a green run red.
+        assert result.exit_code == 0, f"blocked cleanup changed the exit code to {result.exit_code}"
+        assert out is not None and "aicouncil-scratch-" in out.name
+        assert "could not remove scratch dir" in warning
+        assert str(out) in warning, "the warning must name the path that survived"
+        assert "still on disk" in warning, "the leak must stay visible, not be silently swallowed"
+    finally:
+        # This test BLOCKS cleanup, so the dir survives by construction. Remove it in a
+        # finally or a failing assertion above leaks it into every later census test.
+        if captured.get("dir"):
+            shutil.rmtree(captured["dir"], ignore_errors=True)
 
 
 def test_scratch_cleanup_failure_does_not_mask_in_flight_exception(tmp_path, monkeypatch):
@@ -1003,24 +1025,33 @@ def test_scratch_cleanup_failure_does_not_mask_in_flight_exception(tmp_path, mon
     config = _make_test_config(tmp_path)
     fake_provider = MockProvider("claude")
 
+    captured: dict = {}
+
     async def _boom(request, output_dir=None, output_format="text"):
+        captured["dir"] = output_dir
         raise RuntimeError("the real root cause")
 
-    with (
-        patch("ai_council.cli.load_config", return_value=config),
-        patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
-        patch("ai_council.cli.shutil.rmtree", side_effect=PermissionError(13, "handle open")),
-        patch("ai_council.cli.CouncilRunner") as MockRunner,
-    ):
-        MockRunner.return_value.run = _boom
-        result = CliRunner().invoke(
-            main, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
-        )
+    try:
+        with (
+            patch("ai_council.cli.load_config", return_value=config),
+            patch("ai_council.cli.build_all_providers", return_value={"claude": fake_provider}),
+            patch("ai_council.cli.shutil.rmtree", side_effect=PermissionError(13, "handle open")),
+            patch("ai_council.cli.CouncilRunner") as MockRunner,
+        ):
+            MockRunner.return_value.run = _boom
+            result = CliRunner().invoke(
+                main, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"]
+            )
 
-    assert result.exit_code != 0
-    # The surviving exception is the run's, not the cleanup's.
-    assert "the real root cause" in result.output or isinstance(result.exception, RuntimeError)
-    assert not isinstance(result.exception, PermissionError), "cleanup masked the root cause"
+        assert result.exit_code != 0
+        # The surviving exception is the run's, not the cleanup's.
+        assert "the real root cause" in result.output or isinstance(result.exception, RuntimeError)
+        assert not isinstance(result.exception, PermissionError), "cleanup masked the root cause"
+    finally:
+        # Cleanup is blocked here by design -- remove the survivor so this test does not
+        # leak a scratch dir into the system temp dir (and into later census assertions).
+        if captured.get("dir"):
+            shutil.rmtree(captured["dir"], ignore_errors=True)
 
 
 def test_output_flag_expands_user(tmp_path, monkeypatch):

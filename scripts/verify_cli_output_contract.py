@@ -241,15 +241,45 @@ def leg_l5() -> LegResult:
 # --------------------------------------------------------------------------------------------
 
 def leg_l6() -> LegResult:
+    from ai_council.models import DebateResult, Round
+
+    captured: dict = {}
+
+    async def _capture(request, output_dir=None, output_format="text"):
+        captured["dir"] = output_dir
+        return DebateResult(
+            question=request.question, rounds=[Round(number=1, responses=[])],
+            synthesis="ok", synthesizer="claude", total_duration_sec=1.0, panel_mode="custom",
+        )
+
     with tempfile.TemporaryDirectory(prefix="vcoc-l6-") as td:
         config = _make_config(Path(td) / "canonical")
         os.environ.pop("AICOUNCIL_OUTPUT_DIR", None)
         before = _scratch_census()
-        result = _invoke_run(config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"])
+        result = _invoke_run(
+            config, ["--skip-health-check", "--mode", "pick", "--no-persist", "q"],
+            run_impl=_capture,
+        )
         after = _scratch_census()
-        ev = (f"exit={result.exit_code} before={len(before)} after={len(after)} "
-              f"leaked={sorted(after - before) or 'none'}")
-        return _ok("L6", "#71", ev) if after == before else _fail("L6", "#71", ev)
+
+        # A census match alone is not proof: a run that never created a scratch dir, or
+        # failed before dispatch, would also leave the census unchanged. Require that the
+        # run SUCCEEDED and actually dispatched to a scratch path that is now gone.
+        used = captured.get("dir")
+        fails = []
+        if result.exit_code != 0:
+            fails.append(f"run exited {result.exit_code}")
+        if used is None or "aicouncil-scratch-" not in used.name:
+            fails.append(f"run did not dispatch to a scratch dir (got {used})")
+        elif used.exists():
+            fails.append(f"scratch dir survived: {used}")
+        if after != before:
+            fails.append(f"leaked={sorted(after - before)}")
+
+        ev = "; ".join(fails) if fails else (
+            f"exit=0 scratch={used.name} removed=True before={len(before)} after={len(after)}"
+        )
+        return _fail("L6", "#71", ev) if fails else _ok("L6", "#71", ev)
 
 
 def leg_l7() -> LegResult:
