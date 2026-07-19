@@ -1263,3 +1263,69 @@ def test_output_routing_error_message_reports_true_count():
 
     one = OutputRoutingError([RoutingFailure(artifact="research report", destination=dest, cause="denied")])
     assert "1 deliverable not delivered" in str(one)
+
+
+# ---------------------------------------------------------------------------
+# F8 / F2 — regressions introduced by A1's merged diff, caught by the sol
+# adversarial pass and confirmed by differential run against 27a45d1.
+# ---------------------------------------------------------------------------
+
+def test_later_considered_section_does_not_beat_question_options():
+    """F8: the exact document that regressed. 27a45d1 -> items=[]; A1's merged diff ->
+    ['Risk one'] under heading 'Risks Considered'. Risks must never surface as options.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = (
+        "## Alternatives Considered\n\nProse only, no bullets.\n\n"
+        "## Risks Considered\n\n- Risk one\n- Risk two\n"
+    )
+    question = "## Options\n\n- Real option A\n- Real option B\n"
+    got = _extracted_options(_split_sections(synthesis), _split_sections(question))
+
+    assert got["items"] == ["Real option A", "Real option B"], (
+        "a later '...Considered' section was promoted over the question fallback"
+    )
+    assert "Risk one" not in got["items"]
+
+
+def test_risks_considered_alone_yields_no_options():
+    """F8, the case that proves narrowing the SCAN would not have been enough.
+
+    When '## Risks Considered' is the ONLY options-ish heading it is also the FIRST
+    match, so any fix that merely restricts continue-scanning still emits risks as
+    options. Only removing the bare 'considered' marker fixes this.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = "## Risks Considered\n\n- Risk one\n- Risk two\n"
+    got = _extracted_options(_split_sections(synthesis), None)
+
+    assert got["items"] == [], f"risks emitted as options_considered: {got['items']}"
+
+
+def test_direct_mode_writes_canonical_metrics_before_raising(
+    tmp_path, sample_question, sample_round
+):
+    """F2: a direct-mode caller must not lose a CANONICAL artifact to a return-dir failure.
+
+    This lane's invariant is that every canonical write lands before any raise. The
+    orchestrator's accumulator mode honoured it; direct mode raised first and skipped the
+    metrics sidecar. The invariant is the contract, not 'production is unaffected'.
+    """
+    import pytest
+
+    from ai_council.output import OutputRoutingError, save_to_file
+
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a dir", encoding="utf-8")
+    out = tmp_path / "canonical"
+
+    result = _result_with_metrics(sample_question, sample_round)
+    with pytest.raises(OutputRoutingError):
+        save_to_file(result, out, return_dir=blocker)
+
+    transcripts = list(out.glob("council-out-*.md"))
+    sidecars = list(out.glob("*_metrics.json"))
+    assert len(transcripts) == 1, "canonical transcript lost"
+    assert len(sidecars) == 1, "canonical metrics sidecar lost to the raise (F2)"

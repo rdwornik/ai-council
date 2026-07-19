@@ -498,6 +498,17 @@ def save_to_file(
         *_build_body(result),
     ]
 
+    # Direct mode (no caller accumulator) used to let _write_routed raise HERE, before the
+    # canonical metrics sidecar was written -- so a required return-dir failure cost a
+    # canonical artifact, violating this lane's own invariant that every canonical write
+    # lands before any raise. Accumulate locally either way, emit the sidecar, then raise
+    # at the end of the function. Accumulating callers are unaffected: their list is used
+    # directly and they still own the aggregate raise.
+    accumulating = routing_failures is not None
+    # Narrowed on routing_failures directly, not on `accumulating` -- mypy does not carry
+    # a narrowing through an intermediate bool.
+    sink: list[RoutingFailure] = routing_failures if routing_failures is not None else []
+
     saved = _write_routed(
         "\n".join(lines),
         filename,
@@ -507,7 +518,7 @@ def save_to_file(
         return_dir,
         artifact="transcript",
         return_dir_required=True,
-        routing_failures=routing_failures,
+        routing_failures=sink,
     )
     logger.info("Debate saved to: %s", saved[0])
 
@@ -533,6 +544,11 @@ def save_to_file(
             result.degradation_summary = (
                 f"{result.degradation_summary}; {note}" if result.degradation_summary else note
             )
+
+    # Every canonical artifact is now on disk. Only a direct-mode caller raises here; an
+    # accumulating caller owns the single aggregate raise after ALL its writers have run.
+    if not accumulating:
+        raise_for_routing_failures(sink)
 
     return saved
 
@@ -717,7 +733,14 @@ _RATIONALE_HEADING_MARKERS = ("rationale", "decision criteria", "argument qualit
 _OPTIONS_HEADING_MARKERS = (
     "alternatives considered",
     "options",
-    "considered",
+    # NO bare "considered". It matched as a SUBSTRING, so "## Risks Considered" qualified
+    # as an options heading. Harmless while the scan stopped at the first match; once #60
+    # made it CONTINUE past a prose-only section, a later "...Considered" section could be
+    # promoted over the question's real options -- risks served to a caller as the
+    # decision's options_considered. Under-match deliberately: a heading like "Approaches
+    # Considered" now falls through to the question fallback, which is honestly empty or
+    # honestly the question's own options. Over-matching produced plausible wrongness that
+    # a consumer cannot detect, and this field is on the delegation surface.
     "top tier",
     "idea inventory",
 )
