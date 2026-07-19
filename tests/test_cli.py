@@ -11,7 +11,7 @@ from click.testing import CliRunner
 from ai_council import cli as cli_module
 from ai_council.cli import main
 from ai_council.models import DebateResult, Question, Round
-from ai_council.output import OutputRoutingError
+from ai_council.output import OutputRoutingError, RoutingFailure
 from ai_council.runner import (
     determine_panel as _determine_panel,
 )
@@ -815,17 +815,48 @@ def _run_with_failure(config, args, exc, *, research=False):
         return CliRunner().invoke(main, args)
 
 
+def _flat(output: str) -> str:
+    """Console output with wrapping collapsed to single spaces.
+
+    Rich hard-wraps at the console width, so a message substring can be split across lines.
+    Assertions that must survive wrapping run against this.
+    """
+    return " ".join(output.split())
+
+
+def _squashed(output: str) -> str:
+    """Console output with ALL whitespace removed -- for asserting a path survived intact.
+
+    A wrapped path cannot be matched even after collapsing to single spaces. Squashing is
+    still sensitive to the per-character mangle this guards against, because that mangle
+    joins with ``"; "`` and the semicolons survive squashing.
+    """
+    return "".join(output.split())
+
+
 def test_interactive_debate_required_write_failure_exits_nonzero(tmp_path, monkeypatch):
     """Criterion 3: the interactive debate site had NO handler -- a required-write failure
     escaped as a raw traceback. It must now exit 1 with a clean message."""
     monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
     config = _make_test_config(tmp_path)
-    exc = OutputRoutingError("verdict package failed to reach required return-dir: /nope")
+    dest = tmp_path / "unwritable-return"
+    # Two failures, not one: a return-dir fault is common-mode across the debate writers,
+    # and the plural path is what an operator actually sees.
+    failures = [
+        RoutingFailure(artifact="transcript", destination=dest, cause="permission denied"),
+        RoutingFailure(artifact="verdict package", destination=dest, cause="permission denied"),
+    ]
+    exc = OutputRoutingError(failures)
     result = _run_with_failure(config, ["--skip-health-check", "--mode", "pick", "q"], exc)
 
     assert result.exit_code == 1
-    assert "Required write failed" in result.output
-    assert "/nope" in result.output
+    assert "Required write failed" in _flat(result.output)
+    # The count must match the failures passed in. A test that cannot tell 2 from a
+    # shredded 58 is not testing this -- three fixtures previously could not.
+    assert "2 deliverables not delivered" in _flat(result.output)
+    # The destination must survive intact; a per-character mangle renders it "d; e; s; t".
+    assert str(dest) in _squashed(result.output)
+    assert "transcript" in _flat(result.output)
     assert "Traceback (most recent call last)" not in result.output
 
 
@@ -849,14 +880,21 @@ def test_interactive_research_required_write_beats_runtimeerror_branch(tmp_path,
     would otherwise catch it and mislabel it 'Research error'."""
     monkeypatch.delenv("AICOUNCIL_OUTPUT_DIR", raising=False)
     config = _research_capable_config(tmp_path)
-    exc = OutputRoutingError("research report failed to reach required return-dir: /nope")
+    dest = tmp_path / "unwritable-return"
+    exc = OutputRoutingError(
+        [RoutingFailure(artifact="research report", destination=dest, cause="permission denied")]
+    )
     result = _run_with_failure(
         config, ["--skip-health-check", "--mode", "research", "q"], exc, research=True
     )
 
     assert result.exit_code == 1
-    assert "Required write failed" in result.output
+    assert "Required write failed" in _flat(result.output)
     assert "Research error" not in result.output, "mislabelled as a research error"
+    # Singular noun, count of 1, destination intact -- this assertion previously passed
+    # against a 58-character-deliverable mangle because it only checked the label above.
+    assert "1 deliverable not delivered" in _flat(result.output)
+    assert str(dest) in _squashed(result.output)
 
 
 def test_interactive_research_oserror_no_longer_escapes(tmp_path, monkeypatch):
@@ -889,11 +927,20 @@ def test_inbox_batch_does_not_abort_and_exits_nonzero(tmp_path, monkeypatch):
         (inbox_dir / f"{name}.md").write_text(f"question {name}\n", encoding="utf-8")
 
     seen: list[str] = []
+    fail_dest = tmp_path / "unwritable-return"
 
     async def _run(request, output_dir=None, output_format="text"):
         seen.append(Path(request.question.source).stem)
         if Path(request.question.source).stem == "b":  # middle file fails
-            raise OutputRoutingError("failed to reach required return-dir: /nope")
+            raise OutputRoutingError(
+                [
+                    RoutingFailure(
+                        artifact="transcript",
+                        destination=fail_dest,
+                        cause="permission denied",
+                    )
+                ]
+            )
         return DebateResult(
             question=request.question, rounds=[Round(number=1, responses=[])],
             synthesis="ok", synthesizer="claude", total_duration_sec=1.0, panel_mode="custom",
@@ -911,6 +958,9 @@ def test_inbox_batch_does_not_abort_and_exits_nonzero(tmp_path, monkeypatch):
     assert result.exit_code == 1, "a required-write failure must not exit 0"
     assert not list(inbox_dir.glob("*.md")), "every file should have left the inbox"
     assert len(list(archive_dir.rglob("*.md"))) == 3, "archive-as-failed bookkeeping changed"
+    # This test previously asserted nothing about the message, so a mangled one was invisible.
+    assert "1 deliverable not delivered" in _flat(result.output)
+    assert str(fail_dest) in _squashed(result.output)
 
 
 # ---------------------------------------------------------------------------
