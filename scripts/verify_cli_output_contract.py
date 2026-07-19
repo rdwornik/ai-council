@@ -372,10 +372,18 @@ def leg_l8() -> LegResult:
 # --------------------------------------------------------------------------------------------
 
 def leg_l9() -> LegResult:
-    from ai_council.output import OutputRoutingError
+    from ai_council.output import OutputRoutingError, RoutingFailure
 
     fails: list[str] = []
-    routing = OutputRoutingError("verdict package failed to reach required return-dir: /nope")
+    routing = OutputRoutingError(
+        [
+            RoutingFailure(
+                artifact="verdict package",
+                destination=Path("/nope"),
+                cause="permission denied",
+            )
+        ]
+    )
 
     def _check(label: str, args: list[str], exc: Exception, *, research: bool, expect: str):
         with tempfile.TemporaryDirectory(prefix="vcoc-l9-") as td:
@@ -432,7 +440,7 @@ def leg_l9() -> LegResult:
 def leg_l10() -> LegResult:
     """The batch must NOT abort: every file attempted, bookkeeping intact, exit still non-zero."""
     from ai_council.models import DebateResult, Round
-    from ai_council.output import OutputRoutingError
+    from ai_council.output import OutputRoutingError, RoutingFailure
     from config.config_loader import InboxConfig
 
     with tempfile.TemporaryDirectory(prefix="vcoc-l10-") as td:
@@ -450,7 +458,15 @@ def leg_l10() -> LegResult:
             stem = Path(request.question.source).stem
             seen.append(stem)
             if stem == "b":
-                raise OutputRoutingError("failed to reach required return-dir: /nope")
+                raise OutputRoutingError(
+                    [
+                        RoutingFailure(
+                            artifact="transcript",
+                            destination=Path("/nope"),
+                            cause="permission denied",
+                        )
+                    ]
+                )
             return DebateResult(
                 question=request.question, rounds=[Round(number=1, responses=[])],
                 synthesis="ok", synthesizer="claude", total_duration_sec=1.0, panel_mode="custom",

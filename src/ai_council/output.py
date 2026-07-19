@@ -174,6 +174,26 @@ class OutputRoutingError(RuntimeError):
     """
 
     def __init__(self, failures: list["RoutingFailure"]) -> None:
+        # str/bytes are iterable, so a bare list() silently shreds a message string into
+        # one "deliverable" per character — a wrong input producing plausible-looking output
+        # instead of a loud failure, which is the exact defect class this class exists to
+        # remove. They are rejected before the list/tuple check because they would pass any
+        # generic Iterable test. Caught live: three CLI fixtures constructed this with a
+        # string and two of them still passed, asserting on text that survived the mangling.
+        if isinstance(failures, (str, bytes)):
+            raise TypeError(
+                f"OutputRoutingError takes a list of RoutingFailure, not {type(failures).__name__}"
+            )
+        if not isinstance(failures, (list, tuple)):
+            raise TypeError(
+                f"OutputRoutingError takes a list of RoutingFailure, not {type(failures).__name__}"
+            )
+        bad = [f for f in failures if not isinstance(f, RoutingFailure)]
+        if bad:
+            raise TypeError(
+                "OutputRoutingError takes a list of RoutingFailure, got element of type "
+                f"{type(bad[0]).__name__}"
+            )
         self.failures = list(failures)
         joined = "; ".join(str(f) for f in self.failures)
         noun = "deliverable" if len(self.failures) == 1 else "deliverables"

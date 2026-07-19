@@ -1225,3 +1225,41 @@ def test_verdict_manifest_excludes_best_effort_target_mirrors(tmp_path, sample_q
     )
     verdict_entry = next(a for a in data["artifacts"] if a["kind"] == "verdict")
     assert verdict_entry["paths"] == [str(out / verdict_entry["filename"])]  # canonical only
+
+
+# ---------------------------------------------------------------------------
+# OutputRoutingError input guard — regression for the A1/A2 integration seam
+# ---------------------------------------------------------------------------
+
+def test_output_routing_error_rejects_wrong_input_types():
+    """A wrong type must raise TypeError, never be shredded into fake deliverables.
+
+    Caught at integration: str/bytes are iterable, so the original ``list(failures)`` turned
+    a message string into one "deliverable" per character. Four call sites still passed a
+    string and two of their assertions survived the mangling, so the lane gates stayed green
+    while the operator-facing message was nonsense.
+    """
+    import pytest
+
+    from ai_council.output import OutputRoutingError, RoutingFailure
+
+    good = RoutingFailure(artifact="transcript", destination=Path("/nope"), cause="denied")
+    for bad in ("a message string", b"bytes", good, ["transcript"], None, 42):
+        with pytest.raises(TypeError, match="takes a list of RoutingFailure"):
+            OutputRoutingError(bad)
+
+
+def test_output_routing_error_message_reports_true_count():
+    """The count in the message is the number of failures passed in — 2 is 2, not 58."""
+    from ai_council.output import OutputRoutingError, RoutingFailure
+
+    dest = Path("/nope")
+    two = OutputRoutingError([
+        RoutingFailure(artifact="transcript", destination=dest, cause="denied"),
+        RoutingFailure(artifact="verdict package", destination=dest, cause="denied"),
+    ])
+    assert len(two.failures) == 2
+    assert "2 deliverables not delivered" in str(two)
+
+    one = OutputRoutingError([RoutingFailure(artifact="research report", destination=dest, cause="denied")])
+    assert "1 deliverable not delivered" in str(one)
