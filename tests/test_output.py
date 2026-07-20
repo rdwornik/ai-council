@@ -1329,3 +1329,121 @@ def test_direct_mode_writes_canonical_metrics_before_raising(
     sidecars = list(out.glob("*_metrics.json"))
     assert len(transcripts) == 1, "canonical transcript lost"
     assert len(sidecars) == 1, "canonical metrics sidecar lost to the raise (F2)"
+
+
+# ---------------------------------------------------------------------------
+# #77 -- options_considered as ONE contract (sol adversarial pass, F6+F7).
+# These tests are the ex-ante contract: written BEFORE the fix, one named test
+# per frozen acceptance rule. The extractor feeds the DELEGATION SURFACE, so a
+# corrupted option string is read by a consuming repo as the council's own words.
+# ---------------------------------------------------------------------------
+
+def test_options_bullet_grammar_accepts_every_marker():
+    """Rule 1: `-`, `*`, `+`, `1.`, `1)` all parse to clean items.
+
+    `+ item` and `1) item` used to yield [] -- the character-class test only knew
+    `-`/`*` and a bare-digit first token.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- dash\n* star\n+ plus\n1. dot\n2) paren\n") == [
+        "dash",
+        "star",
+        "plus",
+        "dot",
+        "paren",
+    ]
+
+
+def test_options_marker_removal_never_eats_payload():
+    """Rule 2: only the EXACT list marker is removed, never a payload character.
+
+    `lstrip("-*0123456789. ")` is a character-set strip, so it chewed through the
+    option's own leading digits: `- 3D printing` -> `D printing`.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- 3D printing\n- 2026 roadmap\n- 401k match\n") == [
+        "3D printing",
+        "2026 roadmap",
+        "401k match",
+    ]
+
+
+def test_options_numbered_marker_removal_keeps_numeric_payload():
+    """Rule 2, numbered form: `1. 2026 roadmap` keeps its 2026."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("1. 2026 roadmap\n2) 3D printing\n") == [
+        "2026 roadmap",
+        "3D printing",
+    ]
+
+
+def test_options_emphasis_unwrapped_as_markdown_delimiters():
+    """Rule 3: emphasis is unwrapped as real paired delimiters, not edge-stripped.
+
+    `.strip("*`_")` only touched the ends, so `- **Alpha** - fast` kept an interior
+    `**`: `Alpha** - fast`.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(
+        "- **Alpha** - fast\n- *Beta* - cheap\n- `Gamma` - proven\n- __Delta__ - safe\n"
+    ) == ["Alpha - fast", "Beta - cheap", "Gamma - proven", "Delta - safe"]
+
+
+def test_options_emphasis_unwrapping_spares_intra_word_underscores():
+    """Rule 3 guard: `_` inside an identifier is payload, not a delimiter.
+
+    A naive paired-delimiter regex turns `snake_case_name` into `snakecasename`.
+    Unwrapping must never fire mid-word.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- keep snake_case_name intact\n- 3 * 4 is not emphasis\n") == [
+        "keep snake_case_name intact",
+        "3 * 4 is not emphasis",
+    ]
+
+
+def test_options_honest_empty_when_no_bullets_anywhere():
+    """Rule 5: no options -> [], never a plausible-wrong single item.
+
+    An honest [] is readable as 'none extracted'; a fabricated item is not
+    detectable by the consumer.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = "## Alternatives Considered\n\nThe panel converged without listing any.\n"
+    got = _extracted_options(_split_sections(synthesis), _split_sections("No options here.\n"))
+    assert got["items"] == []
+
+
+def test_options_value_shape_is_unchanged():
+    """Rule 6: the {items, source, heading} triple the :974 caller depends on."""
+    from ai_council.output import _extracted_options, _split_sections
+
+    got = _extracted_options(_split_sections("## Options\n- One\n- Two\n"), None)
+    assert set(got) == {"items", "source", "heading"}
+    assert got["items"] == ["One", "Two"]
+    assert got["source"] == "extraction"
+    assert got["heading"] == "Options"
+
+
+def test_options_nested_sub_bullets_still_dropped():
+    """Regression guard: indented annotations are not scooped as their own options."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Alpha\n  - Who endorsed it: gemini\n- Beta\n") == ["Alpha", "Beta"]
+
+
+def test_options_thematic_break_is_not_an_option():
+    """Rule 5 guard: a horizontal rule must not surface as a junk option.
+
+    `---` fails the bullet grammar outright, but the spaced form `* * *` parses as a
+    `*` bullet carrying `* *`. Honest-empty beats a junk item on the delegation surface.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("---\n* * *\n___\n- Real option\n") == ["Real option"]

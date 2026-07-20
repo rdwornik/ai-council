@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -766,23 +767,69 @@ def _first_by_priority(
     return None, None
 
 
+# #77: the list marker is matched as a GRAMMAR, not a character set. The old
+# `lstrip("-*0123456789. ")` was a character-set strip, so it kept eating past the marker
+# into the option's own text — `- 3D printing` became `D printing` and `- 2026 roadmap`
+# became `roadmap`. A regex consumes the exact marker and nothing else. Whitespace after
+# the marker is REQUIRED, which is also what keeps a bare `2026 roadmap` line (no marker)
+# from being read as a numbered item and shorn of its year.
+_BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+(?P<text>.*)$")
+
+# A thematic break is not a list item. `---` fails _BULLET_RE anyway (no space after the
+# marker), but the spaced form `* * *` parses as a `*` bullet whose payload is `* *`. The
+# old character-set strip dropped that incidentally; matching the marker exactly makes the
+# guard explicit — honest-empty beats a junk option on the delegation surface.
+_THEMATIC_BREAK_RE = re.compile(r"^([-*_])(?:\s*\1){2,}$")
+
+# Paired markdown emphasis, longest delimiter first so `**` is not read as two `*`.
+# The `(?<!\w)`/`(?!\w)` guards are load-bearing: without them `snake_case_name` reads as
+# an `_`-wrapped span and collapses to `snakecasename`. The `(?=\S)`/`(?<=\S)` guards keep
+# `3 * 4` (a lone operator with spaces around it) from opening a span. Unpaired delimiters
+# are left in place — an honest `**` beats a payload character silently removed.
+_EMPHASIS_RE = re.compile(r"(?<!\w)(\*\*\*|\*\*|\*|___|__|_|`)(?=\S)(.+?)(?<=\S)\1(?!\w)", re.DOTALL)
+
+
+def _unwrap_emphasis(text: str) -> str:
+    """Remove PAIRED markdown emphasis delimiters anywhere in ``text``.
+
+    ``_one_line``'s ``.strip("*`_")`` idiom is edge-only, so ``**Alpha** — fast`` kept its
+    interior ``**`` (``Alpha** — fast``). Unwrapping real delimiter pairs handles emphasis
+    wherever it sits, and the loop resolves nesting (``**_x_**``). Bounded because each pass
+    strictly shortens the string; the cap is belt-and-braces against a pathological input.
+    """
+    for _ in range(8):
+        unwrapped = _EMPHASIS_RE.sub(r"\2", text)
+        if unwrapped == text:
+            break
+        text = unwrapped
+    return text.strip()
+
+
 def _top_level_bullets(body: str | None) -> list[str]:
     """Top-level bullet/numbered items in a section body.
 
-    A nested (indented) sub-bullet — e.g. an ideas entry's ``Who endorsed it`` annotation —
-    is dropped rather than scooped as its own option. Wrapping markdown emphasis is
-    stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    Accepts every markdown list grammar — ``-``, ``*``, ``+``, ``1.``, ``1)`` — and removes
+    the exact marker only, never a payload character (#77). A nested (indented) sub-bullet —
+    e.g. an ideas entry's ``Who endorsed it`` annotation — is dropped rather than scooped as
+    its own option. Markdown emphasis is unwrapped as paired delimiters so no ``**`` leaks
+    into the field.
+
+    This feeds ``options_considered`` on the delegation surface, so a mangled item is read
+    by a consuming repo as the council's own wording — hence exactness over tolerance.
     """
     items: list[str] = []
     for raw in (body or "").splitlines():
         if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
             continue
-        t = raw.strip()
-        first_token = t.split(" ", 1)[0].rstrip(".")
-        if t[:1] in ("-", "*") or first_token.isdigit():
-            cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
-            if cleaned:
-                items.append(cleaned)
+        stripped = raw.strip()
+        if _THEMATIC_BREAK_RE.match(stripped):
+            continue
+        match = _BULLET_RE.match(stripped)
+        if match is None:
+            continue
+        cleaned = _unwrap_emphasis(match.group("text").strip())
+        if cleaned:
+            items.append(cleaned)
     return items
 
 
