@@ -112,6 +112,26 @@ class ResearchConfig:
 
 
 @dataclass
+class CruxCheckConfig:
+    """The bounded between-rounds crux check (#18).
+
+    ``providers`` is a DELIBERATELY NARROW subset of ``research.providers`` — the step is
+    unconditional, so it runs on EVERY debate. The full research panel carries 240-1800s
+    timeouts and would add up to 30 minutes to a trivial pick run; ``budget_sec`` is the
+    hard wall-clock cap that keeps it affordable.
+
+    There is no ``model`` key: the extraction call reuses the already-selected synthesizer
+    instance (a non-participant by default), so no panelist gains an asymmetric role.
+    """
+
+    providers: list[str] = field(default_factory=list)
+    budget_sec: float = 90.0
+    max_tokens: int = 400
+    injection_header: str = ""
+    extraction_prompt: str = ""
+
+
+@dataclass
 class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
@@ -125,6 +145,8 @@ class AppConfig:
     modes: dict[str, ModeConfig] = field(default_factory=dict)
     persona_mode_directives: dict[str, dict[str, str]] = field(default_factory=dict)
     research: ResearchConfig | None = None
+    # #18 bounded crux check; None when the section is absent → the step is simply not built.
+    crux_check: CruxCheckConfig | None = None
     dev_root: Path | None = None
     target_projects: list[str] = field(default_factory=list)
     # Raw RunPolicy `policy:` block (B7); None when absent → RunPolicy code defaults apply.
@@ -307,6 +329,11 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     if "research" in raw:
         research = _load_research_config(raw["research"])
 
+    # Parse crux_check config (optional section; absent → the step is not built)
+    crux_check: CruxCheckConfig | None = None
+    if "crux_check" in raw:
+        crux_check = _load_crux_check_config(raw["crux_check"] or {})
+
     # Parse target_projects (new schema per ADR-43 amendment cycle 1, 2026-05-11):
     # dev_root + list of project names; paths computed at resolve time.
     raw_tp = raw.get("target_projects", [])
@@ -368,9 +395,21 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         modes=modes,
         persona_mode_directives=persona_mode_directives,
         research=research,
+        crux_check=crux_check,
         dev_root=dev_root,
         target_projects=target_projects,
         policy=policy,
+    )
+
+
+def _load_crux_check_config(raw: dict) -> CruxCheckConfig:
+    """Parse the crux_check: section of settings.yaml (#18)."""
+    return CruxCheckConfig(
+        providers=list(raw.get("providers", [])),
+        budget_sec=float(raw.get("budget_sec", 90.0)),
+        max_tokens=int(raw.get("max_tokens", 400)),
+        injection_header=str(raw.get("injection_header", "")),
+        extraction_prompt=str(raw.get("extraction_prompt", "")),
     )
 
 

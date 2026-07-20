@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from ai_council.policy import RunPolicy
@@ -80,6 +81,7 @@ class DebateOutcome:
     degradation_summary: str | None = None
     provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
     seats: list[SeatMetrics] = field(default_factory=list)  # per-seat backend/identity/fallback telemetry
+    crux: CruxArtifact | None = None  # #18 bounded crux check; None when no service was injected
 
 
 @dataclass
@@ -106,6 +108,52 @@ class DebateMetrics:
     total_output_tokens: int = 0
     total_estimated_cost_usd: float = 0.0
     total_duration_sec: float = 0.0
+
+
+class CruxStatus(str, Enum):
+    """Outcome of the bounded between-rounds crux check (#18).
+
+    ``NO_EMPIRICAL_CRUX`` is a VALID SUCCESS, not an error: Round 1 held no checkable
+    empirical claim, so no retrieval was attempted. ``RETRIEVAL_UNAVAILABLE`` means the
+    debate DEGRADES (proceeds without the artifact) — it never aborts.
+
+    Inherits ``str`` deliberately: orchestrator.py json-dumps the DebateResult with
+    ``default=str``, and a plain Enum would serialize as "CruxStatus.GROUNDED" rather
+    than the contract's "grounded".
+    """
+
+    GROUNDED = "grounded"
+    NO_EMPIRICAL_CRUX = "no_empirical_crux"
+    RETRIEVAL_UNAVAILABLE = "retrieval_unavailable"
+
+
+@dataclass
+class CruxArtifact:
+    """The ONE canonical evidence artifact injected into every Round-2 prompt (#18).
+
+    Derived from Round-1 content that has ALREADY been anonymized, so it carries zero
+    provider/model attribution (ADR-03 blind voting). ``evidence_block`` is empty unless
+    ``status is GROUNDED``.
+    """
+
+    status: CruxStatus
+    crux_claim: str = ""
+    evidence_block: str = ""  # the ONE canonical injectable text; "" unless GROUNDED
+    sources_count: int = 0
+    providers_succeeded: int = 0
+    providers_attempted: int = 0
+    detail: str | None = None  # why, when not GROUNDED
+    call_metrics: ProviderCallMetrics | None = None  # the ONE crux extraction call
+
+
+class CruxChecker(Protocol):
+    """Structural type for the injected crux service (debate.py never imports research/).
+
+    ``check`` takes the ALREADY-ANONYMIZED Round-1 block, never ``list[ModelResponse]``:
+    ADR-03 is satisfied by the signature, not by discipline inside the implementation.
+    """
+
+    async def check(self, question_text: str, anon_block: str) -> CruxArtifact: ...
 
 
 @dataclass
@@ -151,3 +199,6 @@ class DebateResult:
     provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
     metrics: DebateMetrics | None = None  # populated after all calls complete
     synthesis_metrics: SynthesisMetrics | None = None  # per-synthesis observability
+    # #18 Phase A: rides on DebateResult only — deliberately NOT in the verdict package,
+    # so contract_version stays "1.0" (see output.py _build_verdict_payload).
+    crux: CruxArtifact | None = None

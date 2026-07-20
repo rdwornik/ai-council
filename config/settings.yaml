@@ -392,6 +392,43 @@ prompts:
     ## Action Items
     Concrete next steps to implement the recommended decision.
 
+# Bounded crux check (#18) — an UNCONDITIONAL step between Round 1 and Round 2. One LLM
+# call names the central empirical crux from the anonymized Round-1 block, a narrow headless
+# retrieval checks it, and ONE evidence artifact is injected identically into every Round-2
+# prompt. Remove this section to disable the step entirely.
+crux_check:
+  # DELIBERATELY NARROW — NOT research.default_providers. This fires on EVERY debate, and
+  # the research panel carries 240-1800s timeouts (gemini deep-research is 1800s), which
+  # would add up to 30 minutes and several dollars to a trivial pick run. Widening this
+  # is a cost decision that needs re-review, not a tuning knob.
+  providers: ["perplexity"]
+  budget_sec: 90 # hard wall-clock cap on retrieval; exceeded → retrieval_unavailable
+  max_tokens: 400 # the extraction call is short by construction
+  injection_header: "--- Evidence check on the central factual crux ---"
+  # The extraction call reuses the SYNTHESIZER instance (no model key here). It must be
+  # able to answer "there is no empirical crux" — a valid success, never fabricated.
+  extraction_prompt: |
+    Below are anonymized contributions from a council debate on a question.
+
+    Question: {question}
+
+    {anon_block}
+
+    Identify the single most central EMPIRICAL disagreement — a factual claim about the
+    world that could in principle be settled by evidence, not a matter of values,
+    preference, or judgement.
+
+    Respond in exactly this form:
+
+    ## Crux
+    <one sentence stating the checkable factual claim>
+
+    If the contributions contain NO checkable empirical disagreement — for example they
+    differ only on priorities, taste, or design philosophy — respond with exactly:
+
+    ## Crux
+    NONE
+
 research:
   default_providers: ["perplexity", "grok", "openai_mini", "gemini"]
   deep_providers: ["perplexity", "grok", "openai_mini", "openai_deep", "gemini"]
