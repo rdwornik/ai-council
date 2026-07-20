@@ -5,6 +5,7 @@ import time
 
 from ai_council.metrics import build_call_metrics, build_debate_metrics
 from ai_council.models import (
+    CruxArtifact,
     DebateResult,
     ModelResponse,
     Question,
@@ -70,6 +71,7 @@ async def synthesize(
     mode_config: ModeConfig | None = None,
     debate_mode: str = "pick",
     seats: list["SeatMetrics"] | None = None,
+    crux: CruxArtifact | None = None,
 ) -> DebateResult:
     """Run synthesis and return the final DebateResult.
 
@@ -134,8 +136,12 @@ async def synthesize(
             model_configs,
             round_number=0,  # 0 = synthesis call
         )
+        # #18: the crux extraction call belongs to no round (round_number=-1), so it
+        # rides in as an extra call rather than being invented into a Round.
+        crux_calls = [crux.call_metrics] if crux and crux.call_metrics else None
         metrics = build_debate_metrics(
-            rounds, synthesis_call_metrics, model_configs, total_duration, seats=seats
+            rounds, synthesis_call_metrics, model_configs, total_duration, seats=seats,
+            extra_calls=crux_calls,
         )
 
     return DebateResult(
@@ -152,4 +158,5 @@ async def synthesize(
         provider_statuses=provider_statuses or {},
         metrics=metrics,
         synthesis_metrics=synthesis_obs,
+        crux=crux,
     )

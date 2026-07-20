@@ -57,10 +57,19 @@ def build_debate_metrics(
     model_configs: dict[str, ModelConfig],
     total_duration_sec: float,
     seats: list[SeatMetrics] | None = None,
+    extra_calls: list[ProviderCallMetrics] | None = None,
 ) -> DebateMetrics:
     """Aggregate metrics across all debate rounds plus synthesis.
 
     ``seats`` is the L-CLI per-seat backend/identity/fallback telemetry (seats[] sidecar).
+
+    ``extra_calls`` carries out-of-band provider calls that belong to no round — today just
+    the #18 crux extraction call (round_number=-1). It is totalled HERE rather than appended
+    by the caller so that any future DebateMetrics total has exactly one place to be wrong.
+
+    NOTE (#82): research-lane retrieval cost is a separate ledger (ResearchResult.cost_usd)
+    and is NOT aggregated here, so a crux-checked debate's true spend exceeds what this
+    reports.
     """
     calls: list[ProviderCallMetrics] = []
     for rnd in rounds:
@@ -69,6 +78,7 @@ def build_debate_metrics(
                 build_call_metrics(response, model_configs, round_number=rnd.number)
             )
     calls.append(synthesis_call)
+    calls.extend(extra_calls or [])
 
     total_input = sum(c.input_tokens for c in calls)
     total_output = sum(c.output_tokens for c in calls)

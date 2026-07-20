@@ -167,6 +167,69 @@ so no `BACKLOG.md` structural change was made.
 
 ---
 
+### 2026-07-20 — [#18] bounded crux-check built (Phase A), awaiting merge gate
+
+**Did:** Planned then built the `[#18]` bounded crux-check on worktree branch `feat/crux-check`
+(off `94421c2`), to the architect's frozen contract + the sol 2026-07-20 rulings. Two operator gates
+ran first. **Gate 1 (line numbers vs merged main):** `_build_verdict_payload` confirmed at
+`output.py:1141` — the plan was right and the competing `output.py:888` cite is **wrong** (888 is a
+blank line between `_pair_code_spans` 817-887 and `_unwrap_emphasis` 890); §12's disjointness claim
+re-verified at real numbers and **holds** (769-851 is #77 *inline* CommonMark machinery; `_parse_crux`
+is block-level only). **Gate 2:** the plan's accepted Phase-A hole E2 filed as **`[#82]`** *before*
+any implementation. Then built tests-first across 7 steps, verifying after each.
+
+**Result:** Feature complete and green — **724 passed** (baseline 658, +66), mypy clean across 40
+files, ruff clean, `.\scripts\check.ps1` green, working tree clean. **NOT merged** — the operator is
+the serial merge gate. Arc = `dea0083`..**`8762ad7`** (8 commits).
+
+Three invariants verified *mechanically* rather than asserted: `output.py` is **byte-identical** to
+`94421c2` (so `contract_version` stays `"1.0"` and #77 is untouched); `display.py` / `runner.py` /
+`cli.py` are **byte-identical** (proving the plan's E3 boundedness claim — the headless executor
+duplicates ~14 lines of fanout and imports `_error_result` rather than refactoring the Rich `Live`
+path); and the four verdict-package guards were **mutation-tested** — leaking `crux` into the payload
+made 3 of 4 fail, and the mutation was reverted.
+
+**terra:** two passes ran, both repaired. Pass 1 (`67880bb`) returned 1 Critical + 3 High; the worst
+was a **malformed extraction being reported as `no_empirical_crux`** — a VALID SUCCESS — so an
+extractor refusal silently skipped retrieval while claiming the panel had nothing checkable. Same
+finding's second half: the prefix `"there is no"` discarded *"There is no statistically significant
+difference between A and B"*, a textbook checkable claim. Pass 2 (`94e9307`) confirmed those repairs
+and returned 3 more High (a `"none"` **prefix** swallowing *"Nonetheless…"* / *"None of the
+benchmarks…"*; headed refusals accepted as claims; and a verdict-payload equality test that was
+passing only by **Windows' ~15.6ms timer coarseness**, genuinely flaky on a microsecond clock).
+**The Critical was DOWNGRADED, not fixed:** `CruxCheckService.check()` receives only the anonymized
+`str` block, never `list[ModelResponse]`, so it cannot learn which panelist authored which proposal;
+a vendor name in retrieved prose is topic content, not blind-voting attribution (ADR-03 governs the
+latter). Pass 2 independently confirmed that reasoning sound. **Pass 3 could not run** — `codex exec`
+returns a usage-limit error until 2026-07-25 18:55 (verified twice via the wrapper plus a bare probe),
+so the pass-2 repairs carry no adversarial re-review; filed as **`[#83]`**, date-gated, on the
+#33/#44 precedent.
+
+**Changes:** new `src/ai_council/crux_check.py` (+313) and `src/ai_council/research/headless.py` (+87);
+`models.py` (+`CruxStatus`/`CruxArtifact`/`CruxChecker`, defaulted `crux` on `DebateOutcome` +
+`DebateResult`), `debate.py` (defaulted `crux_check` param; one call between R1/R2; evidence as a
+*separate* `_build_round2_prompt` param, never folded into `anon_block`), `orchestrator.py` (builds +
+injects beside `build_seat_router`; console surface for the outcome), `synthesis.py`, `metrics.py`
+(`extra_calls`, sentinel `round_number=-1`), `config/` (+`CruxCheckConfig`, +`crux_check:` block);
+new `tests/test_crux_check.py` + `tests/test_research_headless.py`, extensions to
+`test_debate/test_metrics/test_output/test_runner`; two terra audits under `docs/audits/`;
+`BACKLOG.md` (+#82, +#83).
+
+**Abandoned:** `crux_check.max_tokens` — **removed, not implemented.** `AIProvider.generate()` has no
+per-call token override, so plumbing it meant changing the ABC and every provider, outside the bounded
+contract; dead config that reads as a bound but enforces nothing is worse than none, so the artifact is
+bounded in code instead. Also **corrected the approved plan**: it placed the flow tests in
+`test_integration.py`, which is `pytestmark = pytest.mark.integration` — they would never have run;
+moved to `test_runner.py` + `test_output.py`.
+
+**Next:** Operator merge gate. No live end-to-end witness was run (every crux path is mock-tested; a
+real run bills research + synthesizer calls) — worth doing at or after merge. `[#83]` re-review unblocks
+2026-07-25. Flagged for a ruling: `crux_check.providers: ["perplexity"]` is the load-bearing cost
+decision — the step is unconditional, so widening it toward `research.default_providers` would put a
+1800s gemini deep-research call between every pair of rounds; that deserves an ADR note, not a tuning knob.
+
+---
+
 ### 2026-07-20 — #77 struck (ADR-70 Tier-1 closure) + worktree teardown
 
 **Did:** Post-merge cleanup from the primary checkout. Ran `/review-closures` scoped to **#77 only**.

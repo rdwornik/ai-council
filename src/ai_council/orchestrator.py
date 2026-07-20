@@ -7,8 +7,9 @@ lives in one place and can be imported / subclassed independently.
 import logging
 from pathlib import Path
 
+from ai_council.crux_check import build_crux_check_service
 from ai_council.debate import run_debate
-from ai_council.models import DebateOutcome, DebateResult, RunRequest
+from ai_council.models import CruxStatus, DebateOutcome, DebateResult, RunRequest
 from ai_council.output import (
     RoutingFailure,
     print_cost_summary,
@@ -83,6 +84,12 @@ class CouncilRunner:
         # §5 flip (#27), so this is a no-op unless a seat opts in with backend: cli.
         seat_router = build_seat_router(panel_names, self._providers, self._config.models)
 
+        # #18 bounded crux check. Built here (never inside debate.py) so the debate layer
+        # stays free of any research/ dependency. None when unconfigured → the debate runs
+        # exactly as it did before. The extractor is the synthesizer, a non-participant by
+        # default, so no panelist gains an asymmetric role heading into Round 2.
+        crux_service = build_crux_check_service(self._config, synthesizer)
+
         mode_config = self._config.modes.get(request.mode) if self._config.modes else None
         persona_directives = (
             self._config.persona_mode_directives.get(request.mode, {})
@@ -139,6 +146,7 @@ class CouncilRunner:
                 mode_config=mode_config,
                 persona_directives=persona_directives,
                 seat_router=seat_router,
+                crux_check=crux_service,
             )
             progress.update(debate_task, description="Running synthesis...")
 
@@ -157,7 +165,26 @@ class CouncilRunner:
                 mode_config=mode_config,
                 debate_mode=request.mode,
                 seats=outcome.seats,
+                crux=outcome.crux,
             )
+
+        # #18: surface the crux outcome here, not in debate.py (which owns no console).
+        # Without this, a retrieval failure would be silent in the transcript — the
+        # deliberate cost of NOT setting outcome.degraded (that would leak into the verdict
+        # package's degradation block, and contract_version 1.0 is frozen at Phase A).
+        if outcome.crux is not None:
+            if outcome.crux.status is CruxStatus.GROUNDED:
+                console.print(
+                    f"[green]OK[/green] Crux check grounded "
+                    f"({outcome.crux.sources_count} source(s)): {outcome.crux.crux_claim}"
+                )
+            elif outcome.crux.status is CruxStatus.NO_EMPIRICAL_CRUX:
+                console.print("[dim]Crux check: no empirical crux in Round 1 (no lookup)[/dim]")
+            else:
+                console.print(
+                    f"[yellow]![/yellow] Crux check unavailable — debate continued "
+                    f"without evidence ({outcome.crux.detail})"
+                )
 
         for rnd in outcome.rounds:
             print_round_summary(rnd.number, rnd.responses)

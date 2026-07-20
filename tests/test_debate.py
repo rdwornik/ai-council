@@ -6,9 +6,15 @@ from unittest.mock import AsyncMock
 import pytest
 
 from ai_council.debate import _anonymize_responses, run_debate
-from ai_council.models import DebateOutcome, ModelResponse, Round
-from ai_council.providers.base import ProviderError
-from config.config_loader import ModelConfig
+from ai_council.models import (
+    CruxArtifact,
+    CruxStatus,
+    DebateOutcome,
+    ModelResponse,
+    Round,
+)
+from ai_council.providers.base import AIProvider, ProviderError, _Parsed
+from config.config_loader import ModeConfig, ModelConfig
 from tests.conftest import MockProvider
 
 
@@ -529,3 +535,249 @@ async def test_run_debate_round2_all_fail_returns_partial(
     assert "round 2" in outcome.degradation_summary.lower()
     assert len(outcome.rounds) == 1  # only round 1 completed
     assert outcome.rounds[0].number == 1
+
+
+# --------------------------------------------------------------- #18 bounded crux check
+
+
+class _StubCruxChecker:
+    """Records what the debate hands the crux service, and what it hands back."""
+
+    def __init__(self, artifact: CruxArtifact | None = None) -> None:
+        self.artifact = artifact or CruxArtifact(
+            status=CruxStatus.GROUNDED,
+            crux_claim="Deploys fail more on Fridays.",
+            evidence_block="--- Evidence ---\nIncident rate is 12% higher.",
+        )
+        self.calls: list[tuple[str, str]] = []
+
+    async def check(self, question_text: str, anon_block: str) -> CruxArtifact:
+        self.calls.append((question_text, anon_block))
+        return self.artifact
+
+
+def _capturing_providers(names: list[str], captured: list[str]) -> list[AIProvider]:
+    """Providers that record every Round-2+ prompt they are given."""
+
+    class CapturingProvider(AIProvider):
+        def __init__(self, provider_name: str) -> None:
+            self._name = provider_name
+            self._config = ModelConfig(
+                name=provider_name, sdk="mock", model="mock-model",
+                api_key_env="K", timeout_sec=30, max_tokens=100,
+            )
+
+        def name(self) -> str:
+            return self._name
+
+        def model_string(self) -> str:
+            return "mock-model"
+
+        async def generate(
+            self, prompt: str, round_number: int, *, timeout: float | None = None
+        ) -> ModelResponse:
+            if round_number >= 2:
+                captured.append(prompt)
+            return ModelResponse(self._name, "mock-model", round_number, "resp", 0.1, 5)
+
+        async def _invoke(self, prompt: str) -> object:
+            return None
+
+        def _parse(self, raw: object) -> _Parsed:
+            return _Parsed("resp")
+
+    return [CapturingProvider(n) for n in names]
+
+
+async def test_crux_check_called_once_before_round_two(sample_question, sample_prompts_config):
+    checker = _StubCruxChecker()
+    providers = [MockProvider("a"), MockProvider("b")]
+    await run_debate(
+        sample_question, providers, sample_prompts_config, 2, crux_check=checker
+    )
+    assert len(checker.calls) == 1
+
+
+async def test_crux_check_not_called_when_num_rounds_is_one(
+    sample_question, sample_prompts_config
+):
+    """A one-round debate has no Round 2 to inject into — spending the call would be waste."""
+    checker = _StubCruxChecker()
+    await run_debate(
+        sample_question, [MockProvider("a")], sample_prompts_config, 1, crux_check=checker
+    )
+    assert checker.calls == []
+
+
+async def test_crux_check_called_once_even_across_three_rounds(
+    sample_question, sample_prompts_config
+):
+    """The contract is ONE call between R1 and R2; rounds 3+ reuse the stored artifact."""
+    checker = _StubCruxChecker()
+    captured: list[str] = []
+    providers = _capturing_providers(["a", "b"], captured)
+    await run_debate(
+        sample_question, providers, sample_prompts_config, 3, crux_check=checker
+    )
+    assert len(checker.calls) == 1
+    # Rounds 2 and 3, two providers each = 4 prompts, all carrying the evidence.
+    assert len(captured) == 4
+    assert all("Incident rate is 12% higher." in p for p in captured)
+
+
+async def test_crux_service_receives_anonymized_block_not_responses(
+    sample_question, sample_prompts_config
+):
+    """ADR-03: what reaches the service is the shuffled Proposal-labelled block."""
+    checker = _StubCruxChecker()
+    await run_debate(
+        sample_question,
+        [MockProvider("gemini"), MockProvider("claude")],
+        sample_prompts_config,
+        2,
+        crux_check=checker,
+    )
+    question_text, anon_block = checker.calls[0]
+    assert question_text == sample_question.text
+    assert "--- Proposal A ---" in anon_block
+    assert "gemini" not in anon_block
+    assert "claude" not in anon_block
+
+
+async def test_crux_evidence_appears_in_round2_prompt_pick_mode(
+    sample_question, sample_prompts_config
+):
+    captured: list[str] = []
+    providers = _capturing_providers(["a", "b"], captured)
+    checker = _StubCruxChecker()
+    await run_debate(
+        sample_question, providers, sample_prompts_config, 2, crux_check=checker
+    )
+    assert len(captured) == 2
+    for prompt in captured:
+        assert "Incident rate is 12% higher." in prompt
+    # All panelists get the SAME evidence — one canonical artifact, not per-seat variants.
+    assert captured[0].split("--- Evidence ---")[1] == captured[1].split("--- Evidence ---")[1]
+
+
+async def test_crux_evidence_appears_in_round2_prompt_ideas_mode(
+    sample_question, sample_prompts_config
+):
+    # uses_existing_prompts is a computed property: a non-empty round1_instruction is what
+    # takes this off the pick-mode branch and onto the ideas/judge assembly branch.
+    mode = ModeConfig(
+        description="ideas",
+        emoji="",
+        aliases=[],
+        default=False,
+        max_rounds=3,
+        token_budget=1000,
+        round1_instruction="Give ideas.",
+        round2_instruction="Now converge.",
+    )
+    assert mode.uses_existing_prompts is False
+    captured: list[str] = []
+    providers = _capturing_providers(["a"], captured)
+    checker = _StubCruxChecker()
+    await run_debate(
+        sample_question,
+        providers,
+        sample_prompts_config,
+        2,
+        mode_config=mode,
+        crux_check=checker,
+    )
+    prompt = captured[0]
+    assert "Incident rate is 12% higher." in prompt
+    # Evidence sits AFTER the anonymized block and BEFORE the round-2 instruction.
+    assert prompt.index("--- Evidence ---") < prompt.index("Now converge.")
+
+
+async def test_no_empirical_crux_leaves_round2_prompt_byte_identical(
+    sample_question, sample_prompts_config
+):
+    """The valid-success path must not perturb the prompt at all."""
+    baseline: list[str] = []
+    await run_debate(
+        sample_question, _capturing_providers(["a"], baseline), sample_prompts_config, 2
+    )
+
+    with_checker: list[str] = []
+    checker = _StubCruxChecker(
+        CruxArtifact(status=CruxStatus.NO_EMPIRICAL_CRUX, evidence_block="")
+    )
+    await run_debate(
+        sample_question,
+        _capturing_providers(["a"], with_checker),
+        sample_prompts_config,
+        2,
+        crux_check=checker,
+    )
+    assert with_checker[0] == baseline[0]
+
+
+async def test_retrieval_unavailable_does_not_abort_debate(
+    sample_question, sample_prompts_config
+):
+    checker = _StubCruxChecker(
+        CruxArtifact(status=CruxStatus.RETRIEVAL_UNAVAILABLE, detail="no providers")
+    )
+    outcome = await run_debate(
+        sample_question,
+        [MockProvider("a"), MockProvider("b")],
+        sample_prompts_config,
+        2,
+        crux_check=checker,
+    )
+    assert len(outcome.rounds) == 2
+    # Degradation here is the RESEARCH lane's, not the debate's — it must NOT leak into the
+    # verdict package's degradation block (contract_version 1.0 is frozen at Phase A).
+    assert outcome.degraded is False
+    assert outcome.crux is not None
+    assert outcome.crux.status is CruxStatus.RETRIEVAL_UNAVAILABLE
+
+
+async def test_crux_service_exception_does_not_abort_debate(
+    sample_question, sample_prompts_config
+):
+    """Defence in depth: even a service that breaks its own no-raise contract is contained."""
+
+    class _ExplodingChecker:
+        async def check(self, question_text: str, anon_block: str) -> CruxArtifact:
+            raise RuntimeError("service bug")
+
+    outcome = await run_debate(
+        sample_question,
+        [MockProvider("a")],
+        sample_prompts_config,
+        2,
+        crux_check=_ExplodingChecker(),
+    )
+    assert len(outcome.rounds) == 2
+    # terra HIGH-3: the failure must be RECORDED as retrieval_unavailable, not collapsed to
+    # None — None is the "no service injected" state, and conflating them erases the third
+    # outcome from DebateOutcome and from the console line the orchestrator prints.
+    assert outcome.crux is not None
+    assert outcome.crux.status is CruxStatus.RETRIEVAL_UNAVAILABLE
+    assert "service bug" in (outcome.crux.detail or "")
+
+
+async def test_crux_check_none_preserves_existing_behavior(
+    sample_question, sample_prompts_config
+):
+    outcome = await run_debate(
+        sample_question, [MockProvider("a"), MockProvider("b")], sample_prompts_config, 2
+    )
+    assert outcome.crux is None
+    assert len(outcome.rounds) == 2
+
+
+async def test_crux_artifact_attached_to_debate_outcome(
+    sample_question, sample_prompts_config
+):
+    checker = _StubCruxChecker()
+    outcome = await run_debate(
+        sample_question, [MockProvider("a")], sample_prompts_config, 2, crux_check=checker
+    )
+    assert outcome.crux is checker.artifact
+    assert outcome.crux.status is CruxStatus.GROUNDED
