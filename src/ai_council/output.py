@@ -781,28 +781,104 @@ _BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+(?P<text>.*)$")
 # guard explicit — honest-empty beats a junk option on the delegation surface.
 _THEMATIC_BREAK_RE = re.compile(r"^([-*_])(?:\s*\1){2,}$")
 
-# Paired markdown emphasis, longest delimiter first so `**` is not read as two `*`.
-# The `(?<!\w)`/`(?!\w)` guards are load-bearing: without them `snake_case_name` reads as
-# an `_`-wrapped span and collapses to `snakecasename`. The `(?=\S)`/`(?<=\S)` guards keep
-# `3 * 4` (a lone operator with spaces around it) from opening a span. Unpaired delimiters
-# are left in place — an honest `**` beats a payload character silently removed.
-_EMPHASIS_RE = re.compile(r"(?<!\w)(\*\*\*|\*\*|\*|___|__|_|`)(?=\S)(.+?)(?<=\S)\1(?!\w)", re.DOTALL)
+# ASCII punctuation is what a markdown backslash escape may precede (CommonMark §2.4).
+_ESCAPABLE = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+
+# Emphasis nesting deeper than this is not real prose. The cap keeps the closer/opener
+# search bounded, so unwrapping stays linear in the length of the option: a delimiter-heavy
+# line (a model may emit up to 16k tokens on one line) must not stall verdict generation.
+_MAX_EMPHASIS_NESTING = 64
 
 
 def _unwrap_emphasis(text: str) -> str:
     """Remove PAIRED markdown emphasis delimiters anywhere in ``text``.
 
     ``_one_line``'s ``.strip("*`_")`` idiom is edge-only, so ``**Alpha** — fast`` kept its
-    interior ``**`` (``Alpha** — fast``). Unwrapping real delimiter pairs handles emphasis
-    wherever it sits, and the loop resolves nesting (``**_x_**``). Bounded because each pass
-    strictly shortens the string; the cap is belt-and-braces against a pathological input.
+    interior ``**`` (``Alpha** — fast``). This unwraps real delimiter pairs wherever they
+    sit, including nested ones (``**_x_**``).
+
+    A single left-to-right scan rather than a regex, for three reasons a regex got wrong
+    (terra review, #77):
+
+    * **Escapes** — ``\\*literal\\*`` is an author asking for literal asterisks, not
+      emphasis. An escaped delimiter can never open or close a span; it de-escapes to the
+      bare character, which is what the author meant to be read.
+    * **Code spans** — a backtick span is ATOMIC. ```` `__init__` ```` must survive whole;
+      a regex that unwrapped the backticks then re-scanned the result ate the dunder and
+      produced ``init``. Payload loss on the delegation surface, exactly what #77 forbids.
+    * **Linear time** — a lazy ``(.+?)`` between delimiters retries from every candidate
+      opener when no closer exists, which is quadratic; ~30k characters of ``" *a"`` took
+      seconds. Scanning once with a depth-capped stack cannot backtrack.
+
+    Only EQUAL-LENGTH delimiter runs pair (``**x**`` yes, ``**x*`` no). Anything unpaired is
+    emitted verbatim — an honest ``**`` in the output beats a payload character silently
+    removed, and this field is read by a consuming repo as the council's own wording.
     """
-    for _ in range(8):
-        unwrapped = _EMPHASIS_RE.sub(r"\2", text)
-        if unwrapped == text:
-            break
-        text = unwrapped
-    return text.strip()
+    parts: list[dict] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\" and i + 1 < n and text[i + 1] in _ESCAPABLE:
+            parts.append({"emit": text[i + 1]})  # de-escaped, and inert as a delimiter
+            i += 2
+        elif ch == "`":
+            run_end = i
+            while run_end < n and text[run_end] == "`":
+                run_end += 1
+            fence = text[i:run_end]
+            close = text.find(fence, run_end)
+            # A longer backtick run is not a match for this fence (CommonMark §6.1).
+            while close != -1 and text[close - 1 : close] != "`" and text[
+                close + len(fence) : close + len(fence) + 1
+            ] == "`":
+                close = text.find(fence, close + len(fence) + 1)
+            if close == -1:
+                parts.append({"emit": fence})  # unpaired fence — keep it, do not guess
+                i = run_end
+            else:
+                parts.append({"emit": text[run_end:close]})  # span content, taken atomically
+                i = close + len(fence)
+        elif ch in "*_":
+            run_end = i
+            while run_end < n and text[run_end] == ch:
+                run_end += 1
+            run = text[i:run_end]
+            before = text[i - 1] if i > 0 else ""
+            after = text[run_end] if run_end < n else ""
+            can_open = bool(after) and not after.isspace()
+            can_close = bool(before) and not before.isspace()
+            if ch == "_":
+                # Intra-word `_` is payload, not emphasis: `snake_case_name` must survive.
+                can_open = can_open and not (before.isalnum() or before == "_")
+                can_close = can_close and not (after.isalnum() or after == "_")
+            parts.append({"emit": run, "char": ch, "len": len(run), "open": can_open, "close": can_close})
+            i = run_end
+        else:
+            run_end = i
+            while run_end < n and text[run_end] not in "\\`*_":
+                run_end += 1
+            parts.append({"emit": text[i:run_end]})
+            i = run_end
+
+    openers: list[dict] = []
+    for part in parts:
+        if "char" not in part:
+            continue
+        if part["close"]:
+            for k in range(len(openers) - 1, -1, -1):
+                candidate = openers[k]
+                if candidate["char"] == part["char"] and candidate["len"] == part["len"]:
+                    candidate["emit"] = part["emit"] = ""  # a real pair — drop both runs
+                    del openers[k:]  # openers left dangling inside the span stay literal
+                    break
+            else:
+                if part["open"]:
+                    openers.append(part)
+            continue
+        if part["open"]:
+            openers.append(part)
+            del openers[:-_MAX_EMPHASIS_NESTING]
+    return "".join(part["emit"] for part in parts).strip()
 
 
 def _top_level_bullets(body: str | None) -> list[str]:
@@ -827,7 +903,13 @@ def _top_level_bullets(body: str | None) -> list[str]:
         match = _BULLET_RE.match(stripped)
         if match is None:
             continue
-        cleaned = _unwrap_emphasis(match.group("text").strip())
+        payload = match.group("text").strip()
+        # Re-test AFTER marker removal: `- * * *` is a list-wrapped thematic break, so the
+        # line-level guard above does not see it (terra review, #77). The old character-set
+        # strip discarded it incidentally; missing this reintroduced a fabricated option.
+        if _THEMATIC_BREAK_RE.match(payload):
+            continue
+        cleaned = _unwrap_emphasis(payload)
         if cleaned:
             items.append(cleaned)
     return items

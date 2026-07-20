@@ -1447,3 +1447,79 @@ def test_options_thematic_break_is_not_an_option():
     from ai_council.output import _top_level_bullets
 
     assert _top_level_bullets("---\n* * *\n___\n- Real option\n") == ["Real option"]
+
+
+# --- #77, terra pre-merge review: three HIGH findings against the first fix. ---
+
+def test_options_code_span_is_atomic():
+    """terra HIGH: a backtick span must survive whole.
+
+    Unwrapping the backticks and re-scanning the result ate the dunder --
+    `__init__` became `init`. Payload loss on the delegation surface.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Refactor `__init__` wiring\n- Use `a * b` form\n") == [
+        "Refactor __init__ wiring",
+        "Use a * b form",
+    ]
+
+
+def test_options_escaped_delimiters_are_literal_not_emphasis():
+    r"""terra HIGH: `\*literal\*` is an author asking for asterisks, not emphasis."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(r"- keep \*literal\* stars" "\n" r"- a \_b\_ c" "\n") == [
+        "keep *literal* stars",
+        "a _b_ c",
+    ]
+
+
+def test_options_unpaired_and_unequal_delimiters_are_left_alone():
+    """terra HIGH: `x *** y` lost an asterisk. Only equal-length runs pair."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- x *** y\n- unmatched ** here\n- **uneven*\n") == [
+        "x *** y",
+        "unmatched ** here",
+        "**uneven*",
+    ]
+
+
+def test_options_list_wrapped_thematic_break_is_dropped():
+    """terra HIGH: `- * * *` is a list-wrapped separator, not an option.
+
+    The line-level guard cannot see it -- the break test must also run on the
+    payload after marker removal.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- * * *\n* - - -\n- Real option\n") == ["Real option"]
+
+
+def test_options_emphasis_unwrapping_is_linear_on_pathological_input():
+    """terra HIGH: the lazy-quantifier regex was quadratic (~4.4s on 30k chars).
+
+    A model may emit a very long single-line option; unwrapping must not stall
+    verdict generation. Generous bound -- it fails on quadratic, passes on linear.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    items = _top_level_bullets("- " + " *a" * 30_000 + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert len(items) == 1
+    assert elapsed < 1.0, f"emphasis unwrapping took {elapsed:.2f}s -- superlinear"
+
+
+def test_options_nested_emphasis_still_unwraps():
+    """Regression guard for the scanner rewrite: nesting must still resolve."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- **_Alpha_** wins\n- ***Bold italic*** option\n") == [
+        "Alpha wins",
+        "Bold italic option",
+    ]
