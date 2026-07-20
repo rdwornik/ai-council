@@ -1,9 +1,15 @@
 """SPIKE (throwaway): force `ai_council` to resolve to THIS worktree's src.
 
-The shared `.venv` carries an editable install whose `__editable___ai_council_..._finder`
-is a MetaPathFinder pinned to the MAIN checkout's `src/`. A MetaPathFinder is consulted
-before `sys.path`, so setting PYTHONPATH alone does NOT redirect the import — the worktree
-silently tests the main checkout's code. Drop the finder, then prepend the worktree src.
+The shared `.venv` editable-installs `ai_council` from the MAIN checkout, so an
+unqualified import inside a worktree silently tests the main checkout's code.
+Prepending the worktree `src` to `sys.path` shadows it — and `activate()`
+ASSERTS the resolved path afterwards, so a run can never quietly test main.
+
+Git Bash caveat (this cost a false start): `PYTHONPATH` does work, but MSYS
+converts POSIX paths (`/c/...`) to Windows form only for values it recognises as
+a single path. Joining two paths with `;` defeats that heuristic, Python then
+gets an unresolvable `/c/...`, and the import silently falls back to MAIN src.
+Pass Windows-form paths (`C:/...`) from Git Bash, or set one path only.
 """
 
 from __future__ import annotations
@@ -15,9 +21,6 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 
 
 def activate() -> str:
-    sys.meta_path[:] = [
-        f for f in sys.meta_path if "__editable__" not in type(f).__module__
-    ]
     for mod in [m for m in sys.modules if m == "ai_council" or m.startswith("ai_council.")]:
         del sys.modules[mod]
     sys.path.insert(0, str(_SRC))

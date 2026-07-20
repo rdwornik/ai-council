@@ -173,8 +173,21 @@ py -m pytest tests/test_output.py -p spike.plugin_base -q              # scanner
 py -m pytest tests/test_output.py -p spike.plugin_swap -q              # library  118 pass
 ```
 
-**Harness note (cost us a false start):** the shared `.venv` editable install ships
-`__editable___ai_council_1_0_0_finder`, a **MetaPathFinder** pinned to the MAIN checkout's
-`src/`. A MetaPathFinder is consulted **before `sys.path`**, so `PYTHONPATH` alone does **not**
-redirect the import — a worktree run silently tests the main checkout. `spike/worktree_path.py`
-drops the finder, re-imports, and **asserts** the resolved path.
+**Harness note (cost a false start — first diagnosis was wrong, corrected here):** a worktree
+run can silently import the MAIN checkout's `src`, because the shared `.venv` editable-installs
+`ai_council` from there.
+
+I first concluded that the editable install's `__editable___ai_council_1_0_0_finder`
+**MetaPathFinder outranks `PYTHONPATH`**. **That is false** — the finder is not even registered
+in `sys.meta_path`, and `PYTHONPATH` does work. The real cause is **Git Bash / MSYS path
+conversion**:
+
+| `PYTHONPATH` value | resolves to |
+|---|---|
+| `/c/.../markdown-it-py/src` (single POSIX path) | **worktree** — MSYS auto-converts to `C:\...` |
+| `/c/.../src;/tmp` (two POSIX paths, `;`-joined) | **MAIN** — conversion heuristic defeated, path unresolvable |
+| `C:/.../src;C:/...` (Windows form) | **worktree** |
+
+So from Git Bash, pass **Windows-form** paths or a **single** path. This does **not** affect any
+result above: `spike/worktree_path.py` prepends the worktree `src` and then **asserts** the
+resolved module path, and every run printed the worktree path before executing.
