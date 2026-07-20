@@ -23,6 +23,15 @@
 
 **Verification note.** Every P1 below was confirmed by reading the cited source in this session; four were additionally confirmed by *executing* the logic (marked **[executed]**). Claims that survived only as inference are marked **[inferred]** and stated as such. Complexity numbers are `ruff` output, not estimates.
 
+> ### ⚠ Amendment (same session, post-first-commit) — read this before the findings
+>
+> The first commit of this report (`ed8731b`) was written **without checking `BACKLOG.md` or `JOURNAL.md` first**. Reconciling afterwards found two material errors, corrected in place below and recorded here rather than silently fixed:
+>
+> 1. **Six findings — including two of the five lead P1s — are already tracked.** P1-4 = **#69**, P1-5 = **#75**, P2-4 = **#76**, plus **#79**, **#80**, **#81**. Their mechanisms were already filed, verified against source, and severity-rated. They are re-stated below as *independent confirmations*, not discoveries. Full map in **Reconciliation against BACKLOG**.
+> 2. **The headline buy-vs-build recommendation was already spiked, and the evidence went against it.** A prior session (branch `chore/spike-md-parser`, unmerged, worktree torn down) tested `markdown-it-py` against `_top_level_bullets` and found it causes **total option loss** on a fenced options list where the hand-rolled scanner is correct. Recommendation rewritten — see **Buy-vs-build #1**.
+>
+> Net: the majority of findings remain new, but this report is **not** a clean-slate discovery set, and the audit process that produced it had a real gap — reading the tracked-work record is part of the audit, not a courtesy afterwards.
+
 ---
 
 # P1 — will bite
@@ -59,6 +68,8 @@ The `try` at `:219-229` wraps only `_invoke`. `parsed = self._parse(raw)` sits *
 ### P1-4 · `--file` silently ignores frontmatter `models:`, and `--full` is not the documented no-op **[executed]**
 `src/ai_council/cli.py:687` (inbox) vs `cli.py:811-814` (interactive) · help text at `cli.py:487`
 
+> **ALREADY TRACKED as [#69]** (P2, filed 2026-07-19 from the #44 terra pass, marked VERIFIED against source). The mechanism below was independently re-derived and additionally **confirmed by execution**; the `--full`-is-not-a-no-op half is not in #69's text and appears to be new. **I disagree with the P2 rating — see the severity note at the end of this finding.**
+
 The two paths compute the same precedence with different expressions, and they disagree. Executed truth table for a file whose frontmatter says `models: claude,gemini`:
 
 | flags | interactive (`--file`) | inbox (`--inbox`) |
@@ -75,10 +86,14 @@ Two independent defects sit in that table:
 
 **Why it bites:** this is the repo's own known blind spot — `CLAUDE.md` §10 *"Inbox loop parity: Features added to interactive CLI must be explicitly mirrored into inbox loop"* — no longer hypothetical but live, and pointing the *opposite* way from the documented direction (here the inbox path is the correct one). Silent wrong-panel selection is unfalsifiable from the transcript, which records the panel that ran, not the one requested.
 
-**Fix direction:** extract one `resolve_run_overrides(flags, meta, config)` helper and call it from both paths; correct or remove the `--full` help text.
+**Fix direction:** extract one `resolve_run_overrides(flags, meta, config)` helper and call it from both paths; correct or remove the `--full` help text. (#69's done-when already specifies the shared helper.)
+
+**Severity disagreement with [#69]'s P2:** the defect is *silent, operator-facing, and unfalsifiable from the artifacts*. The transcript records the panel that ran, never the panel requested, so a run that quietly used the default 5-model panel instead of the operator's chosen 2 is indistinguishable after the fact — including in the verdict package that downstream repos consume as a binding input. Everything else at P2 in this repo's backlog produces either a loud failure or a detectable artifact. I would rate it P1.
 
 ### P1-5 · The "best-effort" secondary mirror is unguarded and can abort the run
 `src/ai_council/output.py:268` vs its own contract at `output.py:171,255-256`
+
+> **ALREADY TRACKED as [#75]** (P2, filed 2026-07-19 as a Lane A1 escalation, marked PRE-EXISTING). Independently re-derived here; #75's text already names the same canonical-loss consequence and estimates the fix at ~4 lines plus test updates. Recorded as confirmation, not discovery.
 
 `_write_routed` wraps the `target_paths` mirror writes in `try/except` (`:306-313`) but leaves the `secondary_dir` write bare:
 
@@ -350,12 +365,29 @@ Four independent classifiers — `classify_error` (`base.py:44`), `classify_cli_
 
 Ranked by hand-rolled line count against library maturity.
 
-### 1. CommonMark inline parsing — ~270 lines · `output.py:771-1039`
-`_pair_code_spans`, `_unwrap_emphasis`, `_top_level_bullets`, `_is_punctuation` plus five module-level regexes implement backtick-run pairing (CommonMark §6.1), left/right-flanking delimiter runs (§6.2), backslash escapes (§2.4), ordered/bullet list grammar (§5.2) and thematic breaks. `_unwrap_emphasis` alone is complexity 19 with 21 branches.
+### 1. CommonMark inline parsing — ~270 lines · `output.py:771-1039` — **ALREADY SPIKED; EVIDENCE IS AGAINST NAIVE ADOPTION**
 
-**The evidence this was the wrong build:** the comments document **six** successive correctness passes ("terra pass 2" through "pass 6") each fixing a payload-corruption bug — `- 3D printing` → `D printing`, `` `__init__` `` → `init`, an infinite loop on any Windows path, quadratic blowup on `" *a"` × 30k, NBSP-separated asterisks deleting a whole option. Every one of those is a solved problem in `markdown-it-py` (the CommonMark reference port, pure Python, actively maintained) or `mistune`.
+> **CORRECTED.** My first draft recommended replacing this with `markdown-it-py` as the headline buy-vs-build win. **That recommendation was wrong, and the repo already knew why.**
 
-**Recommendation:** parse the synthesis to an AST once with `markdown-it-py` and read headings, list items and inline text off the tree. This deletes the parser, `_split_sections`'s fence blindness (**P2-12**), and the `_one_line` emphasis-stripping idiom in one move. **Requires operator approval — new dependency.**
+`_pair_code_spans`, `_unwrap_emphasis`, `_top_level_bullets`, `_is_punctuation` plus five module-level regexes implement backtick-run pairing (CommonMark §6.1), left/right-flanking delimiter runs (§6.2), backslash escapes (§2.4), ordered/bullet list grammar (§5.2) and thematic breaks. `_unwrap_emphasis` alone is complexity 19 with 21 branches, and the comments document **six** successive correctness passes each fixing a payload-corruption bug. On surface metrics this is the textbook buy-vs-build candidate.
+
+**What the prior spike found** (branch `chore/spike-md-parser`, 4 commits `1eb4ecb` · `a38f699` · `070a64d` · `b6c10af`, **unmerged and deliberately never merged**, worktree torn down 2026-07-20; JOURNAL entries of the same date):
+
+| Input | hand-rolled scanner | `markdown-it-py` |
+|---|---|---|
+| Fenced diff inside an options section | fabricates options (**#81**) | correct |
+| **Whole options list fenced** (incl. ```` ```markdown ````) | **correct** — `['Adopt PostgreSQL', 'Adopt SQLite', 'Adopt DuckDB']` | **`[]` — TOTAL OPTION LOSS** |
+| 4-space-indented list | `[]` | `[]` |
+
+The scanner is correct on the second row **by accident** — its line-level fence-blindness, the very defect that causes #81's fabrication, is what saves the payload. The library's block-level correctness is what destroys it. **Neither implementation satisfies both halves of #81's done-when**, and the spike's own conclusion was recorded as **KEEP-SCANNER**.
+
+**Actual status: two open operator rulings, not a recommendation.**
+1. **Adopt vs keep-scanner** — gated on whether the `<1.0s` performance bound is negotiable.
+2. **[#81]'s preferred-failure ruling** — *fabrication* (a plausibly-wrong option a consumer cannot detect) vs *total loss* (an honestly-empty `[]`, which #77's own doctrine prefers). **This ruling is needed regardless of implementation** and is the real blocker; the library choice follows from it, not the other way round.
+
+**What I would still say:** the line-count and six-repair-passes argument is real, and if the #81 ruling lands on "honest emptiness beats fabrication" then the library aligns with the ruling and adoption becomes coherent. But that is downstream of a decision only the operator can make, and the naive framing — "270 hand-rolled lines, a library does this, swap it" — is refuted by evidence already in the repo. **No new dependency should be proposed on this basis until #81 is ruled.**
+
+**Process note for future audits:** this error was avoidable by reading `JOURNAL.md` and `BACKLOG.md` before writing the buy-vs-build section. A "we hand-rolled what a library provides" finding is only sound if you have checked whether the substitution was already attempted.
 
 ### 2. Retry / backoff — `debate.py:60-88`
 The retry loop grows the *timeout* ×1.5 but never sleeps, so a `rate_limit` is re-fired immediately into the same 429. It also stacks on top of undisabled SDK retries (`max_retries` defaults to 2 in the openai/anthropic clients, never overridden in the debate lane), producing up to 6 HTTP attempts inside one `wait_for` budget sized for one call.
@@ -375,6 +407,57 @@ Hand-rolled dataclass parsing with no schema validation, which is why `sdk`, `to
 - **HTTP** — the SDKs own the transport; there is no hand-rolled HTTP anywhere in the tree. Correct as-is.
 - **The CLI layer** — Click and Rich are used idiomatically and well; `_DefaultGroup` (`cli.py:426-451`) is a 15-line shim that earns its place versus a dependency.
 - **The dataclass model layer** — `models.py` is exemplary: pure data, no logic, no deps, and `CruxStatus(str, Enum)` at `:113` carries a comment explaining exactly why it inherits `str`. Do not "upgrade" this to pydantic.
+
+---
+
+## Reconciliation against BACKLOG
+
+Added in the same-session amendment. **Nothing was filed or struck** (moratorium) — this maps findings to already-tracked ids so a future triage session does not re-file them.
+
+### Already tracked — this audit is an independent confirmation, not a discovery
+
+| Finding | Tracked as | Match quality |
+|---|---|---|
+| **P1-4** frontmatter `models:` divergence | **#69** (P2) | Exact on mechanism, incl. the `--file`/`--inbox` split. **New half:** `--full` is not the documented no-op — absent from #69's text. I rate the whole P1, not P2 (rationale in the finding). |
+| **P1-5** `secondary_dir` unguarded | **#75** (P2) | Exact, including the "aborts before the minority report and verdict package get their canonical copies" consequence. |
+| **P2-4** verdict `artifacts[]` built pre-write | **#76** (P2) | Exact. #76 additionally identifies it as a Contract-Version 1.1 candidate needing a two-pass write — better analysis than mine. |
+| **P3** metrics manifest existence check | **#79** (P3) | Exact. |
+| **P3** multi-line option payload truncated | **#80** (P3) | Exact, and #80 correctly frames it as a *design fork* (continuation vs nested annotation are not distinguishable without a rule) rather than a bug — a distinction I did not draw. |
+| **P2-12 / P3** fence-blindness | **#81** (P3) | **Partial.** #81 covers `_top_level_bullets`; my P2-12 is `_split_sections` (a `## ` heading inside a fence). Same class, adjacent function — worth checking whether #81's fix scope covers both. |
+| **P2-3** transcript same-second overwrite | **#70** (P3) | **Partial / sibling.** #70 is the *research report* filename (`research/output.py:50-55`); mine is the *debate transcript* (`output.py:491`). Same mechanism, different emitter — likely a genuine second instance. |
+| **P2-30 / metrics** research cost invisible to `DebateMetrics` | **#82** (P3) | Exact — and `metrics.py:70-72` already carries the `NOTE (#82)` comment, so the code self-documents this. |
+| **P2-39** integration test weakness | **#21** (P3) | **Partial.** #21 is a specific `ImportError` in `test_full_debate_pipeline`; my finding is that the file's assertions are "did not crash". Same file, different defect. |
+| **P3** provider `type: ignore` / Responses-API drift | **#20** (P3) | Exact; #20 explicitly calls the current ignores a stopgap. |
+| **P2-32** `cli_base.py` unreachable from config | **#27** / **#43** | Tracked as the pending backend default-flip decision + the missing first-class `codex` seat name. Correctly *not* a defect — a gated feature. |
+| **P3** CLI partial usage booked as zero tokens | **#61** (P3) | Exact. |
+| **P3** doctor prune glob over-broad | **#72** (P3) | Exact. |
+| **P2** minority report over-fires on consensus | **#58** (P3) | Exact — and witnessed live in both arms of the 2026-07-18 smoke pair, which is stronger evidence than my static read. |
+| **P3** research `"incomplete"` terminal / slug doubling | **#54** / **#59** | Exact. |
+
+### Tracked items this audit did NOT independently find
+
+Recorded because it calibrates how much coverage to credit this pass: **#64** (malformed `--file` frontmatter is unhandled — only `RoutingError` is caught, and an invalid frontmatter `mode:` falls through to a hardcoded `pick` rather than the configured default mode). I read `cli.py:788-795` and `inbox.py:129` and did not flag it. It is a real defect in a file I claimed to have audited in full.
+
+### Genuinely new in this pass
+
+Not present in `BACKLOG.md` as of `f758fa6`, in rough priority order:
+
+- **P1-1** `_parse()` outside `generate()`'s guard — breaks the `ProviderError` contract two callers depend on, and falsifies `crux_check.check`'s "Never raises" docstring
+- **P1-2** `asyncio.gather` without `return_exceptions=True` — one seat's non-`ProviderError` cancels the round
+- **P1-3** SDK clients built in `__init__` and reused across per-file `asyncio.run()` loops in the inbox batch — the documented gemini gotcha, unfixed for the other four providers
+- **P1-6** degraded research reports cached for 7 days, so the condition cannot self-heal
+- **P1-7** `classify_error` matches naked HTTP digits; `auth` outranks `server_error` and burns seats on recoverable failures
+- **P1-8** `provider_statuses` means "ever succeeded" — mid-debate seat loss is invisible in every field of the contract-1.0 surface
+- **P1-9** a synthesis failure discards the entire paid-for run
+- **P1-10** research summarizer has no timeout (~30 min worst case)
+- **P1-11** research timeouts detected by a substring the providers never emit
+- **P1-14/15/16** the test-integrity set: one literal tautology, one test whose instrumentation is overwritten before it runs, and both orchestration functions mocked out of existence
+- **P2-1** crux extraction renders as "Round -1" in the cost summary and sidecar
+- **P2-5** `pick_synthesizer` silently ignores `--synthesizer` then labels the result "(user-selected)"
+- **P2-6** `--json` output unparseable (Rich already wrote to stdout)
+- **P2-7** `SeatMetrics` scalars are last-write-wins, producing `actual_backend="api"` alongside a CLI `actual_model`
+- **P2-27/28** dead config keys `sdk`, `token_budget`, `research.providers.perplexity.base_url`
+- Plus the remaining P2 doc-divergence set (**P2-19..P2-26**) and most of P3
 
 ---
 
