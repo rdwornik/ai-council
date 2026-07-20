@@ -19,6 +19,32 @@
 
 ---
 
+### 2026-07-21 — night vision audit (Fable, read-only): creative-adversarial read of direction [no task closed]
+
+**Did:** Ran the unattended 2026-07-20 night batch — a read-only vision audit against the
+"creativity engine / research-when-you-don't-know / decide-and-act" mission frame. Read
+VISION/ARCHITECTURE/ADR-01…14/BACKLOG E1–E7/CONTRACT/crux-check source; 15 bounded web
+searches on the 2026 multi-agent-debate landscape, all cited. Report committed as
+**`9665b91`** on `worktree-night-vision-audit` (`docs/audits/2026-07-20-night-vision-audit-fable.md`).
+
+**Result:** Findings report, not a decision — every contested point holds ≥2 live options.
+Direction verdict in tension (heterogeneity + decision/governance layer FOR; matched-compute
+MAD evidence + reasoning-model internalization AGAINST — #55 baseline still the missing
+adjudicator). 7 holes cited to file+ADR, sharpest: research/debate mutual exclusion inverts
+the vision's central verb, and the crux artifact is excluded from the verdict package by the
+#18 Phase-A freeze so a Lane-A caller can't tell grounded from ungrounded. 5 tagged
+2026-landscape proposals (vote aggregation, adversarial roles, first-class retrieval, thin
+MCP adapter, precedent memory). One-big-swing fork (evidence-first runs vs structured-vote
+verdicts) left unconverged for the operator.
+
+**Changes:** `docs/audits/2026-07-20-night-vision-audit-fable.md` (new) — nothing else; no
+src/ writes, no BACKLOG change (nothing closed; filing moratorium honored).
+
+**Abandoned:** Nothing.
+
+**Next:** Operator adjudicates the report's §1 tension, §3 proposals, §5 fork; worktree
+branch awaits review/merge decision (commit-and-stop per the batch instructions — not merged).
+
 ### 2026-07-20 — [#18] crux-check merged; push required a deliberate --no-verify bypass
 
 **Did:** Resolved the append-only JOURNAL conflict from `git merge --no-ff feat/crux-check`
