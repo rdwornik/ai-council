@@ -790,6 +790,59 @@ _ESCAPABLE = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 _MAX_EMPHASIS_NESTING = 64
 
 
+def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
+    """Map each code-span opener offset to ``(content_start, content_end, close_end)``.
+
+    Backtick runs are collected MAXIMALLY and paired only with a run of exactly equal
+    length (CommonMark §6.1). Collecting maximal runs up front is what makes a longer run
+    unusable as a shorter fence's closer — searching for the fence substring instead let a
+    one-backtick opener pair with the third backtick of a ```` ``` ```` run and swallow the
+    other two (terra review pass 2).
+
+    Two linear passes, no suffix rescanning: an earlier version called ``find()`` per
+    unmatched run, which re-walked the tail once per run.
+    """
+    runs: list[tuple[int, int]] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] == "`":
+            run_end = i
+            while run_end < n and text[run_end] == "`":
+                run_end += 1
+            runs.append((i, run_end))
+            i = run_end
+        else:
+            i += 1
+
+    # Index runs by length so each opener can find its closer without rescanning. The
+    # per-length cursors only ever move forward, which keeps the whole pass linear.
+    by_length: dict[int, list[int]] = {}
+    for idx, (start, end) in enumerate(runs):
+        by_length.setdefault(end - start, []).append(idx)
+    cursors = dict.fromkeys(by_length, 0)
+
+    spans: dict[int, tuple[int, int, int]] = {}
+    idx = 0
+    while idx < len(runs):
+        start, end = runs[idx]
+        siblings = by_length[end - start]
+        cursor = cursors[end - start]
+        while cursor < len(siblings) and siblings[cursor] <= idx:
+            cursor += 1
+        cursors[end - start] = cursor
+        if cursor >= len(siblings):
+            idx += 1  # no equal-length closer anywhere after it — this run is literal
+            continue
+        # An opener takes the FIRST equal-length run after it (CommonMark §6.1), so the
+        # OUTER pair wins: in `x ``y`` z` the outer single backticks form the span and the
+        # inner double run is content. Pairing whichever closed first inverted that and
+        # ate the outer backticks' payload.
+        closer = siblings[cursor]
+        spans[start] = (end, runs[closer][0], runs[closer][1])
+        idx = closer + 1
+    return spans
+
+
 def _unwrap_emphasis(text: str) -> str:
     """Remove PAIRED markdown emphasis delimiters anywhere in ``text``.
 
@@ -814,6 +867,7 @@ def _unwrap_emphasis(text: str) -> str:
     emitted verbatim — an honest ``**`` in the output beats a payload character silently
     removed, and this field is read by a consuming repo as the council's own wording.
     """
+    code_spans = _pair_code_spans(text)
     parts: list[dict] = []
     i, n = 0, len(text)
     while i < n:
@@ -822,22 +876,17 @@ def _unwrap_emphasis(text: str) -> str:
             parts.append({"emit": text[i + 1]})  # de-escaped, and inert as a delimiter
             i += 2
         elif ch == "`":
-            run_end = i
-            while run_end < n and text[run_end] == "`":
-                run_end += 1
-            fence = text[i:run_end]
-            close = text.find(fence, run_end)
-            # A longer backtick run is not a match for this fence (CommonMark §6.1).
-            while close != -1 and text[close - 1 : close] != "`" and text[
-                close + len(fence) : close + len(fence) + 1
-            ] == "`":
-                close = text.find(fence, close + len(fence) + 1)
-            if close == -1:
-                parts.append({"emit": fence})  # unpaired fence — keep it, do not guess
+            span = code_spans.get(i)
+            if span is None:
+                run_end = i
+                while run_end < n and text[run_end] == "`":
+                    run_end += 1
+                parts.append({"emit": text[i:run_end]})  # unpaired run — keep it, do not guess
                 i = run_end
             else:
-                parts.append({"emit": text[run_end:close]})  # span content, taken atomically
-                i = close + len(fence)
+                content_start, content_end, close_end = span
+                parts.append({"emit": text[content_start:content_end]})  # atomic span content
+                i = close_end
         elif ch in "*_":
             run_end = i
             while run_end < n and text[run_end] == ch:
@@ -861,6 +910,17 @@ def _unwrap_emphasis(text: str) -> str:
             i = run_end
 
     openers: list[dict] = []
+
+    def push(part: dict) -> None:
+        """Every opener goes through here so the depth cap can never be bypassed.
+
+        A delimiter that can both close and open reached ``append`` directly before, so a
+        stream of never-matching flanked runs (``!_!*!_!*…``) grew the stack without bound
+        and each reverse search walked all of it — quadratic on linear input (terra pass 2).
+        """
+        openers.append(part)
+        del openers[:-_MAX_EMPHASIS_NESTING]
+
     for part in parts:
         if "char" not in part:
             continue
@@ -873,11 +933,10 @@ def _unwrap_emphasis(text: str) -> str:
                     break
             else:
                 if part["open"]:
-                    openers.append(part)
+                    push(part)
             continue
         if part["open"]:
-            openers.append(part)
-            del openers[:-_MAX_EMPHASIS_NESTING]
+            push(part)
     return "".join(part["emit"] for part in parts).strip()
 
 

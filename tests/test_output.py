@@ -1523,3 +1523,60 @@ def test_options_nested_emphasis_still_unwraps():
         "Alpha wins",
         "Bold italic option",
     ]
+
+
+# --- #77, terra pass 2: three HIGH findings against the scanner itself. ---
+
+def test_options_longer_backtick_run_is_not_a_shorter_fence_closer():
+    """terra pass-2 HIGH: a 1-backtick opener must not pair with the third
+    backtick of a ``` run and swallow the other two.
+
+    Searching for the fence SUBSTRING restarted inside the longer run; pairing
+    maximal runs by equal length is what makes it unusable as a closer.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a `b ``` c\n") == ["a `b ``` c"]
+    assert _top_level_bullets("- a ``b ````` c\n") == ["a ``b ````` c"]
+
+
+def test_options_code_span_pairing_is_equal_length_only():
+    """Equal-length runs pair; the inner longer run is content, not a delimiter."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- `x ``y`` z`\n") == ["x ``y`` z"]
+    assert _top_level_bullets("- ``a ` b``\n") == ["a ` b"]
+
+
+def test_options_unmatched_flanked_delimiters_stay_linear():
+    """terra pass-2 HIGH: the depth cap was bypassed on the close-and-open path.
+
+    `!_!*!` runs can both close and open and never match each other, so they grew
+    the opener stack without bound and each reverse search walked all of it. The
+    earlier timing test used ` *a`, whose delimiters have close=False, so it did
+    NOT exercise this path -- the gap terra identified.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    items = _top_level_bullets("- " + "!_!*" * 20_000 + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert len(items) == 1
+    assert elapsed < 1.0, f"unmatched flanked delimiters took {elapsed:.2f}s -- superlinear"
+
+
+def test_options_descending_backtick_fences_stay_linear():
+    """terra pass-2 HIGH: every unmatched run re-walked the suffix via find()."""
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    payload = "".join("`" * length + "x" for length in range(40, 0, -1)) * 60
+    started = time.perf_counter()
+    _top_level_bullets("- " + payload + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"descending fences took {elapsed:.2f}s -- superlinear"
