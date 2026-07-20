@@ -19,6 +19,60 @@
 
 ---
 
+### 2026-07-20 — SPIKE markdown-it-py vs the scanner: dissolves #80/#81, REGRESSES perf — KEEP-SCANNER
+
+**Did:** Time-boxed buy-vs-build spike in the `markdown-it-py` worktree, per the operator's
+2026-07-20 directive to prove the library dissolves the two open forks BEFORE adopting. Built a
+parallel `top_level_bullets` over markdown-it-py's token stream (`spike/md_it_options.py`) and ran the
+**existing merged #77 suite unmodified** against it by monkeypatching `_top_level_bullets` from a pytest
+plugin. **Branch `chore/spike-md-parser`, 2 commits, `1eb4ecb`..`a38f699`. THROWAWAY — committed and
+STOPPED, not merged, no terra review. `src/ai_council/output.py` never touched; scanner not deleted**
+(verified: `git diff main -- src/ tests/ pyproject.toml` empty).
+
+**No install was needed** — `markdown-it-py 4.0.0` is **already present** as a transitive dep of `rich`,
+so no venv install and no `pyproject`/lock edit occurred. Ported from markdown-it JS 14.1.0 (`0fe7ccb`),
+highest in-source CommonMark reference **0.31.2**; used the `commonmark` preset, not the default
+`gfm-like`.
+
+**Result: suite parity NO — scanner 46/46, library 44/46 (`-k options`); 120/120 vs 118/120 full file.**
+
+- **#81 fenced-block fabrication — DISSOLVED.** A fence is a *sibling* token, never a list item, so its
+  `- ` lines cannot fabricate options. Library PASSES where the scanner FAILS, and it covers `~~~` and
+  4-space indented blocks free — forms a scanner fix would have to enumerate one at a time.
+- **#80 multi-line payload — rule-authority DISSOLVED, the truncation choice stays ours.** Continuation
+  is a `softbreak` *inside the same inline token* (CommonMark §5.2/§4.8); an annotation is a *nested
+  `bullet_list`*. So it IS a defined rule, not bespoke — and the scanner's current truncation is against
+  it. Whether the delegation surface WANTS the full payload remains a product ruling. Caveat: rendering
+  `softbreak` as `" "` inserts a character in neither source line, latently breaching #77's
+  `never_invents_characters`.
+- **Hang DISSOLVED, perf REGRESSED — the blocker.** `- C:\Users\rob` is fine both ways (~0.1ms). But on
+  the pass-1 shape (`" *a" * n`, bound <1.0s) the library is **30.8× slower at 30k chars (3.79s vs
+  0.12s)**. Isolating `md.parse()` alone: 8k 417ms → 16k 1,360ms → 32k 4,538ms → 64k **32,535ms**, i.e.
+  n^1.7 degrading to n^2.85. Our flattening scales identically, so **the cost is inside the library and
+  unpatchable from our layer**. The pass-2 shape (`"!_!*"`) stays ~linear.
+- **2nd failure is a contract divergence, not a library defect.** `**uneven*` → library `*uneven`, which
+  is spec-correct (reference render `*<em>uneven</em>`); our test encodes deliberate #77 conservatism.
+  Needs a ruling either way.
+
+**Changes:** new `spike/` only (`md_it_options.py`, `evidence.py`, `plugin_base.py`, `plugin_swap.py`,
+`worktree_path.py`, `FINDINGS.md`), `JOURNAL.md` (this entry). Merged surface untouched.
+
+**Abandoned / retracted:** mid-spike I diagnosed a worktree import failure as "the editable install's
+`__editable___ai_council_1_0_0_finder` MetaPathFinder outranks PYTHONPATH". **That is false and was
+retracted in `a38f699`** — the finder is not in `sys.meta_path` and PYTHONPATH does win. Real cause:
+Git Bash/MSYS converts a POSIX `/c/...` PYTHONPATH only when it reads it as a *single* path; a
+`;`-joined value defeats that, so Python silently falls back to MAIN src. **No spike result changed** —
+`worktree_path.activate()` asserts the resolved module path before any test runs, so every run was
+verified against worktree `src` despite the wrong rationale.
+
+**Next:** RECOMMEND **KEEP-SCANNER** — port markdown-it's fence-skipping *structure* into the scanner to
+close #81, and settle #80 by citing the CommonMark rule the spike just proved exists. The recommendation
+**flips to ADOPT if the <1.0s bound is negotiable** (is a 30k-char single-line option realistic?) — that
+is the open question back to the operator. #80/#81 remain OPEN; this spike is evidence, not a closure,
+so no `BACKLOG.md` structural change was made.
+
+---
+
 ### 2026-07-20 — #77 struck (ADR-70 Tier-1 closure) + worktree teardown
 
 **Did:** Post-merge cleanup from the primary checkout. Ran `/review-closures` scoped to **#77 only**.
