@@ -5,7 +5,14 @@ import logging
 import random
 from collections.abc import Callable
 
-from ai_council.models import DebateOutcome, ModelResponse, Question, Round
+from ai_council.models import (
+    CruxArtifact,
+    CruxChecker,
+    DebateOutcome,
+    ModelResponse,
+    Question,
+    Round,
+)
 from ai_council.policy import RunPolicy
 from ai_council.providers.base import AIProvider, ProviderError, classify_error, is_retryable
 from ai_council.seat_router import SeatRouter
@@ -126,18 +133,28 @@ def _build_round2_prompt(
     prompts: PromptsConfig,
     mode_config: ModeConfig | None,
     persona_directives: dict[str, str],
+    crux_evidence: str = "",
 ) -> str:
-    """Build Round 2+ prompts for a provider, respecting mode."""
+    """Build Round 2+ prompts for a provider, respecting mode.
+
+    ``crux_evidence`` (#18) is appended as its OWN block, never folded into ``anon_block``:
+    that slot is framed as proposals from other council members, so evidence concatenated
+    into it would be critiqued, attributed, and voted on as if a panelist had authored it.
+    Empty string → the prompt is byte-identical to the pre-#18 prompt.
+    """
     persona = prompts.personas.get(provider_name, "")
 
     if mode_config is None or mode_config.uses_existing_prompts:
-        # pick mode — use existing critique template unchanged
-        return prompts.critique.format(
+        # pick mode — use existing critique template unchanged. The template has no free
+        # placeholder for evidence, and adding one would break .format() for anyone on an
+        # older settings.yaml, so the block is composed after rendering.
+        base = prompts.critique.format(
             persona=persona,
             round=round_num,
             question=question_text,
             previous_responses_anonymized=anon_block,
         )
+        return f"{base}\n\n{crux_evidence}" if crux_evidence else base
 
     # ideas / judge modes — assemble from mode template fields
     parts: list[str] = []
@@ -154,6 +171,11 @@ def _build_round2_prompt(
     parts.append("")
     parts.append(anon_block)
     parts.append("")
+    if crux_evidence:
+        # After the anonymized block, before the instruction: the panelist reads the
+        # proposals, then the evidence, then what to do with both.
+        parts.append(crux_evidence)
+        parts.append("")
     parts.append(mode_config.round2_instruction.strip())
     return "\n".join(parts)
 
@@ -168,6 +190,7 @@ async def run_debate(
     mode_config: ModeConfig | None = None,
     persona_directives: dict[str, str] | None = None,
     seat_router: SeatRouter | None = None,
+    crux_check: CruxChecker | None = None,
 ) -> DebateOutcome:
     """Run the full debate across all rounds.
 
@@ -180,9 +203,13 @@ async def run_debate(
         policy: Retry/abort policy. Defaults to RunPolicy.default().
         mode_config: Mode-specific prompt templates. None or pick → uses existing prompts.
         persona_directives: Per-provider directive strings for this mode (pre-extracted).
+        seat_router: ADR-12 per-seat backend router. None → every seat uses its API leg.
+        crux_check: #18 bounded crux service, injected by the orchestrator. Called ONCE,
+            between Round 1 and Round 2. None → the step is skipped and Round-2 prompts
+            are byte-identical to the pre-#18 prompts.
 
     Returns:
-        DebateOutcome with rounds and degradation metadata.
+        DebateOutcome with rounds, degradation metadata, and the crux artifact (if any).
 
     Raises:
         RuntimeError: If all providers fail in round 1.
@@ -191,6 +218,7 @@ async def run_debate(
     _directives = persona_directives or {}
     rounds: list[Round] = []
     provider_statuses: dict[str, str] = {p.name(): "failed" for p in providers}
+    crux_artifact: CruxArtifact | None = None
 
     for round_num in range(1, num_rounds + 1):
         if round_num == 1:
@@ -204,9 +232,23 @@ async def run_debate(
             previous_responses = rounds[-1].responses
             anon_block, label_map = _anonymize_responses(previous_responses)
             logger.debug("Round %d anonymization map: %s", round_num, label_map)
+
+            # #18: ONE bounded crux check, between Round 1 and Round 2 only. Rounds 3+
+            # reuse the artifact. The service is handed the ALREADY-ANONYMIZED block, so
+            # nothing derived from it can carry panel attribution (ADR-03).
+            if round_num == 2 and crux_check is not None:
+                try:
+                    crux_artifact = await crux_check.check(question.text, anon_block)
+                    logger.info("Crux check result: %s", crux_artifact.status.value)
+                except Exception as exc:  # noqa: BLE001 - the debate must survive a service bug
+                    logger.warning("Crux check raised, proceeding without evidence: %s", exc)
+                    crux_artifact = None
+
+            crux_evidence = crux_artifact.evidence_block if crux_artifact else ""
             prompts_for_round = {
                 p.name(): _build_round2_prompt(
-                    p.name(), round_num, question.text, anon_block, prompts, mode_config, _directives
+                    p.name(), round_num, question.text, anon_block, prompts, mode_config,
+                    _directives, crux_evidence,
                 )
                 for p in providers
             }
@@ -251,6 +293,7 @@ async def run_debate(
                 degradation_summary=degradation_summary,
                 provider_statuses=provider_statuses,
                 seats=seat_router.collect() if seat_router is not None else [],
+                crux=crux_artifact,
             )
 
         # Quality gate: warn when Round 1 has low participation on a large panel
@@ -283,4 +326,5 @@ async def run_debate(
         rounds=rounds,
         provider_statuses=provider_statuses,
         seats=seat_router.collect() if seat_router is not None else [],
+        crux=crux_artifact,
     )
