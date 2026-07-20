@@ -37,16 +37,20 @@ logger = logging.getLogger(__name__)
 _CRUX_HEADING_RE = re.compile(r"^#{1,6}\s+crux\b", re.IGNORECASE)
 _ANY_HEADING_RE = re.compile(r"^#{1,6}\s")
 
-# The model was told to answer exactly "NONE", but models paraphrase. Every entry must name
-# the ABSENCE OF A CRUX explicitly.
+# Suppressing retrieval is a consequential act, so the bar for "the model said there is no
+# crux" is deliberately high: an EXACT sentinel, or an explicit crux-absence PHRASE.
 #
-# Deliberately NOT here: a bare "there is no". "There is no statistically significant
-# difference between A and B" is a textbook checkable empirical claim, and a generic
-# negation prefix silently discarded it as "no crux" (terra HIGH-1). Generic negation is a
-# property of many valid claims; only crux-absence phrasing may suppress retrieval.
+# Matched exactly (after stripping trailing punctuation), never as a prefix. "none" as a
+# prefix swallowed "Nonetheless, deployments fail more often" and "None of the benchmarks
+# met the target" — both valid empirical claims (terra pass-2). A prefix rule on a short
+# common word cannot distinguish a sentinel from the first word of a sentence.
+_NO_CRUX_EXACT = ("none", "n/a", "na", "no crux")
+
+# Matched as prefixes — each is long and unambiguous enough that no real claim opens with
+# it. Deliberately NOT here: a bare "there is no". "There is no statistically significant
+# difference between A and B" is textbook checkable, and generic negation is a property of
+# many valid claims; only crux-absence phrasing may suppress retrieval.
 _NO_CRUX_PREFIXES = (
-    "none",
-    "n/a",
     "no empirical crux",
     "no empirical disagreement",
     "no checkable claim",
@@ -54,6 +58,27 @@ _NO_CRUX_PREFIXES = (
     "no factual disagreement",
     "there is no empirical crux",
     "there is no checkable",
+)
+
+# A refusal or an admission of uncertainty UNDER a well-formed heading is an extraction
+# FAILURE, not a claim. Without this, "I cannot determine a crux because the input is
+# incomplete" was sent to retrieval as if it were a factual claim, and a hit would have
+# been reported GROUNDED (terra pass-2).
+_REFUSAL_MARKERS = (
+    "i cannot",
+    "i can't",
+    "i am unable",
+    "i'm unable",
+    "unable to determine",
+    "cannot determine",
+    "can't determine",
+    "i do not have",
+    "i don't have",
+    "i'm sorry",
+    "i am sorry",
+    "as an ai",
+    "insufficient information",
+    "not enough information",
 )
 
 # Hard bound on the injected block. Round-2 prompts already carry the full anonymized
@@ -105,8 +130,15 @@ def _parse_crux(text: str) -> tuple[ParseState, str]:
             claim = stripped.strip("*_` ").strip()
             if not claim:
                 return ParseState.MALFORMED, ""
-            if claim.lower().rstrip(".!").startswith(_NO_CRUX_PREFIXES):
+
+            normalized = claim.lower().rstrip(".!,;: ")
+            if normalized in _NO_CRUX_EXACT or normalized.startswith(_NO_CRUX_PREFIXES):
                 return ParseState.NO_CRUX, ""
+            if any(marker in normalized for marker in _REFUSAL_MARKERS):
+                # A refusal beneath a valid heading: we did not find out whether a crux
+                # exists, so this is a failure, not a no-crux verdict.
+                return ParseState.MALFORMED, ""
+
             if len(claim) > _MAX_CLAIM_CHARS:
                 claim = claim[:_MAX_CLAIM_CHARS].rstrip() + " […]"
             return ParseState.CLAIM, claim

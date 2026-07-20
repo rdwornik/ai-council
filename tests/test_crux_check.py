@@ -138,6 +138,40 @@ class TestParseCrux:
         text = "## Crux\nNo published benchmark shows X outperforming Y."
         assert _parse_crux(text)[0] is ParseState.CLAIM
 
+    # --- terra pass-2: "none" as a PREFIX swallowed valid claims ---
+
+    def test_nonetheless_is_a_claim_not_the_none_sentinel(self):
+        """startswith("none") matched "Nonetheless" — a sentinel must match exactly."""
+        text = "## Crux\nNonetheless, deployments fail more often on Fridays."
+        state, claim = _parse_crux(text)
+        assert state is ParseState.CLAIM
+        assert claim.startswith("Nonetheless")
+
+    def test_none_of_the_benchmarks_is_a_claim(self):
+        text = "## Crux\nNone of the benchmarks met the target."
+        state, claim = _parse_crux(text)
+        assert state is ParseState.CLAIM
+        assert claim.startswith("None of the")
+
+    def test_bare_none_with_punctuation_is_still_the_sentinel(self):
+        for variant in ("NONE", "None.", "none", "n/a", "N/A."):
+            assert _parse_crux(f"## Crux\n{variant}")[0] is ParseState.NO_CRUX, variant
+
+    # --- terra pass-2: refusals under a valid heading are failures, not claims ---
+
+    def test_headed_refusal_is_malformed_not_a_claim(self):
+        """Otherwise the refusal text is sent to retrieval and a hit reads as GROUNDED."""
+        text = "## Crux\nI cannot determine a crux because the input is incomplete."
+        assert _parse_crux(text)[0] is ParseState.MALFORMED
+
+    def test_headed_uncertainty_is_malformed(self):
+        for refusal in (
+            "I'm sorry, I can't help with this.",
+            "There is insufficient information to identify a crux.",
+            "As an AI, I am unable to assess this.",
+        ):
+            assert _parse_crux(f"## Crux\n{refusal}")[0] is ParseState.MALFORMED, refusal
+
 
 # ------------------------------------------------------------------------- outcomes
 

@@ -1891,7 +1891,13 @@ def test_verdict_payload_body_carries_no_crux_evidence(tmp_path, sample_question
 
 
 def test_verdict_payload_identical_with_and_without_crux(tmp_path, sample_question, sample_round):
-    """The strongest form: setting .crux changes the package by exactly nothing."""
+    """The strongest form: setting .crux changes the package by exactly nothing.
+
+    ``timestamp`` is excluded because each _build_verdict_payload call stamps its own
+    _iso_now(). Comparing it made the assertion depend on the platform clock: it passes on
+    Windows only because datetime.now() has ~15.6ms resolution, and would be flaky on a
+    microsecond-resolution clock. Every other field is compared.
+    """
     import json
 
     with_crux = _result_with_crux(sample_question, sample_round)
@@ -1900,6 +1906,10 @@ def test_verdict_payload_identical_with_and_without_crux(tmp_path, sample_questi
 
     a = _build_verdict_payload(with_crux, "run-1", "f.md", {}, [tmp_path])
     b = _build_verdict_payload(without, "run-1", "f.md", {}, [tmp_path])
+
+    assert a.keys() == b.keys()
+    a.pop("timestamp", None)
+    b.pop("timestamp", None)
     assert json.dumps(a, default=str, sort_keys=True) == json.dumps(
         b, default=str, sort_keys=True
     )
