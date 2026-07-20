@@ -19,6 +19,33 @@
 
 ---
 
+### 2026-07-20 — spike worktree teardown (markdown-it-py)
+
+**Did:** Tore down the `markdown-it-py` spike worktree now that its CC session was closed.
+Anchors the prior session's tail commits, which could not cite their own SHAs:
+**`2276baa`** (`docs(journal): anchor b6c10af and close the markdown-it-py spike arc`) ·
+`3bae0dd` (retract "#81 DISSOLVED") · `5b55bfd` (anchor the arc `1eb4ecb..a38f699`).
+
+**Result:** Worktree removed, `chore/spike-md-parser` deleted with `-D` (spike code intentionally
+never merged, `was 26192dd`). `feat/crux-check` (#18) left intact. On `main`, clean, 3 ahead of
+origin — deliberately **not** pushed.
+
+**Snag — stale worktree lock:** `git worktree remove` refused with
+`lock reason: claude session markdown-it-py (pid 25988)`. Rather than `-f -f`, verified the holder
+first: `Get-Process -Id 25988` returned nothing — **the PID was dead**, so the lock was stale
+metadata from the closed session, not a live holder. `git worktree unlock` + a plain `remove` then
+succeeded. Pattern worth keeping: a CC-session worktree lock outlives its process, so *verify the
+PID before escalating to force*.
+
+**Changes:** `.claude/worktrees/markdown-it-py/` (removed); branch `chore/spike-md-parser`
+(deleted); `JOURNAL.md`.
+
+**Abandoned:** Nothing struck. #80/#81 stay **OPEN** per operator instruction.
+
+**Next:** Push the 4 `main` commits when the operator is ready.
+
+---
+
 ### 2026-07-20 — session close: markdown-it-py spike arc SHA anchor
 
 **Did:** Closing anchor for the spike session. The correction entry below was committed as
