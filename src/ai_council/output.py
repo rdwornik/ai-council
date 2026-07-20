@@ -777,7 +777,10 @@ def _first_by_priority(
 # `[0-9]{1,9}`, not `\d+`: an ordered-list marker is 1-9 ASCII digits (CommonMark §5.2).
 # `\d+` accepted `1234567890. ordinary prose` as a list item — fabricating an option out of
 # prose that merely opens with a long number — and `\d` also matches non-ASCII digits.
-_BULLET_RE = re.compile(r"^(?:[-*+]|[0-9]{1,9}[.)])\s+(?P<text>.*)$")
+# `[ \t]+`, not `\s+`: a marker separator is an ASCII space or tab. `\s` also matches
+# Unicode spaces, so a hyphen followed by U+00A0 parsed as a list item and fabricated
+# an option out of ordinary prose (terra pass 4).
+_BULLET_RE = re.compile(r"^(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?P<text>.*)$")
 
 # A thematic break is not a list item. `---` fails _BULLET_RE anyway (no space after the
 # marker), but the spaced form `* * *` parses as a `*` bullet whose payload is `* *`. The
@@ -795,8 +798,13 @@ _MAX_EMPHASIS_NESTING = 64
 
 
 def _is_punctuation(ch: str) -> bool:
-    """CommonMark punctuation — ASCII punctuation plus any Unicode P* category."""
-    return bool(ch) and (ch in _ESCAPABLE or unicodedata.category(ch).startswith("P"))
+    """CommonMark punctuation — ASCII punctuation plus Unicode P* and S* categories.
+
+    The S* (symbol) categories are load-bearing, not pedantry: without them a currency or
+    math symbol is treated as an ordinary letter, so ``a*€*b`` looked like real emphasis
+    and lost both asterisks (terra pass 4).
+    """
+    return bool(ch) and (ch in _ESCAPABLE or unicodedata.category(ch)[0] in "PS")
 
 
 def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
@@ -811,20 +819,31 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
     Two linear passes, no suffix rescanning: an earlier version called ``find()`` per
     unmatched run, which re-walked the tail once per run.
     """
-    runs: list[tuple[int, int]] = []
+    # Runs carry whether their first backtick was escaped. An escaped run cannot OPEN a
+    # span — `\`` is a literal backtick, and treating it as an opener let it swallow the
+    # real `` `__init__` `` after it (terra pass 3). It CAN still close one: backslash
+    # escapes do not apply inside a code span, so `` `C:\` `` is the path `C:\`, and
+    # skipping that closing backtick corrupted the payload (terra pass 4).
+    runs: list[tuple[int, int, bool]] = []
     i, n = 0, len(text)
     while i < n:
-        # Escape-aware, matching the main scan. A blind pre-pass let the backtick in
-        # `\`` open a span that then swallowed the real `` `__init__` `` after it and ate
-        # the dunder as emphasis (terra pass 3) — the pre-pass and the scan must agree on
-        # which characters are delimiters at all.
         if text[i] == "\\" and i + 1 < n and text[i + 1] in _ESCAPABLE:
-            i += 2
+            if text[i + 1] != "`":
+                i += 2  # some other escaped punctuation — irrelevant to code spans
+                continue
+            # Record the escaped backtick as a run rather than skipping over it: skipping
+            # meant `` `C:\` `` never saw its closing backtick, so the span stayed open and
+            # the trailing backslash was lost from the payload.
+            run_end = i + 1
+            while run_end < n and text[run_end] == "`":
+                run_end += 1
+            runs.append((i + 1, run_end, True))
+            i = run_end
         elif text[i] == "`":
             run_end = i
             while run_end < n and text[run_end] == "`":
                 run_end += 1
-            runs.append((i, run_end))
+            runs.append((i, run_end, False))
             i = run_end
         else:
             i += 1
@@ -832,14 +851,17 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
     # Index runs by length so each opener can find its closer without rescanning. The
     # per-length cursors only ever move forward, which keeps the whole pass linear.
     by_length: dict[int, list[int]] = {}
-    for idx, (start, end) in enumerate(runs):
+    for idx, (start, end, _escaped) in enumerate(runs):
         by_length.setdefault(end - start, []).append(idx)
     cursors = dict.fromkeys(by_length, 0)
 
     spans: dict[int, tuple[int, int, int]] = {}
     idx = 0
     while idx < len(runs):
-        start, end = runs[idx]
+        start, end, was_escaped = runs[idx]
+        if was_escaped:
+            idx += 1  # a literal backtick — it may close a span, but it cannot open one
+            continue
         siblings = by_length[end - start]
         cursor = cursors[end - start]
         while cursor < len(siblings) and siblings[cursor] <= idx:
@@ -855,6 +877,7 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
         closer = siblings[cursor]
         spans[start] = (end, runs[closer][0], runs[closer][1])
         idx = closer + 1
+        continue
     return spans
 
 
@@ -887,9 +910,17 @@ def _unwrap_emphasis(text: str) -> str:
     i, n = 0, len(text)
     while i < n:
         ch = text[i]
-        if ch == "\\" and i + 1 < n and text[i + 1] in _ESCAPABLE:
-            parts.append({"emit": text[i + 1]})  # de-escaped, and inert as a delimiter
-            i += 2
+        if ch == "\\":
+            if i + 1 < n and text[i + 1] in _ESCAPABLE:
+                parts.append({"emit": text[i + 1]})  # de-escaped, and inert as a delimiter
+                i += 2
+            else:
+                # A backslash that escapes nothing is ordinary payload — `C:\Users`. It must
+                # still consume a character: the fallback branch below stops AT a backslash
+                # without advancing, so reaching it here spun forever and hung verdict
+                # generation on any Windows path (terra pass 4). Every branch must progress.
+                parts.append({"emit": "\\"})
+                i += 1
         elif ch == "`":
             span = code_spans.get(i)
             if span is None:

@@ -1627,3 +1627,63 @@ def test_options_emphasis_happy_paths_survive_the_flanking_rules():
     assert _top_level_bullets(
         "- **Alpha** - fast\n- *Beta* - cheap\n- __Delta__ - safe\n- 50% *off*\n"
     ) == ["Alpha - fast", "Beta - cheap", "Delta - safe", "50% off"]
+
+
+# --- #77, terra pass 4: the scanner could HANG, plus three payload defects. ---
+
+def test_options_backslash_that_escapes_nothing_terminates():
+    r"""terra pass-4: `- C:\Users\rob` HUNG the extractor forever.
+
+    A backslash not followed by escapable punctuation fell through to the
+    fallback branch, whose scan stops AT a backslash without advancing -- so the
+    loop spun on the same index. On a Windows-first repo an option naming an
+    ordinary path would have hung verdict generation. Every branch must consume
+    at least one character.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    got = _top_level_bullets("- C:\\Users\\rob\n- trailing\\\n")
+    elapsed = time.perf_counter() - started
+
+    assert got == ["C:\\Users\\rob", "trailing\\"]
+    assert elapsed < 1.0, f"took {elapsed:.2f}s -- the scanner is not terminating promptly"
+
+
+def test_options_escaped_backtick_can_still_close_a_code_span():
+    r"""terra pass-4: backslash escapes do NOT apply inside a code span.
+
+    `` `C:\` `` is the path `C:\`. Skipping the escaped closing backtick left the
+    span open and dropped the trailing backslash from the payload. An escaped run
+    cannot OPEN a span (pass 3) but must still be able to CLOSE one.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- `C:\\`\n") == ["C:\\"]
+
+
+def test_options_unicode_symbols_count_as_flanking_punctuation():
+    """terra pass-4: `a*EURO*b` lost both asterisks.
+
+    CommonMark flanking treats Unicode symbol categories (S*) as punctuation, not
+    just P*. Without S* a currency or math symbol looked like an ordinary letter,
+    so the run appeared to open real emphasis and literal payload was deleted.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a*€*b\n- x*±*y\n") == ["a*€*b", "x*±*y"]
+
+
+def test_options_marker_separator_must_be_ascii_space_or_tab():
+    """terra pass-4: `\\s+` accepted a non-breaking space after the marker.
+
+    A hyphen followed by U+00A0 is not a Markdown list item, so treating it as
+    one fabricated an option out of ordinary prose.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- ordinary prose\n") == []
+    assert _top_level_bullets("- em-space prose\n") == []
+    assert _top_level_bullets("-\treal tab item\n") == ["real tab item"]
