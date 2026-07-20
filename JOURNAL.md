@@ -19,6 +19,45 @@
 
 ---
 
+### 2026-07-20 — CORRECTION to the spike entry below: #81 is NOT dissolved, the inversion is real
+
+**Did:** Re-read #81's actual BACKLOG text while dispositioning the session-end BACKLOG advisory,
+and found my own #81 verdict in the entry below was **overstated**. I had tested only the
+*fabrication* half and never tested the failure mode #81's filing text explicitly predicts:
+*"if a model ever fences its options list, skipping fenced content turns fabrication into total
+option loss — needs a ruling on which failure is preferred."* Tested it.
+
+**Result: #81 is NOT dissolved. The inversion is real and the library triggers it.**
+
+- whole options list fenced → scanner `['Adopt PostgreSQL', 'Adopt SQLite', 'Adopt DuckDB']`
+  **correct**; library **`[]` — TOTAL OPTION LOSS**. Same with a ` ```markdown ` language tag.
+- The scanner is correct here **by accident**: its line-level blindness, the very thing that
+  causes the fabrication, is what saves the payload.
+- Both return `[]` on a 4-space-indented list, so the scanner already has a partial version of
+  the same loss bug.
+- #81's done-when requires *"a fenced options list is shown not to be silently emptied"* — the
+  library **fails that half**, so neither implementation satisfies both halves.
+
+**Nuance worth carrying into the ruling:** fabrication yields a *plausibly wrong* option a
+consumer cannot detect; total loss yields an honestly-empty `[]`, which #77's own doctrine calls
+readable. By that doctrine the library's failure is the *safer* one — but it is still a
+regression against #81's done-when, and picking between them is the ruling #81 asks for.
+
+**Changes:** `spike/FINDINGS.md` (#81 section rewritten with an explicit correction note + the
+inversion table; Recommendation and bottom-line table reconciled), `spike/evidence.py` (three
+`#81c INVERSION` cases added, deliberately with no `expect=` since which failure is preferable is
+not mine to decide), `JOURNAL.md` (this entry). No code under `src/` touched.
+
+**Abandoned:** the claim "#81 DISSOLVED" in the entry below. That entry is left intact per the
+append-only rule (§5.2, ADR-29); this entry supersedes its #81 verdict.
+
+**Next:** KEEP-SCANNER now rests on **two** independent grounds, not one — the perf regression AND
+the unresolved #81 inversion. If the fence-skipping structure is ported into the scanner it needs
+a guard for the fenced-whole-list case (e.g. fall back to fenced content when fence-skipping would
+empty the section). #81 needs its preferred-failure ruling regardless of which implementation wins.
+
+---
+
 ### 2026-07-20 — SPIKE markdown-it-py vs the scanner: dissolves #80/#81, REGRESSES perf — KEEP-SCANNER
 
 **Did:** Time-boxed buy-vs-build spike in the `markdown-it-py` worktree, per the operator's
