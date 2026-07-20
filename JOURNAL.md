@@ -19,6 +19,34 @@
 
 ---
 
+### 2026-07-20 — session close: markdown-it-py spike arc SHA anchor
+
+**Did:** Closing anchor for the spike session. The correction entry below was committed as
+**`b6c10af`** (`fix(spike): retract "#81 DISSOLVED" — the inversion #81 predicted is real`) and
+could not cite its own SHA, so it is anchored here.
+
+**Result:** Full arc on `chore/spike-md-parser`, **UNMERGED**, 4 commits:
+`1eb4ecb` (spike evidence + KEEP-SCANNER) · `a38f699` (retract the MetaPathFinder misdiagnosis) ·
+`070a64d` (JOURNAL anchor for the first two) · `b6c10af` (retract "#81 DISSOLVED").
+Verified at close: working tree clean; `git diff main -- src/ tests/ pyproject.toml BACKLOG.md`
+empty — merged surface untouched, scanner not deleted, BACKLOG unmodified.
+
+**Changes:** `JOURNAL.md` (this entry) only.
+
+**Abandoned:** Nothing further. Two of my own claims were retracted during the session and both
+retractions are recorded in place rather than silently amended (`a38f699`, `b6c10af`).
+
+**Next:** Operator rulings outstanding — (1) adopt vs keep-scanner, gated on whether the `<1.0s`
+perf bound is negotiable; (2) #81's preferred-failure ruling (fabrication vs total loss), needed
+regardless of implementation; (3) the `**uneven*` spec-vs-#77-conservatism divergence.
+**Teardown warning:** this entire record lives on the unmerged spike branch — cherry-pick
+`070a64d` + `b6c10af` to main if it should survive worktree teardown. **BACKLOG deliberately
+unmodified:** the spike advanced #80/#81 with evidence but closed neither (both done-whens need a
+fix *and* a ruling), so per DEFINITION_OF_DONE 'BACKLOG' a pure advance that finishes nothing
+needs no structural marker.
+
+---
+
 ### 2026-07-20 — CORRECTION to the spike entry below: #81 is NOT dissolved, the inversion is real
 
 **Did:** Re-read #81's actual BACKLOG text while dispositioning the session-end BACKLOG advisory,
