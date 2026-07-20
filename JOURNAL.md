@@ -19,6 +19,39 @@
 
 ---
 
+### 2026-07-20 — [#18] crux-check merged; push required a deliberate --no-verify bypass
+
+**Did:** Resolved the append-only JOURNAL conflict from `git merge --no-ff feat/crux-check`
+(kept all three entries from both sides, newest-first), completed the merge as **`c91ce26`**,
+tore down the `t1-crux-check` worktree, and pushed `94421c2..c91ce26` to origin.
+
+**Result:** 15 commits on origin; local and remote synced. Merge is a **feature merge, not a
+task close** — #18 stays OPEN (no live end-to-end witness; every crux path is mock-tested,
+a real run bills research + synthesizer calls). #80/#81/#83 also stay OPEN. Nothing struck.
+
+**Snag — push refused by `block-ff-push`:** the pre-push gate REFUSED on **3 non-merge commits
+already on main's first-parent spine** from the earlier markdown-it-py spike session:
+`2276baa` · `3bae0dd` · `5b55bfd`. Not a remote divergence — `main..origin/main` was empty;
+origin was never ahead. Diagnosed read-only first, then pushed with **`--no-verify`, deliberate
+and operator-authorized**, using the hook's own named bypass. The post-hoc audit WARN will still
+flag those three: **expected, not a new defect.** Rewriting main to retroactively satisfy a rule
+about how commits were authored was considered and rejected as high-risk, low-value. Note that
+`--no-verify` disarms **every** pre-push hook, not only the one refusing — `block-ff-push` is
+currently the sole pre-push gate here, so nothing else was skipped, but the same command with
+more gates installed would skip those silently (CLAUDE.md §9 records the same caveat for the
+sealed-key hook).
+
+**Snag — stale worktree lock (second occurrence in two sessions):** `git worktree remove` refused
+with `lock reason: claude session t1-crux-check (pid 33352)`. `Get-Process -Id 33352` returned
+nothing — dead PID, stale metadata from a closed session. `unlock` + plain `remove` succeeded;
+no `-f -f`. Identical to the markdown-it-py teardown below. **Verify the PID before escalating.**
+
+**Next:** #18 needs a live end-to-end witness before it can close. #83 terra pass-3 unblocks
+2026-07-25. This entry cannot cite its own SHA — anchor it in the next session per the
+established pattern.
+
+---
+
 ### 2026-07-20 — spike worktree teardown (markdown-it-py)
 
 **Did:** Tore down the `markdown-it-py` spike worktree now that its CC session was closed.
