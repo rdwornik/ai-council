@@ -1,6 +1,6 @@
 # ADR-01: Synthesizer Selection
 
-> **Deployment-Status (2026-07-18 inventory):** DEPLOYED — `pick_synthesizer()`/`exclude_synthesizer_from_panel()` (`runner.py`); default openai per Revised 2026-07-18 (`settings.yaml`); residual: #2/#3 (amendment codification). _(Additive inventory stamp; body below unchanged.)_
+> **Deployment-Status (refreshed 2026-07-21; was 2026-07-18 inventory):** DEPLOYED — `pick_synthesizer()`/`exclude_synthesizer_from_panel()` (`runner.py`); default openai per Revised 2026-07-18 (`settings.yaml:12`). **No open remainder** — the former `residual: #2/#3 (amendment codification)` was already discharged by the `Revised 2026-07-18` marker in the body below (`e3bdcc8`, merged `a854bd3`); the stamp was written in the same pass that discharged it and went stale on arrival. #2/#3 struck 2026-07-21. _(Additive inventory stamp; body below unchanged.)_
 
 **Date:** 2026-02-25
 **Status:** Revised (2026-07-18)

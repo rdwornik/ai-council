@@ -19,6 +19,64 @@
 
 ---
 
+### 2026-07-21 — closure hygiene: [#2] + [#3] struck, spike-evidence tag anchored in the record
+
+**Did:** Two closure-hygiene actions in one `docs/` branch — neither is new work (the moratorium
+forbids *filing* and *fixing*, not striking-what-is-done or recording an anchor).
+
+**Part A — struck [#2] and [#3]**, the only two DONE-BUT-LISTED items the night backlog trust audit
+found in 50 open. **Both done-whens re-verified first-hand against source before striking, not
+accepted from the audit:** #2 = `config/settings.yaml:12` `synthesizer: "openai"` (`ca7e85c`, merged
+`6e83e41`) **and** the dated ADR-01 `Revised 2026-07-18 (Epic B — BACKLOG #2/#3)` amendment
+(`e3bdcc8`, merged `a854bd3`); #3 = *"Cost-optimization principle (#3): the default is chosen by
+balancing measured synthesis quality against per-run cost, not by assumption"* present verbatim and
+id-tagged in that same amendment. All four SHAs confirmed real and ancestors of `main`.
+**[S1] fully delivered → collapsed** to a one-line italic note per ADR-65 ([S12]/[S14] precedent),
+since both its tasks left; [E2] retains [S2]/#4. ADR-01's Deployment-Status stamp refreshed — it
+still read `residual: #2/#3 (amendment codification)` while the amendment sat thirteen lines below
+it in the same file. Editing that stamp in place is **not** an immutability breach: it is an
+additive inventory stamp (it says so itself), not decision content or the status line, and the
+2026-07-18 grooming entry set the precedent by refreshing the same stamps on two audit docs.
+`validate_backlog` 50 → **48 tasks**, 14 → 13 stories, 0 warnings.
+
+**Part B — anchored the spike-evidence tag.** `git tag spike/md-parser-evidence b6c10af` was created
+earlier this session to rescue the markdown-it-py spike arc, whose branch had been deleted and whose
+commits were reachable from **no ref at all** (`git fsck --unreachable` listed `b6c10af`; a
+`git gc --prune=now`, an aggressive gc, or a re-clone would have destroyed it irreversibly). The tag
+anchors the **whole 4-commit arc** — `1eb4ecb` → `a38f699` → `070a64d` → `b6c10af`, a linear chain
+rooted at `94421c2` on main — not just the tip; each of the four was verified individually as now
+reachable via `refs/tags/spike/md-parser-evidence`. Its tree carries `spike/FINDINGS.md`,
+`evidence.py`, `md_it_options.py`, `plugin_base.py`, `plugin_swap.py`, `worktree_path.py`, **none of
+which exist on main**. This is the evidence base **[#80]/[#81]'s ruling depends on**, and the tagged
+tip is the retraction commit — *"fix(spike): retract '#81 DISSOLVED' — the inversion #81 predicted is
+real"* — so what was preserved is a spike that reversed its own conclusion, which is the substance
+the #81 preferred-failure ruling turns on. **The tag rides with the next `main` push
+(`git push --tags`); it is NOT pushed yet.**
+
+**Why Part B exists at all:** the night backlog audit's A3 found the mirror-image gap — the spike's
+*narrative* survived on main (`3bae0dd`, JOURNAL-only) while the *artifact* went with the deleted
+branch. Tagging fixed that but created the inverse: the artifact was safe while nothing in the
+record pointed at the tag. This entry closes that loop.
+
+**Changes:** `BACKLOG.md` (#2/#3 task lines removed, [S1] collapsed, grooming-log entry with the
+closing SHAs), `docs/decisions/ADR-01-synthesizer-selection.md` (Deployment-Status stamp refreshed;
+**body unchanged** — the immutable `Decision:` line and every `Revised` marker untouched),
+`JOURNAL.md` (this entry). **No `src/`, `tests/` or `config/` change.**
+
+**Abandoned:** Nothing. Explicitly NOT done, all moratorium-held and separate: filing the code
+audit's new P1 set, renumbering #110/#128 → #84/#85, correcting #82's overstated premise, re-scoping
+#4 and #6.
+
+**Next:** **[#4] is the live knock-on** — its condition has FIRED (it was conditional on #2 Branch A,
+and its *"or is closed as not-needed if Gemini retained"* escape hatch is void because Gemini was not
+retained), so it is no longer conditional but an unblocked, required ADR-02 amendment; ADR-02's own
+*"No open remainder"* stamp is stale the same way ADR-01's was. Then the moratorium decision, which
+gates the two highest-value remaining items (triage the ~10 new P1s; the #110/#128 renumber + #82
+premise correction). Rulings still owed: #81 preferred-failure, H1 vision fork, #6, #8, #73.
+**Not pushed — operator pushes when ready.**
+
+---
+
 ### 2026-07-21 — night-audit reintegration: 4 reports off 3 worktrees + combined review [no task closed]
 
 **Did:** Merged the whole 2026-07-20/21 night batch into `main` and synthesized it. Three serial
