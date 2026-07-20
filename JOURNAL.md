@@ -19,6 +19,41 @@
 
 ---
 
+### 2026-07-21 — night input-layer audit (Fable, read-only): boosting, routing, template, honesty loop [no task closed]
+
+**Did:** Ran the unattended 2026-07-21 night batch — a read-only audit of the INPUT stage
+(raw ask → boosted brief → routed commission) and how to manage it. Read the full
+599-line COUNCIL_QUESTION_GUIDE, CONTRACT, ADR-04/ADR-11, [S13] #36/#37/#38 + #9/#53/#64,
+`mode_detector.py`, `cli.py:815-859`; 16 bounded web searches (query reformulation,
+clarify-loops, intent routing, spec-driven development, MCP elicitation, LLM-as-judge
+gates, prompt observability), all cited. Report committed as **`9d8a4b4`** on
+`worktree-night-vision-audit` (`docs/audits/2026-07-21-night-input-layer-audit-fable.md`).
+Note: the commissioning prompt named worktree `night-input-audit`; it does not exist, so
+the batch executed in the existing `night-vision-audit` worktree — recorded in the report
+header, not silently repaired.
+
+**Result:** ADR seed, not a decision — every contested point holds ≥2 live options. Ground
+truth sharpened: the GUIDE itself declares question framing the only bias-control point with
+no safety net, yet the only input intelligence shipped is `detect_mode()`, whose prompt
+cannot emit `research` and whose fallback ignores config (#64); everything the operator
+calls the core (#36/#37/#38/#9) is filed and unbuilt. Three boosting architectures held in
+tension (single-shot reformulator / bounded clarify-loop / classify-then-decompose
+pipeline); routing fork (hybrid-as-composition vs grounded-pick lane vs declared
+deliverable); template split into linter-codifiable vs rubric-judge parts with the
+GUIDE-drift hazard named; honesty loop = payload-level approval + per-line provenance +
+edit-distance feedback; ADR-11 verdict: only the interactive clarify-loop (MCP elicitation)
+truly reopens it — A/C fit CLI-as-ABI. Two swings left unconverged: invert authorship
+(Council interviews, caller witnesses) vs BRIEF-SCHEMA v1 (brief compiled, not written).
+
+**Changes:** `docs/audits/2026-07-21-night-input-layer-audit-fable.md` (new) — nothing
+else; no src/ writes, no BACKLOG change (nothing closed; filing moratorium honored).
+
+**Abandoned:** Nothing.
+
+**Next:** Operator adjudicates §1 mechanism+owner, §2 routing, §3 gate posture, §4 approval
+mechanic, §5 ADR-11 position, §6 swing ordering; worktree branch awaits review/merge
+decision (commit-and-stop per the batch instructions — not merged).
+
 ### 2026-07-21 — night vision audit (Fable, read-only): creative-adversarial read of direction [no task closed]
 
 **Did:** Ran the unattended 2026-07-20 night batch — a read-only vision audit against the
