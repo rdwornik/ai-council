@@ -19,6 +19,32 @@
 
 ---
 
+### 2026-07-20 — #77 struck (ADR-70 Tier-1 closure) + worktree teardown
+
+**Did:** Post-merge cleanup from the primary checkout. Ran `/review-closures` scoped to **#77 only**.
+The Tier-1 gate re-verified it and returned `close: [#77]`, `skip: []` — nothing beyond #77 was
+proposed for action, so no STOP condition fired. Removed the single `- [#77]` task line from
+`BACKLOG.md` by exact-match against the gate's own `line` string (asserted exactly one match), then
+tore down the `fix-opt-extractor` worktree and its merged branch.
+
+**Result:** #77 CLOSED. Evidence = merge commit **`70e4817`** (`Merge branch 'fix/opt-extractor-contract'`),
+which carries the full arc `e18c940`..`405e957` — 8 commits, +273 lines in `src/ai_council/output.py`,
++507 lines in `tests/test_output.py`, plus six terra review audits. The proposals file had inferred #77
+from the pre-merge audit commit `36c18220a` (WEAK tier, since no `closes [#77]` fired on the branch);
+the merge commit is the correct durable evidence and is what this entry and the closing commit cite.
+
+**Changes:** `BACKLOG.md` (−1 line, #77 struck; no renumbering — the id gap stays per ADR-65),
+`JOURNAL.md` (this entry). `validate_backlog.py`: OK (7 themes, 14 stories, 48 tasks, 0 warnings).
+
+**Abandoned:** Nothing. The other 22 WEAK proposals in `logs/PROPOSALS-2026-07-20.md` were deliberately
+NOT reviewed or closed — this run was scoped to #77 by operator instruction. **#80/#81 left open**
+(design forks filed by the same arc, decided separately).
+
+**Next:** #80/#81 await a ruling on the continuation-line vs nested-annotation rule. The remaining
+WEAK closure backlog (22 items) is still unreviewed and will re-propose at the next session end.
+
+---
+
 ### 2026-07-20 — #77 options_considered AS ONE CONTRACT: six terra passes, a self-inflicted HANG, 2 design forks filed
 
 **Did:** Rebuilt `_extracted_options`' extraction path in the `fix-opt-extractor` worktree as ONE contract
