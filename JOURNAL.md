@@ -19,6 +19,81 @@
 
 ---
 
+### 2026-07-21 — NIGHT BATCH: backlog trust audit — backlog EARNS trust, 2 kill candidates, spike evidence found unreachable
+
+**Did:** Unattended read-only Opus night batch on worktree `night-backlog-audit`. Audited **all 50
+open `BACKLOG.md` items** against ground truth — `git log --first-parent main` + JOURNAL + the actual
+source on main — treating BACKLOG as the *claim* and git+code as the *witness*. Chased the operator's
+five named suspicions to individual verdicts. Report committed as **`cd31e8f`**
+(`docs/audits/2026-07-20-night-backlog-audit-opus.md`, filename retains the operator-specified
+night-batch date stamp).
+
+**Result: 50 open claimed / 36 genuinely live / 2 kill candidates / 5 anomalies. The backlog EARNS
+trust — 48 of 50 classifications survive the witness.** Zero fabricated items, zero id-space gaps,
+zero internal contradictions, zero struck ids masquerading as open.
+
+- **KILL (2): #2 / #3 — DONE-BUT-LISTED.** `ADR-01:16` carries the `Revised 2026-07-18` amendment
+  *including* the cost-optimization principle tagged verbatim `(#3)`; `settings.yaml:12` = `openai`.
+  SHAs `e3bdcc8`→`a854bd3` (amendment) and `ca7e85c`→`6e83e41` (Branch A). **Drift mechanism, stated
+  precisely:** the close was split across two merges each disclaiming the other's half — `6e83e41`
+  said "ADR-01 amendment text deferred", then `a854bd3` wrote it as a hygiene rider inside a *filing*
+  pass, and filing passes do not strike. Corroborating tell: ADR-01's own Deployment-Status stamp
+  (`:3`) still claims "residual: #2/#3" thirteen lines above the amendment that discharged it.
+- **MERGED-NOT-CLOSED (4), gates named:** #18 (`c91ce26`, needs live e2e witness — cost-gated, not
+  engineering-gated) · #20 (only the `types-PyYAML` half landed; 5 ignores + unbounded pin remain) ·
+  #27 (Phases 3–4 never ran; DRAFT-CLI-3 evidence slot empty) · #66 (leg honestly reports GAP;
+  verified **no `backend: cli` seat exists** — `grep backend config/settings.yaml` → zero matches).
+- **AWAITING-RULING (8):** #4 #6 #8 #9 #55 #73 #80 #81 — none will close by writing code.
+
+**Suspicions, resolved:** (1) **#110/#128 CLEARED on provenance** — hub `ea6217a` is real (ADR-41
+leg-c MOVE, operator-ratified 2026-07-08) and both are verified genuinely unbuilt — **but UPHELD on
+id-space**: foreign ids on a collision course with local `#84`, and both carry `refs #96` which is
+**dangling** (closed hub-side; zero hits in either id space). (2) **#41-class drift UPHELD, exactly
+2 instances.** One near-miss caught: merge `3c0541f` is tagged `[#56]` but touched 61 files, **none
+under `docs/archive/`** — a *filing* marker, not a closure; **do not strike #56**. (3) **#77 CLEARED
+fully** — struck at `94421c2`; surviving mentions in #80/#81 are prose. (4) **id-space CLEAN** —
+`#1..#83` gapless; `#13/#14/#15` lack `[#id]` merge tags but were chased to `bfc268f`/`53ad525`/
+`f1a4b74` (all real, 2026-07-02, predating the `backlog-id-on-close` hook); `[S1]..[S16]` and
+`[E1]..[E7]` also gapless. (5) **counts accurate** (validator OK 7/14/50) with two blind spots
+recorded: it counts 14 stories where 16 exist (S12/S14 collapsed per ADR-65), and it validates
+structure, not truth.
+
+**Most valuable finding — and the only time-sensitive one: the #80/#81 ruling evidence is reachable
+from NO ref.** The markdown-it-py spike commits `1eb4ecb` / `a38f699` / `b6c10af` all return
+`refs_containing=0`; `git fsck --unreachable` lists `b6c10af` explicitly. `spike/FINDINGS.md` (with
+the #81 inversion table and the CommonMark rule authority for #80) is **not on main** — only the
+JOURNAL narrative survived (`3bae0dd`, 1 file, +39). Any `gc --prune=now` or a re-clone destroys the
+evidence base for two open rulings. **Rescue before deciding: `git tag b6c10af`, or cherry-pick
+`FINDINGS.md` into `docs/audits/`.** Note this is a **§5.9 "No leftovers" edge case the rule does not
+cover** — teardown removed the working tree correctly and still lost the artifact the arc existed to
+produce.
+
+**Also surfaced:** **#4's condition has FIRED** — it was "conditional on #2 Branch A", Branch A
+shipped, and its escape hatch ("closed as not-needed if Gemini retained") is now **void**; it is an
+unblocked requirement, not a conditional (ADR-02's "No open remainder" stamp is stale too). Three
+body-accuracy corrections filed: **#82**'s "fires retrieval on **every** debate" is **false**
+(retrieval is gated on a crux being found; the unconditional extraction call *is* metered — lowers
+its urgency), **#58** reads as "build dissent gating" when gating already exists at `output.py:620`
+(real work is *sharpening*), and **#80/#81** never mention the spike at all.
+
+**Changes:** `docs/audits/2026-07-20-night-backlog-audit-opus.md` (new, 302 lines), `JOURNAL.md`
+(this entry). **`BACKLOG.md` and `src/` untouched — nothing struck, nothing renumbered, nothing
+billed.** The BACKLOG session-end advisory is correctly unaddressed: this session closed no tracked
+task, which is the "pure advance that finishes nothing" case.
+
+**Abandoned:** nothing. Scope held to read-only audit as briefed.
+
+**Next:** operator executes, in this order — (1) **rescue `b6c10af`** (only irreversible risk);
+(2) strike **#2/#3** citing the four SHAs above and refresh ADR-01's `:3` stamp in the same window;
+(3) re-read **#4** now that its condition fired; (4) renumber **#110→#84 / #128→#85** and resolve or
+drop the `#96` ref in one edit; (5) refresh the #80/#81 bodies with the spike findings once rescued.
+No test run and nothing executed against a provider (no-billing constraint), so appendix verdicts are
+source-inspection verdicts — the behavioural traces (#59 bare-`"research"`, #61 partial-usage) were
+reasoned through the code path, not executed. This entry cannot cite its own SHA; anchor it next
+session per the established pattern.
+
+---
+
 ### 2026-07-20 — [#18] crux-check merged; push required a deliberate --no-verify bypass
 
 **Did:** Resolved the append-only JOURNAL conflict from `git merge --no-ff feat/crux-check`
