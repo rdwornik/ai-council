@@ -18,6 +18,19 @@ essence markdown or the registry row, does not belong here — it exits to `arch
 
 Registration is what makes a corpus legible. An unregistered folder is indistinguishable from a leftover.
 
+**This invariant is ENFORCED, not remembered (since 2026-07-19).** `scripts/validate_docs_registry.py`
+runs at pre-commit (`validate-docs-registry`, #68) and fails any commit that adds a directory under `docs/`
+which is neither a sanctioned taxonomy folder nor a registered live corpus. It parses this file's
+**"Directory invariant"** and **"Live corpora"** sections on every run and **fails CLOSED** — if either
+section is renamed, reformatted, or missing, the guard blocks with `GUARD MALFUNCTION` rather than passing
+silently. Keep both headings and the table's backticked `` `<dir>/` `` Path column intact.
+
+**One half is deliberately NOT mechanised:** #68 catches a corpus with **no row**, but not a **row with no
+corpus**. Retiring a stale row at unseal remains a manual obligation, carried in `BACKLOG.md` #27 — a
+stale-row check needs disk/existence semantics, and one registered corpus is gitignored (absent in every
+worktree), so such a check would false-block every worktree commit. Do not assume this table is
+self-cleaning.
+
 ## Live corpora
 
 | Path | What it is | Ruling that keeps it here | Essence markdown | Exit condition |

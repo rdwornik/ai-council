@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-18
+last_reviewed: 2026-07-20
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-18` (`currency pass after the P4 build wave: doctor (#25), CLI-subscription seats (#16), verdict package (#26); synthesizer default gemini->openai; +ADR-11/12/14`)
+> Last updated: `2026-07-20` (`three-lane reintegration: single output-destination resolver in cli.py, single verify-or-raise write helper in output.py, +2 pre-commit guards on the enforcement surface`)
 
 ## Purpose [CORE]
 
@@ -77,7 +77,7 @@ Dependencies (`from -> to`):
 
 | Module | Layer | Responsibility |
 |--------|-------|----------------|
-| `cli.py` | interface | CLI entry; `@click.group` with `run` + `doctor` subcommands (`_DefaultGroup` routes bare `council "q"` → `run`); Click args → RunRequest; health-check gate |
+| `cli.py` | interface | CLI entry; `@click.group` with `run` + `doctor` subcommands (`_DefaultGroup` routes bare `council "q"` → `run`); Click args → RunRequest; health-check gate; **one** output-destination resolver shared by `run` + `doctor` (`--output` > `--no-persist` > `AICOUNCIL_OUTPUT_DIR` > config); boundary handlers that turn a required-write failure into a clean non-zero exit |
 | `inbox.py` | interface | File-based batch input; YAML frontmatter; archive |
 | `orchestrator.py` | orchestration | CouncilRunner; debate lifecycle coordinator |
 | `runner.py` | orchestration | Panel selection; provider init; mode resolution |
@@ -88,7 +88,7 @@ Dependencies (`from -> to`):
 | `seat_router.py` | core | CLI-seat admission gate + same-seat API fallback; one `SeatMetrics` per seat → the `seats[]` sidecar (ADR-12, #16) |
 | `providers/` | core | 5 debate-provider implementations + CLI-subscription adapters: `base.py` (AIProvider ABC), `anthropic.py`, `openai_provider.py`, `gemini.py`, `xai.py`, `deepseek.py`, `cli_base.py` (`CliProvider` + `ClaudeCliProvider`/`CodexCliProvider` — subscription backend behind the ABC, ADR-12) |
 | `research/` | core | Research-mode subsystem (isolated code path): `runner.py`, `provider.py` (ABC), `cache.py`, `merger.py`, `models.py`, `display.py`, `output.py`, `providers/` (5 research providers) |
-| `output.py` | output | Rich console render + markdown archive write |
+| `output.py` | output | Rich console render + markdown archive write; **one** verify-or-raise routed-write helper (`_write_routed`) that decides required-vs-best-effort per destination, verifies the write landed, and either accumulates a `RoutingFailure` or raises `OutputRoutingError` — a required `--return-dir` miss is never silent (#35/#62) |
 | `routing.py` | output | TargetResolver; secondary transcript routing (ADR-43) |
 | `models.py` | foundation | Pure dataclasses; all shared data shapes; no logic |
 | `metrics.py` | foundation | Token-count + cost tracking per provider call |
@@ -306,7 +306,7 @@ Do not create files outside these directories without updating this section.
 
 - **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit.
 - **`tests/`** — pytest unit + integration suites. Unit suite (no API keys): `pytest tests/ -m "not integration and not envcheck"`.
-- **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`) and `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed).
+- **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · `validate-sealed-keys` (#67 — blocks a staged `SEALED-KEY*.json`; exact-path scoped override, never `--no-verify`) · `validate-docs-registry` (#68 — an unregistered new `docs/` directory blocks the commit; reads the registry from `docs/audits/README.md` at runtime and **fails CLOSED** as `GUARD MALFUNCTION`) · `validate-audit-casing` (ADR-101 R4 audit-filename casing) · `validate-backlog` (ADR-66 story-map structure) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`) and `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed).
 - **External conformance (read-only):** `.dev-knowledge/scripts/audit.py` — seven-file canonical baseline + structural spine (ADR-38 A6); manual `run`, no commit gating here.
 
 ---
