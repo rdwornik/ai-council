@@ -1687,3 +1687,57 @@ def test_options_marker_separator_must_be_ascii_space_or_tab():
     assert _top_level_bullets("- ordinary prose\n") == []
     assert _top_level_bullets("- em-space prose\n") == []
     assert _top_level_bullets("-\treal tab item\n") == ["real tab item"]
+
+
+def test_options_extraction_is_total_over_random_markdown():
+    r"""Fuzz guard: the extractor must TERMINATE and never raise, on any input.
+
+    Pass 4 found a scanner that looped forever on `- C:\Users\rob`. Every named
+    test in this file probes a case someone already thought of; the hang survived
+    three review passes because nobody thought of a bare Windows path. This test
+    is the systemic guard -- it does not know what the right answer is, only that
+    there must BE one, promptly.
+
+    Deterministic seed so a failure is reproducible.
+    """
+    import random
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    rng = random.Random(20260720)
+    # Weighted toward the characters that carry parsing meaning.
+    alphabet = "\\`*_-+#.)( abc123" + "\t\u00a0\u2003\u20ac\u00b1\u2014\u00a7"
+    for _ in range(3000):
+        body = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 60)))
+        started = time.perf_counter()
+        items = _top_level_bullets(body)
+        elapsed = time.perf_counter() - started
+        assert isinstance(items, list)
+        assert all(isinstance(item, str) and item for item in items)
+        assert elapsed < 0.5, f"slow/hanging on {body!r}: {elapsed:.2f}s"
+
+
+def test_options_extraction_never_invents_characters():
+    """Fuzz guard: extraction only REMOVES markup, it never adds content.
+
+    Every character of an extracted item must appear in the source line, in
+    order. This is the property the original defect violated -- `- 3D printing`
+    yielding `D printing` is a subsequence, but `2026 roadmap` -> `roadmap`
+    losing payload is what the ordering check makes visible when combined with
+    the named tests above. Here it guards against the inverse: fabrication.
+    """
+    import random
+
+    from ai_council.output import _top_level_bullets
+
+    rng = random.Random(20260721)
+    alphabet = "\\`*_-+123 abc.()"
+    for _ in range(2000):
+        line = "- " + "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 40)))
+        for item in _top_level_bullets(line):
+            pos = 0
+            for ch in item:
+                pos = line.find(ch, pos)
+                assert pos != -1, f"extraction invented {ch!r} for {line!r} -> {item!r}"
+                pos += 1
