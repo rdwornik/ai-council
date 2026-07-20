@@ -19,6 +19,71 @@
 
 ---
 
+### 2026-07-21 — night-audit reintegration: 4 reports off 3 worktrees + combined review [no task closed]
+
+**Did:** Merged the whole 2026-07-20/21 night batch into `main` and synthesized it. Three serial
+`--no-ff` merges — `bf3a607` (vision + input-layer), `73f29af` (code audit), `116eb16` (backlog
+trust audit) — then read all four reports off `main` and wrote the combined review, committed
+`0dc0424` and merged `42510b7` via `docs/night-audit-combined-review` (a `docs/audits/` file
+committed direct to `main` would have tripped `block-ff-push`; routed via a branch, **no
+`--no-verify`**). Worktrees torn down + `prune`d, all three branches deleted with `-d`.
+
+**Three prompt-vs-reality mismatches, recorded not silently repaired:**
+1. Branches are `worktree-night-*`, not the prompted `night-*`.
+2. **Only three worktrees existed, not four.** The input-layer audit (`9d8a4b4`) sits on the
+   *vision* branch — that batch's own header records that its prompted `night-input-audit`
+   worktree did not exist and it used the existing one. All four reports recovered.
+3. All three worktree locks named **dead PIDs** (3096 / 44196 / 25796, checked with
+   `Get-Process` *before* touching anything) → `unlock` + plain `remove`, no `-f`.
+
+**Two JOURNAL conflicts** (three batches each prepended an entry) resolved keeping **every** entry,
+ordered newest-first by real commit timestamp: input-layer 00:34 → code 00:32 → backlog 00:21 →
+vision 00:13. Nothing deleted; `grep -c '<<<<<<<'` = 0.
+
+**Result:** Combined review at `docs/audits/2026-07-21-night-audit-combined-review.md`. Verdicts:
+code audit **VALUABLE** (~10 new P1s, four confirmed by *executing* the logic); backlog audit
+**VALUABLE** but concentrated in four findings, not its "earns trust" headline; vision audit
+**VALUABLE in §2 / LOW-VALUE in §1** (the direction survey regenerates verbatim until #55 runs —
+the report names its own missing adjudicator); input-layer audit **PARTIAL** (good ADR seed, but
+mostly restates #36/#37/#38/#9/#53/#64 — its two genuinely new items are that `detect_mode()`
+structurally cannot emit `research`, and the ADR-95-vs-boosting substance-shaping tension).
+
+**Cadence: none of the four is a nightly routine.** Three are triggered audits; the code sweep is
+triggered-at-full-scale because night 2 re-reports the same 16 P1s until the backlog absorbs them —
+so **the moratorium, not the audit design, is what binds the cadence question**.
+
+**Cross-cuts worth keeping:** (a) the crux-check surface is criticized from three independent
+angles — vision H7 (artifact excluded from the verdict package), #82 (cost invisible), code P1-1
+(`_parse()` outside the guard falsifies `crux_check.check`'s *"Never raises."*); (b) the code
+audit's "a confident comment is the least reliable signal in this repo" and the backlog audit's
+finding that **#82's own premise is verifiably false** are the *same failure mode at two layers* —
+neither report could see the other, so neither framed it as cross-cutting; (c) **one report
+corrected another the same night** — vision H6 repeats #82's "spends research money on *every*
+debate", which the backlog audit disproved against source (retrieval is conditional,
+`crux_check.py:245-250` vs the early returns); correcting #82's body repairs both.
+
+**Changes:** `docs/audits/2026-07-21-night-audit-combined-review.md` (new), `JOURNAL.md` (conflict
+resolutions + this entry). **No `src/`, `tests/`, `config/` or `BACKLOG.md` change.**
+
+**Abandoned:** Nothing. Nothing struck, nothing filed — moratorium held. BACKLOG session-end
+advisory dispositioned **correctly-no-action**: this session closed no tracked task, which
+DEFINITION_OF_DONE 'BACKLOG' allows for a pure advance.
+
+**Next:** Top-5 from the review, in order. **(1) Rescue the spike evidence tonight —
+`git tag spike/md-parser-evidence b6c10af`**; it is the only time-sensitive item in the whole night
+set (unreachable from any ref, `git fsck --unreachable` confirms, GC-able, and it is the entire
+evidence base for #80/#81). (2) Rule **#81**'s fabrication-vs-total-loss question — both Opus
+reports name it the highest-leverage outstanding decision and two sessions have now spent effort
+downstream of it. (3) Rule **H1** (decision engine vs boosting/creativity engine) — it gates the
+input-layer routing default *and* the swing ordering. (4) Triage the code audit's new P1 set
+(moratorium-blocked; **P1-3 first** — the documented gemini event-loop gotcha unfixed in the other
+four providers, live trigger is `--inbox` with ≥2 files). (5) Close the verified record drift in
+one window: strike #2/#3, refresh ADR-01's self-contradicting stamp, re-read #4 (condition fired,
+escape hatch void), correct #82's premise, renumber #110/#128 → #84/#85 + drop the dangling `#96`.
+**Not pushed — operator pushes when ready** (14 ahead of `origin/main`).
+
+---
+
 ### 2026-07-21 — night input-layer audit (Fable, read-only): boosting, routing, template, honesty loop [no task closed]
 
 **Did:** Ran the unattended 2026-07-21 night batch — a read-only audit of the INPUT stage
