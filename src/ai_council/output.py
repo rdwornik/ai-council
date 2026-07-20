@@ -2,6 +2,8 @@
 
 import json
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -766,23 +768,274 @@ def _first_by_priority(
     return None, None
 
 
+# #77: the list marker is matched as a GRAMMAR, not a character set. The old
+# `lstrip("-*0123456789. ")` was a character-set strip, so it kept eating past the marker
+# into the option's own text — `- 3D printing` became `D printing` and `- 2026 roadmap`
+# became `roadmap`. A regex consumes the exact marker and nothing else. Whitespace after
+# the marker is REQUIRED, which is also what keeps a bare `2026 roadmap` line (no marker)
+# from being read as a numbered item and shorn of its year.
+# `[0-9]{1,9}`, not `\d+`: an ordered-list marker is 1-9 ASCII digits (CommonMark §5.2).
+# `\d+` accepted `1234567890. ordinary prose` as a list item — fabricating an option out of
+# prose that merely opens with a long number — and `\d` also matches non-ASCII digits.
+# CommonMark line endings only: LF, CR, CRLF. `str.splitlines()` also breaks on U+2028,
+# U+2029 and U+0085, none of which end a Markdown line.
+_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+
+# `[ \t]+`, not `\s+`: a marker separator is an ASCII space or tab. `\s` also matches
+# Unicode spaces, so a hyphen followed by U+00A0 parsed as a list item and fabricated
+# an option out of ordinary prose (terra pass 4).
+_BULLET_RE = re.compile(r"^(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?P<text>.*)$")
+
+# A thematic break is not a list item. `---` fails _BULLET_RE anyway (no space after the
+# marker), but the spaced form `* * *` parses as a `*` bullet whose payload is `* *`. The
+# old character-set strip dropped that incidentally; matching the marker exactly makes the
+# guard explicit — honest-empty beats a junk option on the delegation surface.
+# `[ \t]*`, not `\s*`, for the same reason as _BULLET_RE: NBSP-separated asterisks are
+# option payload, not a separator, and reading them as a break DELETED the whole option
+# (terra pass 5). Narrowing one regex and not the other was an inconsistency of mine.
+_THEMATIC_BREAK_RE = re.compile(r"^([-*_])(?:[ \t]*\1){2,}$")
+
+# ASCII punctuation is what a markdown backslash escape may precede (CommonMark §2.4).
+_ESCAPABLE = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
+
+# Emphasis nesting deeper than this is not real prose. The cap keeps the closer/opener
+# search bounded, so unwrapping stays linear in the length of the option: a delimiter-heavy
+# line (a model may emit up to 16k tokens on one line) must not stall verdict generation.
+_MAX_EMPHASIS_NESTING = 64
+
+
+def _is_punctuation(ch: str) -> bool:
+    """CommonMark punctuation — ASCII punctuation plus Unicode P* and S* categories.
+
+    The S* (symbol) categories are load-bearing, not pedantry: without them a currency or
+    math symbol is treated as an ordinary letter, so ``a*€*b`` looked like real emphasis
+    and lost both asterisks (terra pass 4).
+    """
+    return bool(ch) and (ch in _ESCAPABLE or unicodedata.category(ch)[0] in "PS")
+
+
+def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
+    """Map each code-span opener offset to ``(content_start, content_end, close_end)``.
+
+    Backtick runs are collected MAXIMALLY and paired only with a run of exactly equal
+    length (CommonMark §6.1). Collecting maximal runs up front is what makes a longer run
+    unusable as a shorter fence's closer — searching for the fence substring instead let a
+    one-backtick opener pair with the third backtick of a ```` ``` ```` run and swallow the
+    other two (terra review pass 2).
+
+    Two linear passes, no suffix rescanning: an earlier version called ``find()`` per
+    unmatched run, which re-walked the tail once per run.
+    """
+    # Runs carry whether their first backtick was escaped. An escaped run cannot OPEN a
+    # span — `\`` is a literal backtick, and treating it as an opener let it swallow the
+    # real `` `__init__` `` after it (terra pass 3). It CAN still close one: backslash
+    # escapes do not apply inside a code span, so `` `C:\` `` is the path `C:\`, and
+    # skipping that closing backtick corrupted the payload (terra pass 4).
+    runs: list[tuple[int, int, bool]] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] == "\\" and i + 1 < n and text[i + 1] in _ESCAPABLE:
+            if text[i + 1] != "`":
+                i += 2  # some other escaped punctuation — irrelevant to code spans
+                continue
+            i += 1  # step onto the backtick; the run below records it, flagged as escaped
+        if text[i] == "`":
+            run_end = i
+            while run_end < n and text[run_end] == "`":
+                run_end += 1
+            runs.append((i, run_end, text[i - 1 : i] == "\\"))
+            i = run_end
+        else:
+            i += 1
+
+    # Index runs by their FULL length: that is the length a run has when it CLOSES a span,
+    # where backslash escapes do not apply. Splitting a backslash-adjacent run to model the
+    # escape mis-sized the closing fence of `` ``C:\`` `` and dropped the backslash from the
+    # payload (terra pass 6). The escape only ever affects the OPENING side, handled below.
+    by_length: dict[int, list[int]] = {}
+    for idx, (start, end, _escaped) in enumerate(runs):
+        by_length.setdefault(end - start, []).append(idx)
+    cursors = dict.fromkeys(by_length, 0)
+
+    spans: dict[int, tuple[int, int, int]] = {}
+    idx = 0
+    while idx < len(runs):
+        start, end, was_escaped = runs[idx]
+        # Only the FIRST backtick of the run is escaped, so it is literal and cannot open;
+        # any remainder still can. `\``x``` opens a two-backtick span after one literal
+        # backtick, while `\`` alone opens nothing (terra passes 3 and 5).
+        open_start = start + 1 if was_escaped else start
+        if open_start >= end:
+            idx += 1  # nothing left to open with — it may still serve as a closer
+            continue
+        siblings = by_length.get(end - open_start, [])
+        cursor = cursors.get(end - open_start, 0)
+        while cursor < len(siblings) and siblings[cursor] <= idx:
+            cursor += 1
+        cursors[end - open_start] = cursor
+        if cursor >= len(siblings):
+            idx += 1  # no equal-length closer anywhere after it — this run is literal
+            continue
+        # An opener takes the FIRST equal-length run after it (CommonMark §6.1), so the
+        # OUTER pair wins: in `x ``y`` z` the outer single backticks form the span and the
+        # inner double run is content. Pairing whichever closed first inverted that and
+        # ate the outer backticks' payload.
+        closer = siblings[cursor]
+        spans[open_start] = (end, runs[closer][0], runs[closer][1])
+        idx = closer + 1
+        continue
+    return spans
+
+
+def _unwrap_emphasis(text: str) -> str:
+    """Remove PAIRED markdown emphasis delimiters anywhere in ``text``.
+
+    ``_one_line``'s ``.strip("*`_")`` idiom is edge-only, so ``**Alpha** — fast`` kept its
+    interior ``**`` (``Alpha** — fast``). This unwraps real delimiter pairs wherever they
+    sit, including nested ones (``**_x_**``).
+
+    A single left-to-right scan rather than a regex, for three reasons a regex got wrong
+    (terra review, #77):
+
+    * **Escapes** — ``\\*literal\\*`` is an author asking for literal asterisks, not
+      emphasis. An escaped delimiter can never open or close a span; it de-escapes to the
+      bare character, which is what the author meant to be read.
+    * **Code spans** — a backtick span is ATOMIC. ```` `__init__` ```` must survive whole;
+      a regex that unwrapped the backticks then re-scanned the result ate the dunder and
+      produced ``init``. Payload loss on the delegation surface, exactly what #77 forbids.
+    * **Linear time** — a lazy ``(.+?)`` between delimiters retries from every candidate
+      opener when no closer exists, which is quadratic; ~30k characters of ``" *a"`` took
+      seconds. Scanning once with a depth-capped stack cannot backtrack.
+
+    Only EQUAL-LENGTH delimiter runs pair (``**x**`` yes, ``**x*`` no). Anything unpaired is
+    emitted verbatim — an honest ``**`` in the output beats a payload character silently
+    removed, and this field is read by a consuming repo as the council's own wording.
+    """
+    code_spans = _pair_code_spans(text)
+    parts: list[dict] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            if i + 1 < n and text[i + 1] in _ESCAPABLE:
+                parts.append({"emit": text[i + 1]})  # de-escaped, and inert as a delimiter
+                i += 2
+            else:
+                # A backslash that escapes nothing is ordinary payload — `C:\Users`. It must
+                # still consume a character: the fallback branch below stops AT a backslash
+                # without advancing, so reaching it here spun forever and hung verdict
+                # generation on any Windows path (terra pass 4). Every branch must progress.
+                parts.append({"emit": "\\"})
+                i += 1
+        elif ch == "`":
+            span = code_spans.get(i)
+            if span is None:
+                run_end = i
+                while run_end < n and text[run_end] == "`":
+                    run_end += 1
+                parts.append({"emit": text[i:run_end]})  # unpaired run — keep it, do not guess
+                i = run_end
+            else:
+                content_start, content_end, close_end = span
+                parts.append({"emit": text[content_start:content_end]})  # atomic span content
+                i = close_end
+        elif ch in "*_":
+            run_end = i
+            while run_end < n and text[run_end] == ch:
+                run_end += 1
+            run = text[i:run_end]
+            before = text[i - 1] if i > 0 else ""
+            after = text[run_end] if run_end < n else ""
+            # CommonMark §6.2 flanking. A whitespace-only test deleted literal payload:
+            # `a*.*b` has no emphasis (the run is followed by punctuation but preceded by a
+            # letter, so it cannot open) yet collapsed to `a.b` (terra pass 3).
+            before_ws, after_ws = (not before) or before.isspace(), (not after) or after.isspace()
+            before_punct, after_punct = _is_punctuation(before), _is_punctuation(after)
+            left_flanking = not after_ws and (not after_punct or before_ws or before_punct)
+            right_flanking = not before_ws and (not before_punct or after_ws or after_punct)
+            can_open, can_close = left_flanking, right_flanking
+            if ch == "_":
+                # Intra-word `_` is payload, not emphasis: `snake_case_name` must survive.
+                can_open = left_flanking and (not right_flanking or before_punct)
+                can_close = right_flanking and (not left_flanking or after_punct)
+            parts.append({"emit": run, "char": ch, "len": len(run), "open": can_open, "close": can_close})
+            i = run_end
+        else:
+            run_end = i
+            while run_end < n and text[run_end] not in "\\`*_":
+                run_end += 1
+            parts.append({"emit": text[i:run_end]})
+            i = run_end
+
+    openers: list[dict] = []
+
+    def push(part: dict) -> None:
+        """Every opener goes through here so the depth cap can never be bypassed.
+
+        A delimiter that can both close and open reached ``append`` directly before, so a
+        stream of never-matching flanked runs (``!_!*!_!*…``) grew the stack without bound
+        and each reverse search walked all of it — quadratic on linear input (terra pass 2).
+        """
+        openers.append(part)
+        del openers[:-_MAX_EMPHASIS_NESTING]
+
+    for part in parts:
+        if "char" not in part:
+            continue
+        if part["close"]:
+            for k in range(len(openers) - 1, -1, -1):
+                candidate = openers[k]
+                if candidate["char"] == part["char"] and candidate["len"] == part["len"]:
+                    candidate["emit"] = part["emit"] = ""  # a real pair — drop both runs
+                    del openers[k:]  # openers left dangling inside the span stay literal
+                    break
+            else:
+                if part["open"]:
+                    push(part)
+            continue
+        if part["open"]:
+            push(part)
+    return "".join(part["emit"] for part in parts).strip()
+
+
 def _top_level_bullets(body: str | None) -> list[str]:
     """Top-level bullet/numbered items in a section body.
 
-    A nested (indented) sub-bullet — e.g. an ideas entry's ``Who endorsed it`` annotation —
-    is dropped rather than scooped as its own option. Wrapping markdown emphasis is
-    stripped (same idiom as ``_one_line``) so no ``**`` leaks into the field.
+    Accepts every markdown list grammar — ``-``, ``*``, ``+``, ``1.``, ``1)`` — and removes
+    the exact marker only, never a payload character (#77). A nested (indented) sub-bullet —
+    e.g. an ideas entry's ``Who endorsed it`` annotation — is dropped rather than scooped as
+    its own option. Markdown emphasis is unwrapped as paired delimiters so no ``**`` leaks
+    into the field.
+
+    This feeds ``options_considered`` on the delegation surface, so a mangled item is read
+    by a consuming repo as the council's own wording — hence exactness over tolerance.
     """
     items: list[str] = []
-    for raw in (body or "").splitlines():
+    # `_LINE_BREAK_RE`, not `splitlines()`: the latter also breaks on U+2028/U+2029/U+0085,
+    # which are not CommonMark line endings, so inline payload containing one was split into
+    # a fresh "line" whose tail then parsed as a list item (terra pass 5).
+    for raw in _LINE_BREAK_RE.split(body or ""):
         if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
             continue
-        t = raw.strip()
-        first_token = t.split(" ", 1)[0].rstrip(".")
-        if t[:1] in ("-", "*") or first_token.isdigit():
-            cleaned = t.lstrip("-*0123456789. ").strip().strip("*`_").strip()
-            if cleaned:
-                items.append(cleaned)
+        # Only the TAIL is trimmed. `raw.strip()` also removed leading Unicode whitespace,
+        # so `- prose` had its NBSP stripped and the exposed hyphen fabricated an
+        # option (terra pass 5). Leading ASCII space/tab is already handled just above, so
+        # a top-level marker must sit at offset 0.
+        stripped = raw.rstrip()
+        if _THEMATIC_BREAK_RE.match(stripped):
+            continue
+        match = _BULLET_RE.match(stripped)
+        if match is None:
+            continue
+        payload = match.group("text").strip(" \t")
+        # Re-test AFTER marker removal: `- * * *` is a list-wrapped thematic break, so the
+        # line-level guard above does not see it (terra review, #77). The old character-set
+        # strip discarded it incidentally; missing this reintroduced a fabricated option.
+        if _THEMATIC_BREAK_RE.match(payload):
+            continue
+        cleaned = _unwrap_emphasis(payload)
+        if cleaned:
+            items.append(cleaned)
     return items
 
 

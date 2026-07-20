@@ -1329,3 +1329,510 @@ def test_direct_mode_writes_canonical_metrics_before_raising(
     sidecars = list(out.glob("*_metrics.json"))
     assert len(transcripts) == 1, "canonical transcript lost"
     assert len(sidecars) == 1, "canonical metrics sidecar lost to the raise (F2)"
+
+
+# ---------------------------------------------------------------------------
+# #77 -- options_considered as ONE contract (sol adversarial pass, F6+F7).
+# These tests are the ex-ante contract: written BEFORE the fix, one named test
+# per frozen acceptance rule. The extractor feeds the DELEGATION SURFACE, so a
+# corrupted option string is read by a consuming repo as the council's own words.
+# ---------------------------------------------------------------------------
+
+def test_options_bullet_grammar_accepts_every_marker():
+    """Rule 1: `-`, `*`, `+`, `1.`, `1)` all parse to clean items.
+
+    `+ item` and `1) item` used to yield [] -- the character-class test only knew
+    `-`/`*` and a bare-digit first token.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- dash\n* star\n+ plus\n1. dot\n2) paren\n") == [
+        "dash",
+        "star",
+        "plus",
+        "dot",
+        "paren",
+    ]
+
+
+def test_options_marker_removal_never_eats_payload():
+    """Rule 2: only the EXACT list marker is removed, never a payload character.
+
+    `lstrip("-*0123456789. ")` is a character-set strip, so it chewed through the
+    option's own leading digits: `- 3D printing` -> `D printing`.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- 3D printing\n- 2026 roadmap\n- 401k match\n") == [
+        "3D printing",
+        "2026 roadmap",
+        "401k match",
+    ]
+
+
+def test_options_numbered_marker_removal_keeps_numeric_payload():
+    """Rule 2, numbered form: `1. 2026 roadmap` keeps its 2026."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("1. 2026 roadmap\n2) 3D printing\n") == [
+        "2026 roadmap",
+        "3D printing",
+    ]
+
+
+def test_options_emphasis_unwrapped_as_markdown_delimiters():
+    """Rule 3: emphasis is unwrapped as real paired delimiters, not edge-stripped.
+
+    `.strip("*`_")` only touched the ends, so `- **Alpha** - fast` kept an interior
+    `**`: `Alpha** - fast`.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(
+        "- **Alpha** - fast\n- *Beta* - cheap\n- `Gamma` - proven\n- __Delta__ - safe\n"
+    ) == ["Alpha - fast", "Beta - cheap", "Gamma - proven", "Delta - safe"]
+
+
+def test_options_emphasis_unwrapping_spares_intra_word_underscores():
+    """Rule 3 guard: `_` inside an identifier is payload, not a delimiter.
+
+    A naive paired-delimiter regex turns `snake_case_name` into `snakecasename`.
+    Unwrapping must never fire mid-word.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- keep snake_case_name intact\n- 3 * 4 is not emphasis\n") == [
+        "keep snake_case_name intact",
+        "3 * 4 is not emphasis",
+    ]
+
+
+def test_options_honest_empty_when_no_bullets_anywhere():
+    """Rule 5: no options -> [], never a plausible-wrong single item.
+
+    An honest [] is readable as 'none extracted'; a fabricated item is not
+    detectable by the consumer.
+    """
+    from ai_council.output import _extracted_options, _split_sections
+
+    synthesis = "## Alternatives Considered\n\nThe panel converged without listing any.\n"
+    got = _extracted_options(_split_sections(synthesis), _split_sections("No options here.\n"))
+    assert got["items"] == []
+
+
+def test_options_value_shape_is_unchanged():
+    """Rule 6: the {items, source, heading} triple the :974 caller depends on."""
+    from ai_council.output import _extracted_options, _split_sections
+
+    got = _extracted_options(_split_sections("## Options\n- One\n- Two\n"), None)
+    assert set(got) == {"items", "source", "heading"}
+    assert got["items"] == ["One", "Two"]
+    assert got["source"] == "extraction"
+    assert got["heading"] == "Options"
+
+
+def test_options_nested_sub_bullets_still_dropped():
+    """Regression guard: indented annotations are not scooped as their own options."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Alpha\n  - Who endorsed it: gemini\n- Beta\n") == ["Alpha", "Beta"]
+
+
+def test_options_thematic_break_is_not_an_option():
+    """Rule 5 guard: a horizontal rule must not surface as a junk option.
+
+    `---` fails the bullet grammar outright, but the spaced form `* * *` parses as a
+    `*` bullet carrying `* *`. Honest-empty beats a junk item on the delegation surface.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("---\n* * *\n___\n- Real option\n") == ["Real option"]
+
+
+# --- #77, terra pre-merge review: three HIGH findings against the first fix. ---
+
+def test_options_code_span_is_atomic():
+    """terra HIGH: a backtick span must survive whole.
+
+    Unwrapping the backticks and re-scanning the result ate the dunder --
+    `__init__` became `init`. Payload loss on the delegation surface.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Refactor `__init__` wiring\n- Use `a * b` form\n") == [
+        "Refactor __init__ wiring",
+        "Use a * b form",
+    ]
+
+
+def test_options_escaped_delimiters_are_literal_not_emphasis():
+    r"""terra HIGH: `\*literal\*` is an author asking for asterisks, not emphasis."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(r"- keep \*literal\* stars" "\n" r"- a \_b\_ c" "\n") == [
+        "keep *literal* stars",
+        "a _b_ c",
+    ]
+
+
+def test_options_unpaired_and_unequal_delimiters_are_left_alone():
+    """terra HIGH: `x *** y` lost an asterisk. Only equal-length runs pair."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- x *** y\n- unmatched ** here\n- **uneven*\n") == [
+        "x *** y",
+        "unmatched ** here",
+        "**uneven*",
+    ]
+
+
+def test_options_list_wrapped_thematic_break_is_dropped():
+    """terra HIGH: `- * * *` is a list-wrapped separator, not an option.
+
+    The line-level guard cannot see it -- the break test must also run on the
+    payload after marker removal.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- * * *\n* - - -\n- Real option\n") == ["Real option"]
+
+
+def test_options_emphasis_unwrapping_is_linear_on_pathological_input():
+    """terra HIGH: the lazy-quantifier regex was quadratic (~4.4s on 30k chars).
+
+    A model may emit a very long single-line option; unwrapping must not stall
+    verdict generation. Generous bound -- it fails on quadratic, passes on linear.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    items = _top_level_bullets("- " + " *a" * 30_000 + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert len(items) == 1
+    assert elapsed < 1.0, f"emphasis unwrapping took {elapsed:.2f}s -- superlinear"
+
+
+def test_options_nested_emphasis_still_unwraps():
+    """Regression guard for the scanner rewrite: nesting must still resolve."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- **_Alpha_** wins\n- ***Bold italic*** option\n") == [
+        "Alpha wins",
+        "Bold italic option",
+    ]
+
+
+# --- #77, terra pass 2: three HIGH findings against the scanner itself. ---
+
+def test_options_longer_backtick_run_is_not_a_shorter_fence_closer():
+    """terra pass-2 HIGH: a 1-backtick opener must not pair with the third
+    backtick of a ``` run and swallow the other two.
+
+    Searching for the fence SUBSTRING restarted inside the longer run; pairing
+    maximal runs by equal length is what makes it unusable as a closer.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a `b ``` c\n") == ["a `b ``` c"]
+    assert _top_level_bullets("- a ``b ````` c\n") == ["a ``b ````` c"]
+
+
+def test_options_code_span_pairing_is_equal_length_only():
+    """Equal-length runs pair; the inner longer run is content, not a delimiter."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- `x ``y`` z`\n") == ["x ``y`` z"]
+    assert _top_level_bullets("- ``a ` b``\n") == ["a ` b"]
+
+
+def test_options_unmatched_flanked_delimiters_stay_linear():
+    """terra pass-2 HIGH: the depth cap was bypassed on the close-and-open path.
+
+    `!_!*!` runs can both close and open and never match each other, so they grew
+    the opener stack without bound and each reverse search walked all of it. The
+    earlier timing test used ` *a`, whose delimiters have close=False, so it did
+    NOT exercise this path -- the gap terra identified.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    items = _top_level_bullets("- " + "!_!*" * 20_000 + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert len(items) == 1
+    assert elapsed < 1.0, f"unmatched flanked delimiters took {elapsed:.2f}s -- superlinear"
+
+
+def test_options_descending_backtick_fences_stay_linear():
+    """terra pass-2 HIGH: every unmatched run re-walked the suffix via find()."""
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    payload = "".join("`" * length + "x" for length in range(40, 0, -1)) * 60
+    started = time.perf_counter()
+    _top_level_bullets("- " + payload + "\n")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"descending fences took {elapsed:.2f}s -- superlinear"
+
+
+# --- #77, terra pass 3: three HIGH findings. ---
+
+def test_options_escaped_backtick_does_not_steal_a_code_span():
+    r"""terra pass-3 HIGH: the code-span pre-pass was escape-blind.
+
+    An escaped backtick opened a span that swallowed the real `__init__` span
+    after it, and the dunder was then eaten as emphasis. The pre-pass and the
+    main scan must agree on which characters are delimiters at all.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(r"- \` `__init__` wiring" "\n") == ["` __init__ wiring"]
+
+
+def test_options_punctuation_flanked_delimiters_are_literal():
+    """terra pass-3 HIGH: `a*.*b` has no emphasis but collapsed to `a.b`.
+
+    A whitespace-only flanking test deleted literal payload; CommonMark also
+    requires the punctuation-flanking conditions.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a*.*b\n- x*,*y\n") == ["a*.*b", "x*,*y"]
+
+
+def test_options_ordered_marker_is_one_to_nine_ascii_digits():
+    r"""terra pass-3 HIGH: `\d+` fabricated an option out of long-number prose.
+
+    A CommonMark ordered marker is 1-9 ASCII digits, and `\d` also matched
+    non-ASCII digits.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("1234567890. ordinary prose\n") == []
+    assert _top_level_bullets("٢. prose with an arabic-indic digit\n") == []
+    assert _top_level_bullets("123456789. still a real item\n") == ["still a real item"]
+
+
+def test_options_emphasis_happy_paths_survive_the_flanking_rules():
+    """Regression guard: tightening flanking must not stop real emphasis unwrapping."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(
+        "- **Alpha** - fast\n- *Beta* - cheap\n- __Delta__ - safe\n- 50% *off*\n"
+    ) == ["Alpha - fast", "Beta - cheap", "Delta - safe", "50% off"]
+
+
+# --- #77, terra pass 4: the scanner could HANG, plus three payload defects. ---
+
+def test_options_backslash_that_escapes_nothing_terminates():
+    r"""terra pass-4: `- C:\Users\rob` HUNG the extractor forever.
+
+    A backslash not followed by escapable punctuation fell through to the
+    fallback branch, whose scan stops AT a backslash without advancing -- so the
+    loop spun on the same index. On a Windows-first repo an option naming an
+    ordinary path would have hung verdict generation. Every branch must consume
+    at least one character.
+    """
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    started = time.perf_counter()
+    got = _top_level_bullets("- C:\\Users\\rob\n- trailing\\\n")
+    elapsed = time.perf_counter() - started
+
+    assert got == ["C:\\Users\\rob", "trailing\\"]
+    assert elapsed < 1.0, f"took {elapsed:.2f}s -- the scanner is not terminating promptly"
+
+
+def test_options_escaped_backtick_can_still_close_a_code_span():
+    r"""terra pass-4: backslash escapes do NOT apply inside a code span.
+
+    `` `C:\` `` is the path `C:\`. Skipping the escaped closing backtick left the
+    span open and dropped the trailing backslash from the payload. An escaped run
+    cannot OPEN a span (pass 3) but must still be able to CLOSE one.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- `C:\\`\n") == ["C:\\"]
+
+
+def test_options_unicode_symbols_count_as_flanking_punctuation():
+    """terra pass-4: `a*EURO*b` lost both asterisks.
+
+    CommonMark flanking treats Unicode symbol categories (S*) as punctuation, not
+    just P*. Without S* a currency or math symbol looked like an ordinary letter,
+    so the run appeared to open real emphasis and literal payload was deleted.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a*€*b\n- x*±*y\n") == ["a*€*b", "x*±*y"]
+
+
+def test_options_marker_separator_must_be_ascii_space_or_tab():
+    """terra pass-4: `\\s+` accepted a non-breaking space after the marker.
+
+    A hyphen followed by U+00A0 is not a Markdown list item, so treating it as
+    one fabricated an option out of ordinary prose.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("-\u00a0ordinary prose\n") == []
+    assert _top_level_bullets("-\u2003em-space prose\n") == []
+    assert _top_level_bullets("-\treal tab item\n") == ["real tab item"]
+
+
+def test_options_extraction_is_total_over_random_markdown():
+    r"""Fuzz guard: the extractor must TERMINATE and never raise, on any input.
+
+    Pass 4 found a scanner that looped forever on `- C:\Users\rob`. Every named
+    test in this file probes a case someone already thought of; the hang survived
+    three review passes because nobody thought of a bare Windows path. This test
+    is the systemic guard -- it does not know what the right answer is, only that
+    there must BE one, promptly.
+
+    Deterministic seed so a failure is reproducible.
+    """
+    import random
+    import time
+
+    from ai_council.output import _top_level_bullets
+
+    rng = random.Random(20260720)
+    # Weighted toward the characters that carry parsing meaning.
+    alphabet = "\\`*_-+#.)( abc123" + "\t\u00a0\u2003\u20ac\u00b1\u2014\u00a7"
+    for _ in range(3000):
+        body = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 60)))
+        started = time.perf_counter()
+        items = _top_level_bullets(body)
+        elapsed = time.perf_counter() - started
+        assert isinstance(items, list)
+        assert all(isinstance(item, str) and item for item in items)
+        assert elapsed < 0.5, f"slow/hanging on {body!r}: {elapsed:.2f}s"
+
+
+def test_options_extraction_never_invents_characters():
+    """Fuzz guard: extraction only REMOVES markup, it never adds content.
+
+    Every character of an extracted item must appear in the source line, in
+    order. This is the property the original defect violated -- `- 3D printing`
+    yielding `D printing` is a subsequence, but `2026 roadmap` -> `roadmap`
+    losing payload is what the ordering check makes visible when combined with
+    the named tests above. Here it guards against the inverse: fabrication.
+    """
+    import random
+
+    from ai_council.output import _top_level_bullets
+
+    rng = random.Random(20260721)
+    alphabet = "\\`*_-+123 abc.()"
+    for _ in range(2000):
+        line = "- " + "".join(rng.choice(alphabet) for _ in range(rng.randint(1, 40)))
+        for item in _top_level_bullets(line):
+            pos = 0
+            for ch in item:
+                pos = line.find(ch, pos)
+                assert pos != -1, f"extraction invented {ch!r} for {line!r} -> {item!r}"
+                pos += 1
+
+
+# --- #77, terra pass 5: Unicode whitespace as false structure, plus fence merging. ---
+
+def test_options_escaped_backtick_does_not_merge_with_the_following_fence():
+    r"""terra pass-5: only ONE backtick is escaped.
+
+    Absorbing the whole following run merged the literal backtick with the real
+    fence after it, so in `\```x`` the fence was mis-sized and the payload was
+    exposed to emphasis removal.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- \\```__init__``\n") == ["`__init__"]
+
+
+def test_options_unicode_line_separator_does_not_create_a_line():
+    """terra pass-5: U+2028 is not a Markdown line ending.
+
+    `str.splitlines()` breaks on it, so inline payload containing one was split
+    into a fresh line whose tail then parsed as a list item -- an option
+    fabricated out of prose.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("ordinary prose\u2028- fabricated option\n") == []
+    assert _top_level_bullets("prose\u2029- also fabricated\n") == []
+
+
+def test_options_leading_unicode_whitespace_does_not_expose_a_marker():
+    """terra pass-5: `raw.strip()` removed leading Unicode whitespace.
+
+    A line opening with U+00A0 then a hyphen had the NBSP stripped, exposing the
+    hyphen as a top-level marker where the Markdown line has none.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("\u00a0- ordinary prose\n") == []
+    assert _top_level_bullets("\u2003- em-space prose\n") == []
+
+
+def test_options_nbsp_separated_asterisks_are_payload_not_a_break():
+    """terra pass-5: the break regex still used `\\s*` after _BULLET_RE was narrowed.
+
+    NBSP-separated asterisks are option payload, so classifying them as a
+    thematic break DELETED the whole option. Narrowing one regex and not the
+    other was an internal inconsistency.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- *\u00a0*\u00a0*\n") == ["*\u00a0*\u00a0*"]
+    assert _top_level_bullets("- * * *\n") == []  # ASCII-separated: still a real break
+
+
+def test_options_handles_every_commonmark_line_ending():
+    """Regression guard for the line-splitting change: LF, CRLF and bare CR."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- one\n- two") == ["one", "two"]
+    assert _top_level_bullets("- one\r\n- two") == ["one", "two"]
+    assert _top_level_bullets("- one\r- two") == ["one", "two"]
+
+
+# --- #77, terra pass 6. ---
+
+def test_options_multi_backtick_span_keeps_a_trailing_backslash():
+    r"""terra pass-6: ``C:\`` lost its backslash and kept its fences.
+
+    Splitting a backslash-adjacent run to model the escape mis-sized the CLOSING
+    fence, so the span never closed and the backslash was then read as an escape.
+    Escapes do not apply inside a code span, so a closer always uses its full run
+    length; the escape only ever affects the OPENING side.
+
+    This was a regression against main, which preserved the text (its edge-only
+    strip never touched interior markup).
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Use ``C:\\`` path\n") == ["Use C:\\ path"]
+    assert _top_level_bullets("- ```a\\``` b\n") == ["a\\ b"]
+
+
+def test_options_escaped_backtick_opener_rules_hold_together():
+    r"""The three escape/code-span rules from passes 3-6 must all hold at once.
+
+    An escaped run cannot OPEN a span; it can still CLOSE one; and only its FIRST
+    backtick is escaped, so any remainder can open. Each was fixed in a different
+    pass, and each fix risked reintroducing the previous one.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- \\` `x` y\n") == ["` x y"]        # cannot open (pass 3)
+    assert _top_level_bullets("- `C:\\`\n") == ["C:\\"]            # can still close (pass 4)
+    assert _top_level_bullets("- \\```x``\n") == ["`x"]            # remainder opens (pass 5)
+    assert _top_level_bullets("- ``C:\\`` z\n") == ["C:\\ z"]      # closer keeps length (pass 6)

@@ -19,6 +19,74 @@
 
 ---
 
+### 2026-07-20 — #77 options_considered AS ONE CONTRACT: six terra passes, a self-inflicted HANG, 2 design forks filed
+
+**Did:** Rebuilt `_extracted_options`' extraction path in the `fix-opt-extractor` worktree as ONE contract
+per #77, not a third round of partial patches. Wrote the ex-ante tests FIRST (the done-when's explicit
+requirement) and confirmed 5 of 9 FAILED against shipping code before touching the implementation, so the
+contract demonstrably bit. **Branch `fix/opt-extractor-contract`, 8 commits, `e18c940`..`d3fd4cb`.
+COMMITTED AND STOPPED — not merged; integration is serial from primary with the operator as the gate.**
+
+**Rule 4 (F8) needed no work** — the bare `"considered"` marker was already removed on main by the
+2026-07-19 sol repair. Verified both its tests stay green; added no scan-narrowing, per the anti-pattern.
+
+**Six terra passes, and every single one returned real defects.** Each finding was verified against source
+and reproduced before being acted on; none taken on trust.
+- **pass 1** (3 HIGH, against the original regex): code spans not atomic (`` `__init__` `` → `init`),
+  escaped delimiters read as emphasis, unequal runs paired, and a lazy `(.+?)` that was quadratic (~4.4s on
+  30k chars).
+- **pass 2** (3 HIGH, against MY replacement scanner): fence partial-consumption, per-run suffix
+  rescanning, and a nesting cap bypassed on the close-and-open path — terra correctly noted my own timing
+  test could not reach that path. Writing its tests also exposed a bug of mine: code-span pairing was
+  closer-first, where CommonMark §6.1 gives the span to the FIRST opener.
+- **pass 3** (3 HIGH): escape-blind code-span pre-pass, whitespace-only flanking (`a*.*b` → `a.b`, literal
+  payload deleted), and `\d+` accepting `1234567890. prose` as a list item.
+- **pass 4** (4): **a HANG.** `- C:\Users\rob` looped forever — a backslash escaping nothing matched no
+  branch and fell through to a fallback that stops AT a backslash without advancing. **A Windows-first repo,
+  and the most ordinary path string hung verdict generation. I introduced it, and it survived three review
+  passes.** Plus escaped-backtick-as-closer, Unicode symbol flanking, and NBSP marker separators.
+- **pass 5** (4): Unicode whitespace read as Markdown structure — U+2028 fabricating a line, leading NBSP
+  exposing a false marker, and the thematic-break regex still on `\s*` after pass 4 narrowed `_BULLET_RE`
+  to `[ \t]+` (narrowing one and not the other was my own inconsistency).
+- **pass 6** (1 + 2): one regression repaired (multi-backtick span dropping a trailing backslash — main had
+  preserved it); **two deliberately NOT fixed and filed instead.**
+
+**Result:** All six frozen acceptance rules pass, verified directly rather than only via the suite. Value
+shape `{items, source, heading}` and `_extracted_options`' signature unchanged; the `:974`
+`_build_verdict_payload` caller stays green. Gate: **pytest 658 passed, ruff clean, mypy clean,
+validate_backlog OK**; tree clean.
+
+**The pass-4 hang is the session's real lesson** and drove the one structural addition: **fuzz guards** for
+totality (3000 random strings over a parsing-significant alphabet must terminate promptly and never raise)
+and non-fabrication (every character of an extracted item must appear in the source line, in order). Every
+named test in that file probes a case someone already imagined — which is exactly why nobody wrote
+`C:\Users`. Deterministically seeded.
+
+**Filed, NOT fixed — both pre-existing on main, both design forks needing a ruling (#80, #81).**
+**#80** multi-line option payload truncated to its first line: the indented-line rule is *deliberate* — it
+is what stops an ideas entry's `Who endorsed it` annotation being scooped as its own option, and that has
+its own test. A continuation and a nested annotation are not distinguishable without a rule for which is
+which. **#81** fenced code blocks fabricating options: the fix is block-level where this contract's surface
+is line-level, and it **inverts the failure mode** — if a model ever fences its options list, skipping
+fenced content turns fabrication into total option loss. Quietly widening scope is precisely how the
+previous two fix windows on this function failed.
+
+**Changes:** `src/ai_council/output.py` (`_BULLET_RE`/`_THEMATIC_BREAK_RE`/`_LINE_BREAK_RE`,
+new `_is_punctuation`/`_pair_code_spans`/`_unwrap_emphasis`, `_top_level_bullets`; `+re`/`+unicodedata`),
+`tests/test_output.py` (+29 tests incl. 2 fuzz guards; also cleared 4 `SyntaxWarning`s and every raw
+invisible codepoint), `BACKLOG.md` (+#80/#81), `docs/audits/2026-07-20-codex-opt-extractor-contract{,-pass2
+..pass6}.md` (6 review artifacts).
+
+**Abandoned:** Nothing silently. The `# noqa: C901` I briefly added was removed once confirmed it selected
+no rule (`select = E,F,I,W`).
+
+**Next:** Operator gate on the branch. **Two things to weigh before merging:** (1) **convergence is not
+proven** — findings shrank in severity and pass 6's only real defect was self-inflicted, but pass 7 is not
+promised clean; (2) `output.py` now carries **~120 lines of hand-rolled CommonMark inline parsing**, which
+is the root cause of passes 2-6 — a real markdown parser would collapse most of it, but that is a new
+dependency and an operator call, so none was added. Then rule on #80/#81.
+
+
 ### 2026-07-20 — SOL DISPOSITION: 2 regressions repaired, 6 filed; codex severity-summary defect measured
 
 **Did:** Closed out the sol adversarial pass on Lane A1's merged diff. Classified all 8 High findings
