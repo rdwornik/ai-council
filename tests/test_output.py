@@ -1684,8 +1684,8 @@ def test_options_marker_separator_must_be_ascii_space_or_tab():
     """
     from ai_council.output import _top_level_bullets
 
-    assert _top_level_bullets("- ordinary prose\n") == []
-    assert _top_level_bullets("- em-space prose\n") == []
+    assert _top_level_bullets("-\u00a0ordinary prose\n") == []
+    assert _top_level_bullets("-\u2003em-space prose\n") == []
     assert _top_level_bullets("-\treal tab item\n") == ["real tab item"]
 
 
@@ -1741,3 +1741,64 @@ def test_options_extraction_never_invents_characters():
                 pos = line.find(ch, pos)
                 assert pos != -1, f"extraction invented {ch!r} for {line!r} -> {item!r}"
                 pos += 1
+
+
+# --- #77, terra pass 5: Unicode whitespace as false structure, plus fence merging. ---
+
+def test_options_escaped_backtick_does_not_merge_with_the_following_fence():
+    r"""terra pass-5: only ONE backtick is escaped.
+
+    Absorbing the whole following run merged the literal backtick with the real
+    fence after it, so in `\```x`` the fence was mis-sized and the payload was
+    exposed to emphasis removal.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- \\```__init__``\n") == ["`__init__"]
+
+
+def test_options_unicode_line_separator_does_not_create_a_line():
+    """terra pass-5: U+2028 is not a Markdown line ending.
+
+    `str.splitlines()` breaks on it, so inline payload containing one was split
+    into a fresh line whose tail then parsed as a list item -- an option
+    fabricated out of prose.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("ordinary prose\u2028- fabricated option\n") == []
+    assert _top_level_bullets("prose\u2029- also fabricated\n") == []
+
+
+def test_options_leading_unicode_whitespace_does_not_expose_a_marker():
+    """terra pass-5: `raw.strip()` removed leading Unicode whitespace.
+
+    A line opening with U+00A0 then a hyphen had the NBSP stripped, exposing the
+    hyphen as a top-level marker where the Markdown line has none.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("\u00a0- ordinary prose\n") == []
+    assert _top_level_bullets("\u2003- em-space prose\n") == []
+
+
+def test_options_nbsp_separated_asterisks_are_payload_not_a_break():
+    """terra pass-5: the break regex still used `\\s*` after _BULLET_RE was narrowed.
+
+    NBSP-separated asterisks are option payload, so classifying them as a
+    thematic break DELETED the whole option. Narrowing one regex and not the
+    other was an internal inconsistency.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- *\u00a0*\u00a0*\n") == ["*\u00a0*\u00a0*"]
+    assert _top_level_bullets("- * * *\n") == []  # ASCII-separated: still a real break
+
+
+def test_options_handles_every_commonmark_line_ending():
+    """Regression guard for the line-splitting change: LF, CRLF and bare CR."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- one\n- two") == ["one", "two"]
+    assert _top_level_bullets("- one\r\n- two") == ["one", "two"]
+    assert _top_level_bullets("- one\r- two") == ["one", "two"]

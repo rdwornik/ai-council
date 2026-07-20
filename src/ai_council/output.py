@@ -777,6 +777,10 @@ def _first_by_priority(
 # `[0-9]{1,9}`, not `\d+`: an ordered-list marker is 1-9 ASCII digits (CommonMark §5.2).
 # `\d+` accepted `1234567890. ordinary prose` as a list item — fabricating an option out of
 # prose that merely opens with a long number — and `\d` also matches non-ASCII digits.
+# CommonMark line endings only: LF, CR, CRLF. `str.splitlines()` also breaks on U+2028,
+# U+2029 and U+0085, none of which end a Markdown line.
+_LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+
 # `[ \t]+`, not `\s+`: a marker separator is an ASCII space or tab. `\s` also matches
 # Unicode spaces, so a hyphen followed by U+00A0 parsed as a list item and fabricated
 # an option out of ordinary prose (terra pass 4).
@@ -786,7 +790,10 @@ _BULLET_RE = re.compile(r"^(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?P<text>.*)$")
 # marker), but the spaced form `* * *` parses as a `*` bullet whose payload is `* *`. The
 # old character-set strip dropped that incidentally; matching the marker exactly makes the
 # guard explicit — honest-empty beats a junk option on the delegation surface.
-_THEMATIC_BREAK_RE = re.compile(r"^([-*_])(?:\s*\1){2,}$")
+# `[ \t]*`, not `\s*`, for the same reason as _BULLET_RE: NBSP-separated asterisks are
+# option payload, not a separator, and reading them as a break DELETED the whole option
+# (terra pass 5). Narrowing one regex and not the other was an inconsistency of mine.
+_THEMATIC_BREAK_RE = re.compile(r"^([-*_])(?:[ \t]*\1){2,}$")
 
 # ASCII punctuation is what a markdown backslash escape may precede (CommonMark §2.4).
 _ESCAPABLE = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
@@ -834,11 +841,13 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
             # Record the escaped backtick as a run rather than skipping over it: skipping
             # meant `` `C:\` `` never saw its closing backtick, so the span stayed open and
             # the trailing backslash was lost from the payload.
-            run_end = i + 1
-            while run_end < n and text[run_end] == "`":
-                run_end += 1
-            runs.append((i + 1, run_end, True))
-            i = run_end
+            #
+            # Exactly ONE backtick is escaped. Absorbing the whole following run merged the
+            # literal backtick with the real fence after it, so in `` \```x`` `` the fence
+            # was mis-sized and the payload was exposed to emphasis removal (terra pass 5).
+            # The unescaped remainder forms its own run on the next iteration.
+            runs.append((i + 1, i + 2, True))
+            i += 2
         elif text[i] == "`":
             run_end = i
             while run_end < n and text[run_end] == "`":
@@ -1005,16 +1014,23 @@ def _top_level_bullets(body: str | None) -> list[str]:
     by a consuming repo as the council's own wording — hence exactness over tolerance.
     """
     items: list[str] = []
-    for raw in (body or "").splitlines():
+    # `_LINE_BREAK_RE`, not `splitlines()`: the latter also breaks on U+2028/U+2029/U+0085,
+    # which are not CommonMark line endings, so inline payload containing one was split into
+    # a fresh "line" whose tail then parsed as a list item (terra pass 5).
+    for raw in _LINE_BREAK_RE.split(body or ""):
         if raw[:1] in (" ", "\t"):  # nested sub-bullet — not a top-level option
             continue
-        stripped = raw.strip()
+        # Only the TAIL is trimmed. `raw.strip()` also removed leading Unicode whitespace,
+        # so `- prose` had its NBSP stripped and the exposed hyphen fabricated an
+        # option (terra pass 5). Leading ASCII space/tab is already handled just above, so
+        # a top-level marker must sit at offset 0.
+        stripped = raw.rstrip()
         if _THEMATIC_BREAK_RE.match(stripped):
             continue
         match = _BULLET_RE.match(stripped)
         if match is None:
             continue
-        payload = match.group("text").strip()
+        payload = match.group("text").strip(" \t")
         # Re-test AFTER marker removal: `- * * *` is a list-wrapped thematic break, so the
         # line-level guard above does not see it (terra review, #77). The old character-set
         # strip discarded it incidentally; missing this reintroduced a fabricated option.
