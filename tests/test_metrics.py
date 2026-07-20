@@ -184,3 +184,84 @@ def test_cli_backend_call_is_zero_marginal_cost() -> None:
     assert cli.estimated_cost_usd == 0.0 and cli.backend == "cli"
     assert api.estimated_cost_usd > 0.0 and api.backend == "api"
     assert cli.input_tokens == 1000  # tokens still recorded for transparency
+
+
+# --- extra_calls (#18 crux check) ---
+
+
+def _crux_call(cost: float = 0.05, tokens_in: int = 200, tokens_out: int = 50):
+    """A ProviderCallMetrics standing in for the one crux extraction call."""
+    return ProviderCallMetrics(
+        provider="openai",
+        round_number=-1,  # sentinel: 0 is synthesis, 1..n are rounds
+        input_tokens=tokens_in,
+        output_tokens=tokens_out,
+        estimated_cost_usd=cost,
+        latency_sec=1.0,
+    )
+
+
+def test_extra_calls_default_none_preserves_existing_totals():
+    """The defaulted param must not perturb any existing caller."""
+    configs = {"a": _make_config("a", 1.0, 2.0)}
+    round1 = Round(
+        number=1,
+        responses=[ModelResponse("a", "a-model", 1, "x", 1.0, 30, input_tokens=10, output_tokens=20)],
+    )
+    synthesis_call = _crux_call(cost=0.01)
+
+    without = build_debate_metrics([round1], synthesis_call, configs, total_duration_sec=5.0)
+    with_none = build_debate_metrics(
+        [round1], synthesis_call, configs, total_duration_sec=5.0, extra_calls=None
+    )
+
+    assert without.total_estimated_cost_usd == with_none.total_estimated_cost_usd
+    assert without.total_input_tokens == with_none.total_input_tokens
+    assert without.total_output_tokens == with_none.total_output_tokens
+    assert len(without.calls) == len(with_none.calls)
+
+
+def test_extra_calls_included_in_totals():
+    configs = {"a": _make_config("a", 1.0, 2.0)}
+    round1 = Round(
+        number=1,
+        responses=[ModelResponse("a", "a-model", 1, "x", 1.0, 30, input_tokens=10, output_tokens=20)],
+    )
+    synthesis_call = _crux_call(cost=0.01, tokens_in=5, tokens_out=5)
+    crux = _crux_call(cost=0.05, tokens_in=200, tokens_out=50)
+
+    baseline = build_debate_metrics([round1], synthesis_call, configs, total_duration_sec=5.0)
+    with_crux = build_debate_metrics(
+        [round1], synthesis_call, configs, total_duration_sec=5.0, extra_calls=[crux]
+    )
+
+    assert len(with_crux.calls) == len(baseline.calls) + 1
+    assert with_crux.total_input_tokens == baseline.total_input_tokens + 200
+    assert with_crux.total_output_tokens == baseline.total_output_tokens + 50
+    assert with_crux.total_estimated_cost_usd == baseline.total_estimated_cost_usd + 0.05
+
+
+def test_extra_calls_appear_in_the_calls_list():
+    """The crux call must be individually visible, not just folded into the totals."""
+    configs = {"a": _make_config("a", 1.0, 2.0)}
+    round1 = Round(number=1, responses=[])
+    crux = _crux_call()
+
+    metrics = build_debate_metrics(
+        [round1], _crux_call(cost=0.0), configs, total_duration_sec=1.0, extra_calls=[crux]
+    )
+    assert crux in metrics.calls
+    assert any(c.round_number == -1 for c in metrics.calls)
+
+
+def test_extra_calls_empty_list_is_a_noop():
+    configs = {"a": _make_config("a", 1.0, 2.0)}
+    round1 = Round(number=1, responses=[])
+    synthesis_call = _crux_call(cost=0.01)
+
+    baseline = build_debate_metrics([round1], synthesis_call, configs, total_duration_sec=1.0)
+    empty = build_debate_metrics(
+        [round1], synthesis_call, configs, total_duration_sec=1.0, extra_calls=[]
+    )
+    assert len(empty.calls) == len(baseline.calls)
+    assert empty.total_estimated_cost_usd == baseline.total_estimated_cost_usd

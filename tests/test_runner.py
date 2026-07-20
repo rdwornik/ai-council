@@ -333,3 +333,75 @@ async def test_runner_empty_target_paths_by_default(
 
     call_kwargs = mock_save.call_args.kwargs
     assert call_kwargs.get("target_paths", []) == []
+
+
+# --- #18 crux check flows through the orchestrator ---
+
+
+async def test_runner_passes_crux_service_into_run_debate(
+    all_providers, multi_model_config, fake_round, fake_result, tmp_path
+):
+    """The service is BUILT in the orchestrator and INJECTED — never constructed in debate.py."""
+    from ai_council.models import CruxArtifact, CruxStatus
+
+    artifact = CruxArtifact(status=CruxStatus.GROUNDED, crux_claim="X happens.")
+    sentinel = object()
+    run_debate_mock = AsyncMock(
+        return_value=DebateOutcome(rounds=[fake_round], crux=artifact)
+    )
+    synthesize_mock = AsyncMock(return_value=fake_result)
+
+    request = RunRequest(
+        question=Question(text="Q", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=2,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+    )
+
+    with (
+        patch("ai_council.orchestrator.run_debate", new=run_debate_mock),
+        patch("ai_council.orchestrator.synthesize", new=synthesize_mock),
+        patch("ai_council.orchestrator.build_crux_check_service", return_value=sentinel),
+        patch("ai_council.orchestrator.save_to_file", return_value=[tmp_path / "out.md"]),
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        await runner.run(request, output_dir=tmp_path)
+
+    assert run_debate_mock.await_args.kwargs["crux_check"] is sentinel
+    # ...and the artifact comes back out and reaches synthesis.
+    assert synthesize_mock.await_args.kwargs["crux"] is artifact
+
+
+async def test_runner_crux_service_is_none_when_unconfigured(
+    all_providers, multi_model_config, fake_round, fake_result, tmp_path
+):
+    """No crux_check: section → the debate runs exactly as it did pre-#18."""
+    multi_model_config.crux_check = None
+    run_debate_mock = AsyncMock(return_value=DebateOutcome(rounds=[fake_round]))
+
+    request = RunRequest(
+        question=Question(text="Q", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=2,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+    )
+
+    with (
+        patch("ai_council.orchestrator.run_debate", new=run_debate_mock),
+        patch("ai_council.orchestrator.synthesize", new=AsyncMock(return_value=fake_result)),
+        patch("ai_council.orchestrator.save_to_file", return_value=[tmp_path / "out.md"]),
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        await runner.run(request, output_dir=tmp_path)
+
+    assert run_debate_mock.await_args.kwargs["crux_check"] is None

@@ -16,6 +16,7 @@ from ai_council.models import (
     SynthesisMetrics,
 )
 from ai_council.output import (
+    _build_verdict_payload,
     _slug,
     extract_dissent,
     save_minority_report,
@@ -1836,3 +1837,69 @@ def test_options_escaped_backtick_opener_rules_hold_together():
     assert _top_level_bullets("- `C:\\`\n") == ["C:\\"]            # can still close (pass 4)
     assert _top_level_bullets("- \\```x``\n") == ["`x"]            # remainder opens (pass 5)
     assert _top_level_bullets("- ``C:\\`` z\n") == ["C:\\ z"]      # closer keeps length (pass 6)
+
+
+# --- #18 Phase A: the crux artifact must stay OUT of the verdict package ---
+
+
+def _result_with_crux(sample_question, sample_round):
+    """A DebateResult carrying a fully-populated crux artifact."""
+    from ai_council.models import CruxArtifact, CruxStatus
+
+    result = _result_with_synthesis(
+        "## Decision\nDo not deploy on Fridays.\n", sample_question, sample_round
+    )
+    result.crux = CruxArtifact(
+        status=CruxStatus.GROUNDED,
+        crux_claim="Deploys fail more on Fridays.",
+        evidence_block="--- Evidence ---\nIncident rate is 12% higher.",
+        sources_count=3,
+        providers_succeeded=1,
+        providers_attempted=1,
+    )
+    return result
+
+
+def test_verdict_payload_contract_version_unchanged_by_crux(tmp_path, sample_question, sample_round):
+    """Phase A freeze: a crux-carrying result still stamps contract_version 1.0."""
+    payload = _build_verdict_payload(
+        _result_with_crux(sample_question, sample_round), "run-1", "f.md", {}, [tmp_path]
+    )
+    assert payload["contract_version"] == "1.0"
+
+
+def test_verdict_payload_has_no_crux_key(tmp_path, sample_question, sample_round):
+    """The artifact rides on DebateResult only — it must not reach the sealed package."""
+    payload = _build_verdict_payload(
+        _result_with_crux(sample_question, sample_round), "run-1", "f.md", {}, [tmp_path]
+    )
+    assert "crux" not in payload
+    for key in payload:
+        assert "crux" not in key.lower()
+
+
+def test_verdict_payload_body_carries_no_crux_evidence(tmp_path, sample_question, sample_round):
+    """Deep check: the evidence text must not leak into ANY nested payload value."""
+    import json
+
+    payload = _build_verdict_payload(
+        _result_with_crux(sample_question, sample_round), "run-1", "f.md", {}, [tmp_path]
+    )
+    blob = json.dumps(payload, default=str)
+    assert "Incident rate is 12% higher." not in blob
+    assert "Deploys fail more on Fridays." not in blob
+
+
+def test_verdict_payload_identical_with_and_without_crux(tmp_path, sample_question, sample_round):
+    """The strongest form: setting .crux changes the package by exactly nothing."""
+    import json
+
+    with_crux = _result_with_crux(sample_question, sample_round)
+    without = _result_with_crux(sample_question, sample_round)
+    without.crux = None
+
+    a = _build_verdict_payload(with_crux, "run-1", "f.md", {}, [tmp_path])
+    b = _build_verdict_payload(without, "run-1", "f.md", {}, [tmp_path])
+    assert json.dumps(a, default=str, sort_keys=True) == json.dumps(
+        b, default=str, sort_keys=True
+    )
