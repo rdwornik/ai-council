@@ -19,6 +19,68 @@
 
 ---
 
+### 2026-07-21 — night code audit (full `src/` sweep, read-only) + a self-correction that changed its headline
+
+**Did:** Unattended night batch in the `night-code-audit` worktree. Critical read-only audit of the
+entire `src/ai_council/` tree (40 files, 7,435 lines) plus `tests/` (11,421 lines) and
+`config/settings.yaml` cross-checks. Core modules read directly; `providers/`, `research/` and
+`tests/` covered by three parallel sub-audits whose P1s I spot-verified against source before
+promoting any. Report at `docs/audits/2026-07-20-night-code-audit-opus.md` (filename date per the
+operator's explicit path instruction; run date 2026-07-21, both recorded in the header).
+
+**Result:** 16 P1 / 40 P2 / ~45 P3, every finding cited `file:line`. Four P1s confirmed by
+*executing* the logic rather than reading it — the `--file`/`--inbox` frontmatter truth table, the
+`Round -1` cost-tree render, `_parse()` outside `generate()`'s guard, and the unguarded
+`secondary_dir` write. Commits **`ed8731b`** (report) and **`0c98fd9`** (correction).
+
+**Snag — I shipped the report before reading `BACKLOG.md` or `JOURNAL.md`, and it cost the
+headline.** The session-end gate forced me back to JOURNAL, and reconciling there surfaced two
+material errors in `ed8731b`:
+
+- **Six findings were already tracked**, including two of the five lead P1s: P1-4 = **#69**,
+  P1-5 = **#75**, P2-4 = **#76**, plus #79/#80/#81. Re-labelled as independent confirmations with a
+  full reconciliation table. Kept **one stated disagreement** rather than silently conforming: #69
+  is filed P2, I rate it P1 — the transcript records the panel that *ran*, never the panel
+  *requested*, so a silently-wrong panel is unfalsifiable after the fact, including in the verdict
+  package downstream repos consume.
+- **The headline buy-vs-build was refuted by evidence already in this repo.** I recommended
+  replacing `output.py`'s ~270 hand-rolled CommonMark lines with `markdown-it-py`. The
+  `chore/spike-md-parser` session already tested exactly that (`1eb4ecb`/`a38f699`/`070a64d`/
+  `b6c10af`, deliberately never merged) and found the library returns `[]` — **total option loss** —
+  on a fenced options list where the scanner is correct. The scanner wins there *by accident*: the
+  line-level fence-blindness causing #81's fabrication is what saves the payload. Neither
+  implementation satisfies both halves of #81's done-when; the spike's verdict was KEEP-SCANNER.
+  Rewritten from a recommendation into what it actually is — two open operator rulings, with
+  **#81's fabrication-vs-total-loss ruling as the real blocker** and the library choice downstream
+  of it.
+
+**Also recorded: what this audit did NOT find that BACKLOG already had** — **#64** (malformed
+`--file` frontmatter unhandled; invalid frontmatter `mode:` falls through to a hardcoded `pick`
+rather than the configured default). I read both cited sites and missed it, in a file I claimed to
+have audited in full. Recorded so the pass is not over-credited.
+
+**Changes:** `docs/audits/2026-07-20-night-code-audit-opus.md` (new), `JOURNAL.md` (this entry).
+**No `src/`, `tests/`, `config/` or `BACKLOG.md` change** — verified via
+`git diff main -- src/ tests/ config/` returning empty at both commits.
+
+**Abandoned:** Nothing struck, nothing filed. The moratorium held: findings become tickets at a
+future session on the operator's call. The BACKLOG session-end advisory was dispositioned as
+correctly-no-action — this session closed no tracked task, which DEFINITION_OF_DONE 'BACKLOG'
+explicitly allows for a pure advance.
+
+**Next:** Triage session to convert the genuinely-new findings into tickets — the reconciliation
+table already separates new from already-tracked, so that pass should not need to re-derive
+anything. **#81's preferred-failure ruling is the highest-leverage outstanding decision**: it
+blocks the parser question, and the parser question is what two sessions have now spent effort on.
+Worth ruling before any further work touches `_top_level_bullets`.
+
+**Lesson (candidate for LESSONS.md, not yet appended):** reading the tracked-work record is *part
+of* an audit, not a courtesy afterwards. A "we hand-rolled what a library provides" finding is only
+sound once you have checked whether the substitution was already attempted — and here the attempt
+existed, on an unmerged branch whose worktree had been torn down, discoverable only via JOURNAL.
+
+---
+
 ### 2026-07-20 — [#18] crux-check merged; push required a deliberate --no-verify bypass
 
 **Did:** Resolved the append-only JOURNAL conflict from `git merge --no-ff feat/crux-check`
