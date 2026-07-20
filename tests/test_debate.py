@@ -754,7 +754,12 @@ async def test_crux_service_exception_does_not_abort_debate(
         crux_check=_ExplodingChecker(),
     )
     assert len(outcome.rounds) == 2
-    assert outcome.crux is None
+    # terra HIGH-3: the failure must be RECORDED as retrieval_unavailable, not collapsed to
+    # None — None is the "no service injected" state, and conflating them erases the third
+    # outcome from DebateOutcome and from the console line the orchestrator prints.
+    assert outcome.crux is not None
+    assert outcome.crux.status is CruxStatus.RETRIEVAL_UNAVAILABLE
+    assert "service bug" in (outcome.crux.detail or "")
 
 
 async def test_crux_check_none_preserves_existing_behavior(

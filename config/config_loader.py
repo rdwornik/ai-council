@@ -126,7 +126,6 @@ class CruxCheckConfig:
 
     providers: list[str] = field(default_factory=list)
     budget_sec: float = 90.0
-    max_tokens: int = 400
     injection_header: str = ""
     extraction_prompt: str = ""
 
@@ -407,7 +406,6 @@ def _load_crux_check_config(raw: dict) -> CruxCheckConfig:
     return CruxCheckConfig(
         providers=list(raw.get("providers", [])),
         budget_sec=float(raw.get("budget_sec", 90.0)),
-        max_tokens=int(raw.get("max_tokens", 400)),
         injection_header=str(raw.get("injection_header", "")),
         extraction_prompt=str(raw.get("extraction_prompt", "")),
     )

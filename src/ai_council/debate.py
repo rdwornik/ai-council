@@ -8,6 +8,7 @@ from collections.abc import Callable
 from ai_council.models import (
     CruxArtifact,
     CruxChecker,
+    CruxStatus,
     DebateOutcome,
     ModelResponse,
     Question,
@@ -241,8 +242,14 @@ async def run_debate(
                     crux_artifact = await crux_check.check(question.text, anon_block)
                     logger.info("Crux check result: %s", crux_artifact.status.value)
                 except Exception as exc:  # noqa: BLE001 - the debate must survive a service bug
+                    # Record the failure as retrieval_unavailable rather than None: None is
+                    # the "no service injected" state, so collapsing the two would erase the
+                    # third outcome from DebateOutcome and the console (terra HIGH-3).
                     logger.warning("Crux check raised, proceeding without evidence: %s", exc)
-                    crux_artifact = None
+                    crux_artifact = CruxArtifact(
+                        status=CruxStatus.RETRIEVAL_UNAVAILABLE,
+                        detail=f"crux service raised: {exc}",
+                    )
 
             crux_evidence = crux_artifact.evidence_block if crux_artifact else ""
             prompts_for_round = {

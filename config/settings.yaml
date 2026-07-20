@@ -403,7 +403,10 @@ crux_check:
   # is a cost decision that needs re-review, not a tuning knob.
   providers: ["perplexity"]
   budget_sec: 90 # hard wall-clock cap on retrieval; exceeded → retrieval_unavailable
-  max_tokens: 400 # the extraction call is short by construction
+  # NOTE: there is no max_tokens here. AIProvider.generate() takes no per-call token
+  # override, so the extractor uses the synthesizer seat's configured max_tokens. A key
+  # here would be dead config that reads as a bound but enforces nothing (terra HIGH-2).
+  # The artifact is bounded in code instead: _MAX_ARTIFACT_CHARS in crux_check.py.
   injection_header: "--- Evidence check on the central factual crux ---"
   # The extraction call reuses the SYNTHESIZER instance (no model key here). It must be
   # able to answer "there is no empirical crux" — a valid success, never fabricated.

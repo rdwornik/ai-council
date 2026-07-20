@@ -13,6 +13,7 @@ import pytest
 
 from ai_council.crux_check import (
     CruxCheckService,
+    ParseState,
     _parse_crux,
     build_crux_check_service,
 )
@@ -27,7 +28,6 @@ def _crux_cfg(**overrides) -> CruxCheckConfig:
     base = dict(
         providers=["perplexity"],
         budget_sec=90.0,
-        max_tokens=400,
         injection_header="--- Evidence check ---",
         extraction_prompt="Q: {question}\n\n{anon_block}",
     )
@@ -77,37 +77,66 @@ def config(sample_app_config: AppConfig) -> AppConfig:
 class TestParseCrux:
     def test_extracts_claim_from_crux_heading(self):
         assert _parse_crux("## Crux\nDeploys fail more on Fridays.") == (
-            "Deploys fail more on Fridays."
+            ParseState.CLAIM,
+            "Deploys fail more on Fridays.",
         )
 
-    def test_none_sentinel_returns_none(self):
-        assert _parse_crux("## Crux\nNONE") is None
+    def test_none_sentinel_is_no_crux(self):
+        assert _parse_crux("## Crux\nNONE")[0] is ParseState.NO_CRUX
 
-    def test_negation_prose_returns_none(self):
-        assert _parse_crux("## Crux\nNo empirical disagreement is present.") is None
-
-    def test_missing_heading_returns_none(self):
-        assert _parse_crux("I could not identify anything checkable.") is None
-
-    def test_empty_response_returns_none(self):
-        assert _parse_crux("") is None
-        assert _parse_crux("   \n\n  ") is None
+    def test_explicit_crux_absence_prose_is_no_crux(self):
+        assert _parse_crux("## Crux\nNo empirical disagreement.")[0] is ParseState.NO_CRUX
 
     def test_heading_match_is_case_insensitive(self):
-        assert _parse_crux("## CRUX\nX happens.") == "X happens."
-        assert _parse_crux("## crux\nX happens.") == "X happens."
+        assert _parse_crux("## CRUX\nX happens.") == (ParseState.CLAIM, "X happens.")
+        assert _parse_crux("## crux\nX happens.") == (ParseState.CLAIM, "X happens.")
 
     def test_takes_first_nonempty_line_only(self):
         text = "## Crux\n\nFirst claim.\nSecond line ignored."
-        assert _parse_crux(text) == "First claim."
+        assert _parse_crux(text) == (ParseState.CLAIM, "First claim.")
 
     def test_ignores_preamble_before_heading(self):
         text = "Here is my analysis.\n\n## Crux\nThe real claim."
-        assert _parse_crux(text) == "The real claim."
+        assert _parse_crux(text) == (ParseState.CLAIM, "The real claim.")
 
-    def test_stops_at_next_heading(self):
-        text = "## Crux\n\n## Notes\nnot the crux"
-        assert _parse_crux(text) is None
+    def test_long_claim_is_truncated(self):
+        claim = "x" * 900
+        state, parsed = _parse_crux(f"## Crux\n{claim}")
+        assert state is ParseState.CLAIM
+        assert len(parsed) < 500
+
+    # --- terra HIGH-1: malformed must NOT masquerade as a no-crux success ---
+
+    def test_missing_heading_is_malformed_not_no_crux(self):
+        """A refusal is an extraction FAILURE — reporting it as no-crux would claim we
+        checked and found nothing, when we never found out."""
+        assert _parse_crux("I could not identify anything checkable.")[0] is (
+            ParseState.MALFORMED
+        )
+
+    def test_empty_response_is_malformed(self):
+        assert _parse_crux("")[0] is ParseState.MALFORMED
+        assert _parse_crux("   \n\n  ")[0] is ParseState.MALFORMED
+
+    def test_heading_with_empty_body_is_malformed(self):
+        assert _parse_crux("## Crux\n\n## Notes\nnot the crux")[0] is ParseState.MALFORMED
+
+    def test_truncated_response_is_malformed(self):
+        assert _parse_crux("## Cru")[0] is ParseState.MALFORMED
+
+    # --- terra HIGH-1: a negative claim is still a CLAIM ---
+
+    def test_negative_empirical_claim_is_a_claim_not_no_crux(self):
+        """"There is no significant difference" is textbook checkable — a generic negation
+        prefix used to discard it as no-crux, silently skipping retrieval."""
+        text = "## Crux\nThere is no statistically significant difference between A and B."
+        state, claim = _parse_crux(text)
+        assert state is ParseState.CLAIM
+        assert claim.startswith("There is no statistically")
+
+    def test_no_evidence_claim_is_a_claim(self):
+        text = "## Crux\nNo published benchmark shows X outperforming Y."
+        assert _parse_crux(text)[0] is ParseState.CLAIM
 
 
 # ------------------------------------------------------------------------- outcomes

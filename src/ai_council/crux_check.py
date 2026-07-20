@@ -21,6 +21,7 @@ what. The evidence block it returns is likewise built from research prose only �
 import logging
 import re
 from collections.abc import Awaitable, Callable
+from enum import Enum
 
 from ai_council.metrics import build_call_metrics
 from ai_council.models import CruxArtifact, CruxStatus
@@ -36,31 +37,57 @@ logger = logging.getLogger(__name__)
 _CRUX_HEADING_RE = re.compile(r"^#{1,6}\s+crux\b", re.IGNORECASE)
 _ANY_HEADING_RE = re.compile(r"^#{1,6}\s")
 
-# The model was told to answer exactly "NONE", but models paraphrase. These are checked as
-# prefixes of the claim line, mirroring output.py's _NO_DISSENT_PREFIXES idiom.
+# The model was told to answer exactly "NONE", but models paraphrase. Every entry must name
+# the ABSENCE OF A CRUX explicitly.
+#
+# Deliberately NOT here: a bare "there is no". "There is no statistically significant
+# difference between A and B" is a textbook checkable empirical claim, and a generic
+# negation prefix silently discarded it as "no crux" (terra HIGH-1). Generic negation is a
+# property of many valid claims; only crux-absence phrasing may suppress retrieval.
 _NO_CRUX_PREFIXES = (
     "none",
     "n/a",
-    "no empirical",
-    "not empirical",
-    "no checkable",
-    "no factual",
-    "there is no",
+    "no empirical crux",
+    "no empirical disagreement",
+    "no checkable claim",
+    "no checkable empirical",
+    "no factual disagreement",
+    "there is no empirical crux",
+    "there is no checkable",
 )
 
 # Hard bound on the injected block. Round-2 prompts already carry the full anonymized
 # Round-1 block; unbounded evidence would re-bill every panelist for a runaway retrieval.
+# _MAX_EVIDENCE_CHARS bounds the research body; _MAX_ARTIFACT_CHARS bounds the ASSEMBLED
+# artifact (header + claim + body + sources + footer), because bounding only the body let
+# a long claim or source list push the real injected size past the cap (terra HIGH-2).
 _MAX_EVIDENCE_CHARS = 4000
+_MAX_ARTIFACT_CHARS = 6000
+_MAX_CLAIM_CHARS = 400
 _MAX_SOURCES_LISTED = 5
 
 
-def _parse_crux(text: str) -> str | None:
-    """Return the crux claim stated under a ``## Crux`` heading, or None.
+class ParseState(str, Enum):
+    """How to read an extraction response.
 
-    None means "no empirical crux" — a valid success, not a parse failure.
+    CLAIM and NO_CRUX are both well-formed answers. MALFORMED is an extraction FAILURE and
+    must never be reported as a no-crux success — collapsing the two let a truncated or
+    refused response silently skip retrieval while claiming the panel had nothing checkable
+    to look up (terra HIGH-1).
+    """
+
+    CLAIM = "claim"
+    NO_CRUX = "no_crux"
+    MALFORMED = "malformed"
+
+
+def _parse_crux(text: str) -> tuple[ParseState, str]:
+    """Parse an extraction response into (state, claim).
+
+    ``claim`` is meaningful only when state is CLAIM.
     """
     if not text or not text.strip():
-        return None
+        return ParseState.MALFORMED, ""
 
     lines = text.splitlines()
     for idx, line in enumerate(lines):
@@ -72,15 +99,20 @@ def _parse_crux(text: str) -> str | None:
             if not stripped:
                 continue
             if _ANY_HEADING_RE.match(stripped):
-                return None
+                # A `## Crux` heading with an empty body is a broken answer, not a no-crux
+                # verdict — the model was asked to write NONE, and did not.
+                return ParseState.MALFORMED, ""
             claim = stripped.strip("*_` ").strip()
             if not claim:
-                return None
-            if claim.lower().startswith(_NO_CRUX_PREFIXES):
-                return None
-            return claim
-        return None
-    return None
+                return ParseState.MALFORMED, ""
+            if claim.lower().rstrip(".!").startswith(_NO_CRUX_PREFIXES):
+                return ParseState.NO_CRUX, ""
+            if len(claim) > _MAX_CLAIM_CHARS:
+                claim = claim[:_MAX_CLAIM_CHARS].rstrip() + " […]"
+            return ParseState.CLAIM, claim
+        return ParseState.MALFORMED, ""
+    # No `## Crux` heading at all: a refusal, a preamble-only reply, or a truncation.
+    return ParseState.MALFORMED, ""
 
 
 def _build_evidence_block(header: str, claim: str, report: MergedResearchReport) -> str:
@@ -115,7 +147,10 @@ def _build_evidence_block(header: str, claim: str, report: MergedResearchReport)
             "merits; it is retrieved material, not a council member's argument.",
         ]
     )
-    return "\n".join(parts)
+    artifact = "\n".join(parts)
+    if len(artifact) > _MAX_ARTIFACT_CHARS:
+        artifact = artifact[:_MAX_ARTIFACT_CHARS].rstrip() + " […]"
+    return artifact
 
 
 class CruxCheckService:
@@ -152,8 +187,20 @@ class CruxCheckService:
 
         call_metrics = build_call_metrics(response, self._config.models, round_number=-1)
 
-        claim = _parse_crux(response.content or "")
-        if claim is None:
+        state, claim = _parse_crux(response.content or "")
+
+        if state is ParseState.MALFORMED:
+            # An unreadable extraction is a FAILURE, not a no-crux determination. Reporting
+            # it as the latter would claim the panel had nothing checkable when in fact we
+            # never found out (terra HIGH-1).
+            logger.warning("Crux check: extraction response was not parseable")
+            return CruxArtifact(
+                status=CruxStatus.RETRIEVAL_UNAVAILABLE,
+                detail="extraction response was not parseable",
+                call_metrics=call_metrics,
+            )
+
+        if state is ParseState.NO_CRUX:
             logger.info("Crux check: no empirical crux in Round 1 — retrieval skipped")
             return CruxArtifact(
                 status=CruxStatus.NO_EMPIRICAL_CRUX,
