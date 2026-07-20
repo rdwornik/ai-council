@@ -71,6 +71,23 @@ case(
     expect=["Real option"],
 )
 
+# --- #81c: THE INVERSION. #81's filing text predicts that skipping fenced
+# content turns fabrication into TOTAL OPTION LOSS if a model fences its whole
+# options list. No `expect=` here on purpose: which failure is preferable is the
+# ruling #81 asks for, so this prints both behaviours rather than judging them.
+case(
+    "#81c INVERSION: model fences its WHOLE options list",
+    "```\n- Adopt PostgreSQL\n- Adopt SQLite\n- Adopt DuckDB\n```\n",
+)
+case(
+    "#81c INVERSION: whole list fenced with a language tag",
+    "```markdown\n- Adopt PostgreSQL\n- Adopt SQLite\n```\n",
+)
+case(
+    "#81c INVERSION: whole list indented 4sp (accidental code block)",
+    "    - Adopt PostgreSQL\n    - Adopt SQLite\n",
+)
+
 # --- #80: multi-line option payload with a nested annotation ----------------
 MULTI = (
     "- Adopt the library\n"

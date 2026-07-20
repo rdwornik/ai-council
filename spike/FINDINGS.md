@@ -6,9 +6,16 @@
 
 ## Recommendation
 
-**KEEP-SCANNER.** The library dissolves #81 outright and dissolves #80's *rule-authority*
-question, but it **reintroduces the performance fork the scanner needed 6 terra passes to
-close** — and that regression lives inside `md.parse()`, where we cannot fix it.
+**KEEP-SCANNER**, on two independent grounds:
+
+1. It **reintroduces the performance fork the scanner needed 6 terra passes to close** — 30.8×
+   slower at 30k chars against a `<1.0s` bound, inside `md.parse()`, unpatchable from our layer.
+2. It **does not actually dissolve #81**. It fixes fabrication but triggers the exact inversion
+   #81's filing text predicts: a model that fences its whole options list yields `[]` — total
+   option loss. #81's done-when requires a fenced list *not* be silently emptied.
+
+It **does** dissolve #80's *rule-authority* question, and the fence-skipping structure is still
+worth porting — but the library as a drop-in trades one #81 failure for the other.
 
 ## Installed version
 
@@ -48,7 +55,14 @@ library defect.
 
 `"- " + " *a" * 30_000` — bound `< 1.0s`. Scanner **0.12s**, library **3.79s**. See below.
 
-## #81 verdict — **library PASSES, scanner FAILS. Dissolved.**
+## #81 verdict — **NOT dissolved. Fabrication fixed, but the inversion #81 predicted is REAL.**
+
+> **Correction.** This section first read "library PASSES, scanner FAILS. Dissolved." That was
+> **overstated** — it tested only the fabrication half of #81 and ignored the failure mode #81's
+> own filing text warns about: *"if a model ever fences its options list, skipping fenced content
+> turns fabrication into total option loss — needs a ruling on which failure is preferred."*
+> Tested below. The library **loses the entire list**. #81's done-when requires that *"a fenced
+> options list is shown not to be silently emptied"* — the library **fails that half**.
 
 | input | scanner | library |
 |---|---|---|
@@ -63,6 +77,26 @@ bullet_list_open / list_item_open / ... 'Real option A' ... / bullet_list_close
 fence  content='- not_an_option: 1\n- also_not_an_option: 2\n'
 bullet_list_open / list_item_open / ... 'Real option B' ... / bullet_list_close
 ```
+
+### The inversion — the half I initially failed to test
+
+| input | scanner | library |
+|---|---|---|
+| **whole options list fenced** | `['Adopt PostgreSQL', 'Adopt SQLite', 'Adopt DuckDB']` **correct** | `[]` **TOTAL LOSS** |
+| whole list fenced, ` ```markdown ` tag | `['Adopt PostgreSQL', 'Adopt SQLite']` **correct** | `[]` **TOTAL LOSS** |
+| fenced list + one real option outside | `['Real option', 'fenced one', 'fenced two']` fabricates 2 | `['Real option']` correct |
+| whole list indented 4sp | `[]` | `[]` — both lose it |
+
+The scanner gets the fenced-whole-list case **right by accident** — its line-level blindness, the
+very thing that causes the fabrication, is also what saves the payload. The library's block
+awareness is strictly better on fabrication and strictly worse on loss.
+
+**Which failure is preferred is exactly the ruling #81 asks for, and it is not mine to make.**
+Note the asymmetry, though: fabrication yields a *plausibly wrong* option a consumer cannot
+detect; total loss yields an honestly-empty `[]`, which #77's own doctrine calls readable
+("an honest `[]` is readable as 'none extracted'; a fabricated item is not"). By that doctrine
+the library's failure is the *safer* one — but it is still a regression against #81's done-when,
+and the last row shows the scanner already has a partial version of the same loss bug.
 
 **This is structural, not a heuristic** — and it covers tilde fences and indented code
 blocks for free, which a scanner fix would have had to enumerate one at a time.
@@ -154,13 +188,17 @@ because this class of input is adversarial; adopting the library hands that guar
 
 | fork | library outcome |
 |---|---|
-| #81 fenced-block fabrication | **DISSOLVED** — structural, and broader than a scanner fix |
+| #81 fabrication half | **FIXED** — structural, and broader than a scanner fix |
+| #81 loss half (fenced whole list) | **REGRESSED** — library returns `[]`; scanner is accidentally correct. #81's done-when unmet |
 | #80 multi-line truncation | **rule-authority DISSOLVED** — spec-defined; product ruling remains |
 | terra hang (`C:\Users\rob`) | **DISSOLVED** |
 | terra perf (pass-1 shape) | **REGRESSED** — 30.8× slower at 30k, superlinear inside `md.parse()` |
 | #77 unpaired-delimiter conservatism | **DIVERGES** — library is spec-correct, our test is not |
 
-**RECOMMEND: KEEP-SCANNER** — port markdown-it's *fence-skipping structure* into the scanner
+**RECOMMEND: KEEP-SCANNER** — and note #81 needs its *preferred-failure* ruling either way, since
+neither implementation satisfies both halves of its done-when. Port markdown-it's
+*fence-skipping structure* into the scanner **together with a guard for the fenced-whole-list
+case** (e.g. fall back to the fenced content when fence-skipping would empty the section)
 to close #81, and settle #80 by citing the CommonMark rule the library just proved exists;
 do not adopt the parser while its `md.parse()` breaches the #77 latency bound we cannot patch.
 
