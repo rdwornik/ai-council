@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -773,7 +774,10 @@ def _first_by_priority(
 # became `roadmap`. A regex consumes the exact marker and nothing else. Whitespace after
 # the marker is REQUIRED, which is also what keeps a bare `2026 roadmap` line (no marker)
 # from being read as a numbered item and shorn of its year.
-_BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+(?P<text>.*)$")
+# `[0-9]{1,9}`, not `\d+`: an ordered-list marker is 1-9 ASCII digits (CommonMark §5.2).
+# `\d+` accepted `1234567890. ordinary prose` as a list item — fabricating an option out of
+# prose that merely opens with a long number — and `\d` also matches non-ASCII digits.
+_BULLET_RE = re.compile(r"^(?:[-*+]|[0-9]{1,9}[.)])\s+(?P<text>.*)$")
 
 # A thematic break is not a list item. `---` fails _BULLET_RE anyway (no space after the
 # marker), but the spaced form `* * *` parses as a `*` bullet whose payload is `* *`. The
@@ -788,6 +792,11 @@ _ESCAPABLE = set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")
 # search bounded, so unwrapping stays linear in the length of the option: a delimiter-heavy
 # line (a model may emit up to 16k tokens on one line) must not stall verdict generation.
 _MAX_EMPHASIS_NESTING = 64
+
+
+def _is_punctuation(ch: str) -> bool:
+    """CommonMark punctuation — ASCII punctuation plus any Unicode P* category."""
+    return bool(ch) and (ch in _ESCAPABLE or unicodedata.category(ch).startswith("P"))
 
 
 def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
@@ -805,7 +814,13 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
     runs: list[tuple[int, int]] = []
     i, n = 0, len(text)
     while i < n:
-        if text[i] == "`":
+        # Escape-aware, matching the main scan. A blind pre-pass let the backtick in
+        # `\`` open a span that then swallowed the real `` `__init__` `` after it and ate
+        # the dunder as emphasis (terra pass 3) — the pre-pass and the scan must agree on
+        # which characters are delimiters at all.
+        if text[i] == "\\" and i + 1 < n and text[i + 1] in _ESCAPABLE:
+            i += 2
+        elif text[i] == "`":
             run_end = i
             while run_end < n and text[run_end] == "`":
                 run_end += 1
@@ -894,12 +909,18 @@ def _unwrap_emphasis(text: str) -> str:
             run = text[i:run_end]
             before = text[i - 1] if i > 0 else ""
             after = text[run_end] if run_end < n else ""
-            can_open = bool(after) and not after.isspace()
-            can_close = bool(before) and not before.isspace()
+            # CommonMark §6.2 flanking. A whitespace-only test deleted literal payload:
+            # `a*.*b` has no emphasis (the run is followed by punctuation but preceded by a
+            # letter, so it cannot open) yet collapsed to `a.b` (terra pass 3).
+            before_ws, after_ws = (not before) or before.isspace(), (not after) or after.isspace()
+            before_punct, after_punct = _is_punctuation(before), _is_punctuation(after)
+            left_flanking = not after_ws and (not after_punct or before_ws or before_punct)
+            right_flanking = not before_ws and (not before_punct or after_ws or after_punct)
+            can_open, can_close = left_flanking, right_flanking
             if ch == "_":
                 # Intra-word `_` is payload, not emphasis: `snake_case_name` must survive.
-                can_open = can_open and not (before.isalnum() or before == "_")
-                can_close = can_close and not (after.isalnum() or after == "_")
+                can_open = left_flanking and (not right_flanking or before_punct)
+                can_close = right_flanking and (not left_flanking or after_punct)
             parts.append({"emit": run, "char": ch, "len": len(run), "open": can_open, "close": can_close})
             i = run_end
         else:

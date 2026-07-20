@@ -1580,3 +1580,50 @@ def test_options_descending_backtick_fences_stay_linear():
     elapsed = time.perf_counter() - started
 
     assert elapsed < 1.0, f"descending fences took {elapsed:.2f}s -- superlinear"
+
+
+# --- #77, terra pass 3: three HIGH findings. ---
+
+def test_options_escaped_backtick_does_not_steal_a_code_span():
+    r"""terra pass-3 HIGH: the code-span pre-pass was escape-blind.
+
+    An escaped backtick opened a span that swallowed the real `__init__` span
+    after it, and the dunder was then eaten as emphasis. The pre-pass and the
+    main scan must agree on which characters are delimiters at all.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(r"- \` `__init__` wiring" "\n") == ["` __init__ wiring"]
+
+
+def test_options_punctuation_flanked_delimiters_are_literal():
+    """terra pass-3 HIGH: `a*.*b` has no emphasis but collapsed to `a.b`.
+
+    A whitespace-only flanking test deleted literal payload; CommonMark also
+    requires the punctuation-flanking conditions.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- a*.*b\n- x*,*y\n") == ["a*.*b", "x*,*y"]
+
+
+def test_options_ordered_marker_is_one_to_nine_ascii_digits():
+    r"""terra pass-3 HIGH: `\d+` fabricated an option out of long-number prose.
+
+    A CommonMark ordered marker is 1-9 ASCII digits, and `\d` also matched
+    non-ASCII digits.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("1234567890. ordinary prose\n") == []
+    assert _top_level_bullets("٢. prose with an arabic-indic digit\n") == []
+    assert _top_level_bullets("123456789. still a real item\n") == ["still a real item"]
+
+
+def test_options_emphasis_happy_paths_survive_the_flanking_rules():
+    """Regression guard: tightening flanking must not stop real emphasis unwrapping."""
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets(
+        "- **Alpha** - fast\n- *Beta* - cheap\n- __Delta__ - safe\n- 50% *off*\n"
+    ) == ["Alpha - fast", "Beta - cheap", "Delta - safe", "50% off"]
