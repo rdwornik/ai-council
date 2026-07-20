@@ -838,27 +838,20 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
             if text[i + 1] != "`":
                 i += 2  # some other escaped punctuation — irrelevant to code spans
                 continue
-            # Record the escaped backtick as a run rather than skipping over it: skipping
-            # meant `` `C:\` `` never saw its closing backtick, so the span stayed open and
-            # the trailing backslash was lost from the payload.
-            #
-            # Exactly ONE backtick is escaped. Absorbing the whole following run merged the
-            # literal backtick with the real fence after it, so in `` \```x`` `` the fence
-            # was mis-sized and the payload was exposed to emphasis removal (terra pass 5).
-            # The unescaped remainder forms its own run on the next iteration.
-            runs.append((i + 1, i + 2, True))
-            i += 2
-        elif text[i] == "`":
+            i += 1  # step onto the backtick; the run below records it, flagged as escaped
+        if text[i] == "`":
             run_end = i
             while run_end < n and text[run_end] == "`":
                 run_end += 1
-            runs.append((i, run_end, False))
+            runs.append((i, run_end, text[i - 1 : i] == "\\"))
             i = run_end
         else:
             i += 1
 
-    # Index runs by length so each opener can find its closer without rescanning. The
-    # per-length cursors only ever move forward, which keeps the whole pass linear.
+    # Index runs by their FULL length: that is the length a run has when it CLOSES a span,
+    # where backslash escapes do not apply. Splitting a backslash-adjacent run to model the
+    # escape mis-sized the closing fence of `` ``C:\`` `` and dropped the backslash from the
+    # payload (terra pass 6). The escape only ever affects the OPENING side, handled below.
     by_length: dict[int, list[int]] = {}
     for idx, (start, end, _escaped) in enumerate(runs):
         by_length.setdefault(end - start, []).append(idx)
@@ -868,14 +861,18 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
     idx = 0
     while idx < len(runs):
         start, end, was_escaped = runs[idx]
-        if was_escaped:
-            idx += 1  # a literal backtick — it may close a span, but it cannot open one
+        # Only the FIRST backtick of the run is escaped, so it is literal and cannot open;
+        # any remainder still can. `\``x``` opens a two-backtick span after one literal
+        # backtick, while `\`` alone opens nothing (terra passes 3 and 5).
+        open_start = start + 1 if was_escaped else start
+        if open_start >= end:
+            idx += 1  # nothing left to open with — it may still serve as a closer
             continue
-        siblings = by_length[end - start]
-        cursor = cursors[end - start]
+        siblings = by_length.get(end - open_start, [])
+        cursor = cursors.get(end - open_start, 0)
         while cursor < len(siblings) and siblings[cursor] <= idx:
             cursor += 1
-        cursors[end - start] = cursor
+        cursors[end - open_start] = cursor
         if cursor >= len(siblings):
             idx += 1  # no equal-length closer anywhere after it — this run is literal
             continue
@@ -884,7 +881,7 @@ def _pair_code_spans(text: str) -> dict[int, tuple[int, int, int]]:
         # inner double run is content. Pairing whichever closed first inverted that and
         # ate the outer backticks' payload.
         closer = siblings[cursor]
-        spans[start] = (end, runs[closer][0], runs[closer][1])
+        spans[open_start] = (end, runs[closer][0], runs[closer][1])
         idx = closer + 1
         continue
     return spans

@@ -1802,3 +1802,37 @@ def test_options_handles_every_commonmark_line_ending():
     assert _top_level_bullets("- one\n- two") == ["one", "two"]
     assert _top_level_bullets("- one\r\n- two") == ["one", "two"]
     assert _top_level_bullets("- one\r- two") == ["one", "two"]
+
+
+# --- #77, terra pass 6. ---
+
+def test_options_multi_backtick_span_keeps_a_trailing_backslash():
+    r"""terra pass-6: ``C:\`` lost its backslash and kept its fences.
+
+    Splitting a backslash-adjacent run to model the escape mis-sized the CLOSING
+    fence, so the span never closed and the backslash was then read as an escape.
+    Escapes do not apply inside a code span, so a closer always uses its full run
+    length; the escape only ever affects the OPENING side.
+
+    This was a regression against main, which preserved the text (its edge-only
+    strip never touched interior markup).
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- Use ``C:\\`` path\n") == ["Use C:\\ path"]
+    assert _top_level_bullets("- ```a\\``` b\n") == ["a\\ b"]
+
+
+def test_options_escaped_backtick_opener_rules_hold_together():
+    r"""The three escape/code-span rules from passes 3-6 must all hold at once.
+
+    An escaped run cannot OPEN a span; it can still CLOSE one; and only its FIRST
+    backtick is escaped, so any remainder can open. Each was fixed in a different
+    pass, and each fix risked reintroducing the previous one.
+    """
+    from ai_council.output import _top_level_bullets
+
+    assert _top_level_bullets("- \\` `x` y\n") == ["` x y"]        # cannot open (pass 3)
+    assert _top_level_bullets("- `C:\\`\n") == ["C:\\"]            # can still close (pass 4)
+    assert _top_level_bullets("- \\```x``\n") == ["`x"]            # remainder opens (pass 5)
+    assert _top_level_bullets("- ``C:\\`` z\n") == ["C:\\ z"]      # closer keeps length (pass 6)
