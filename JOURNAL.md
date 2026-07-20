@@ -73,7 +73,19 @@ retained), so it is no longer conditional but an unblocked, required ADR-02 amen
 *"No open remainder"* stamp is stale the same way ADR-01's was. Then the moratorium decision, which
 gates the two highest-value remaining items (triage the ~10 new P1s; the #110/#128 renumber + #82
 premise correction). Rulings still owed: #81 preferred-failure, H1 vision fork, #6, #8, #73.
-**Not pushed — operator pushes when ready.**
+
+**Anchor (added post-merge):** this arc = `19ae232`, merged **`e212acd`**. The entry above could not
+cite its own SHA when written — anchored in the following commit per the established pattern
+(`e8fd0d5` precedent).
+
+**Push state (corrected — the entry above said "not pushed", which went stale mid-session):** the
+operator **pushed during the session**. `origin/main` advanced `f758fa6` → `38be0cc` (remote reflog
+`update by push`), so the night-audit reintegration's 16 commits ARE on the remote; only this
+closure-hygiene arc is unpushed (`ahead 2`). **The `spike/md-parser-evidence` tag is still local
+only** — `git ls-remote --tags origin` returns no `spike/*`, because a branch push does not carry
+tags. **The orphan-rescue is therefore NOT yet durable off this machine**; `git push --tags` (or
+`git push origin spike/md-parser-evidence`) remains outstanding and is the one item here that still
+protects against irreversible loss.
 
 ---
 
