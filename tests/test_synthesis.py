@@ -100,6 +100,56 @@ def test_foreign_response_attribute_does_not_defeat_preservation(
     assert SYNTHESIS_FAILED_MARKER in result.synthesis
 
 
+def test_subclass_with_a_bogus_response_does_not_defeat_preservation(
+    sample_question, sample_round
+):
+    """terra final HIGH: isinstance() alone still trusted a SUBCLASS to hold a real
+    ModelResponse. The payload is now type-validated, not just its carrier."""
+
+    class _HostileSubclass(EmptySynthesisError):
+        def __init__(self) -> None:
+            RuntimeError.__init__(self, "empty content")
+            self.response = {"not": "a ModelResponse"}
+
+    result = build_failed_synthesis_result(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer_name="openai",
+        error=_HostileSubclass(),
+        debate_start_time=time.monotonic() - 1.0,
+        model_configs={},
+        synth_latency_sec=1.0,
+    )
+    assert result.metrics is not None
+    assert result.synthesis_metrics.transcript_size_tokens is None  # payload rejected
+
+
+def test_exception_with_a_raising_str_does_not_defeat_preservation(
+    sample_question, sample_round
+):
+    """terra final HIGH: str(exc) and classify_error(exc) both stringify the exception. If
+    that raises, it does so INSIDE the preservation handler — masking the original failure and
+    losing the artifacts. The handler's whole purpose is that it cannot raise."""
+
+    class _UnprintableError(Exception):
+        def __str__(self) -> str:
+            raise ValueError("this exception cannot be rendered")
+
+    result = build_failed_synthesis_result(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer_name="openai",
+        error=_UnprintableError(),
+        debate_start_time=time.monotonic() - 1.0,
+        model_configs={},
+        synth_latency_sec=1.0,
+    )
+    assert result.metrics is not None
+    assert SYNTHESIS_FAILED_MARKER in result.synthesis
+    assert result.degraded is True
+    assert "_UnprintableError" in result.synthesis  # the TYPE still identifies the failure
+
+
 def test_failed_result_records_real_latency_not_zero(sample_question, sample_round):
     """terra HIGH: latency was hardcoded 0.0, contradicting the run's real total_duration."""
     result = build_failed_synthesis_result(

@@ -38,6 +38,30 @@ class EmptySynthesisError(RuntimeError):
         self.response = response
 
 
+def _safe_exc_text(exc: BaseException) -> str:
+    """``str(exc)`` that cannot itself raise.
+
+    Everything in the preservation path runs INSIDE the caller's except handler, so anything
+    that raises here masks the original failure and loses the artifacts the handler exists to
+    save. An exception whose ``__str__`` raises (lazy attribute access in some SDK error
+    types) would do exactly that, so rendering is guarded and falls back to a constant.
+    """
+    try:
+        return str(exc)
+    except Exception:  # noqa: BLE001 - preservation must not depend on a renderable exception
+        return "<unprintable exception>"
+
+
+def _safe_error_class(exc: BaseException) -> str:
+    """``classify_error`` guarded the same way — it stringifies the exception internally."""
+    if not isinstance(exc, ProviderError):
+        return "unknown"
+    try:
+        return classify_error(exc)
+    except Exception:  # noqa: BLE001 - see _safe_exc_text
+        return "unknown"
+
+
 def build_failed_synthesis_result(
     question: Question,
     rounds: list[Round],
@@ -67,8 +91,9 @@ def build_failed_synthesis_result(
     verdict package is emitted — there is no verdict without synthesis.
     """
     total_duration = time.monotonic() - debate_start_time
-    error_class = classify_error(error) if isinstance(error, ProviderError) else "unknown"
-    reason = f"{type(error).__name__}: {error}"
+    error_class = _safe_error_class(error)
+    # The TYPE name always identifies the failure even when the instance cannot be rendered.
+    reason = f"{type(error).__name__}: {_safe_exc_text(error)}"
 
     # No "## Synthesis" heading here — output.py's _build_body already emits one above this.
     synthesis_body = (
@@ -87,8 +112,11 @@ def build_failed_synthesis_result(
     # and httpx.HTTPStatusError both carry that exact attribute name) as a ModelResponse, and
     # the resulting AttributeError would be raised INSIDE the caller's except handler —
     # masking the original error and losing every artifact this function exists to preserve.
+    # Validate the PAYLOAD, not just its carrier: a subclass could hold anything under
+    # `.response`, and an unvalidated one reaches build_call_metrics and raises here.
+    candidate = error.response if isinstance(error, EmptySynthesisError) else None
     billed_response: ModelResponse | None = (
-        error.response if isinstance(error, EmptySynthesisError) else None
+        candidate if isinstance(candidate, ModelResponse) else None
     )
 
     metrics = None
