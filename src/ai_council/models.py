@@ -11,6 +11,23 @@ if TYPE_CHECKING:
     from ai_council.policy import RunPolicy
 
 
+# --- provider_statuses vocabulary (P1-8) -------------------------------------------------
+# The CLOSED set of values for DebateOutcome/DebateResult.provider_statuses. Extend HERE,
+# never at a call site — this dict feeds the verdict package's panel.dropped and
+# degradation.failed_providers, the inter-repo delegation surface at Contract-Version 1.0.
+#
+# Status is relative to the LAST COMPLETED round: a round that aborted is not a completed
+# round. Before P1-8 the dict was monotonic ("ever succeeded in any round") and never flipped
+# back, so a seat that answered Round 1 and died in Round 2 read as "ok" and mid-debate seat
+# loss was invisible in every field a consumer reads as binding input.
+SEAT_STATUS_OK = "ok"  # responded in the last completed round
+SEAT_STATUS_LOST = "lost"  # responded in an earlier round, absent from the last completed one
+SEAT_STATUS_FAILED = "failed"  # never responded in any round
+SEAT_STATUSES: frozenset[str] = frozenset(
+    {SEAT_STATUS_OK, SEAT_STATUS_LOST, SEAT_STATUS_FAILED}
+)
+
+
 @dataclass
 class Question:
     text: str
@@ -79,7 +96,7 @@ class DebateOutcome:
     rounds: list[Round] = field(default_factory=list)
     degraded: bool = False
     degradation_summary: str | None = None
-    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
+    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → SEAT_STATUSES
     seats: list[SeatMetrics] = field(default_factory=list)  # per-seat backend/identity/fallback telemetry
     crux: CruxArtifact | None = None  # #18 bounded crux check; None when no service was injected
 
@@ -196,7 +213,7 @@ class DebateResult:
     synthesizer_is_participant: bool = False
     degraded: bool = False
     degradation_summary: str | None = None
-    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → "ok" | "failed"
+    provider_statuses: dict[str, str] = field(default_factory=dict)  # provider → SEAT_STATUSES
     metrics: DebateMetrics | None = None  # populated after all calls complete
     synthesis_metrics: SynthesisMetrics | None = None  # per-synthesis observability
     # #18 Phase A: rides on DebateResult only — deliberately NOT in the verdict package,
