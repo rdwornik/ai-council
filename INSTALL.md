@@ -66,9 +66,23 @@ This writes to the host repo's `.claude/settings.json`:
 
 ## 2. Install the ruff lint gate (separate — pre-commit framework)
 
-A CC plugin **cannot** ship a `.pre-commit-config.yaml`. Merge the pinned-rev stanza
-in `assets/ruff-pre-commit.yaml` into the host repo's `.pre-commit-config.yaml`
-(create the file with a `repos:` list if absent), then:
+A CC plugin **cannot** ship a `.pre-commit-config.yaml`. Add the pinned-rev stanza below
+to the host repo's `.pre-commit-config.yaml` under `repos:` (create the file with a
+`repos:` list if absent) — this is the gate as it runs in this repo, whose
+`.pre-commit-config.yaml` is the reference copy:
+
+```yaml
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.5
+  hooks:
+  - id: ruff
+    args: []   # gate mode: `ruff check` (no --fix) so violations surface, not auto-silenced
+```
+
+Pin the `rev` rather than using `language: system`: the host fetches exactly this ruff
+version into pre-commit's isolated env, so the gate is deterministic across machines and
+there is no version-mismatch / phantom-I001. Bump the `rev` deliberately, ecosystem-wide.
+Then:
 
 ```bash
 pre-commit install

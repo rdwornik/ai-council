@@ -19,6 +19,61 @@
 
 ---
 
+### 2026-07-21 — `assets/` dissolved: vestigial ruff fragment removed, two live references repaired
+
+**Did:** Executed the operator grant of **2026-07-19** to dissolve the vestigial `assets/`
+directory (sole file: `assets/ruff-pre-commit.yaml`, 1074 B) and repair its two live
+references. The grant's staging condition — *"relocate to `config/` first, verify, then
+delete"* — is **DISCHARGED-WITH-EVIDENCE, not skipped**: the verification that staging
+existed to provide is already satisfied on two independently-checked counts. (a) The real
+ruff gate is **already installed and live** at `.pre-commit-config.yaml:80-88`
+(`astral-sh/ruff-pre-commit` **@ v0.15.5**, `- id: ruff`, `args: []` gate mode) — verified
+by reading the stanza in place, not inferred from the grant text. (b) **Nothing consumes
+the fragment at runtime** — a full tracked-tree sweep for `assets/` / `ruff-pre-commit.yaml`
+returned **zero** code references (no script, hook, or config reads the path); every match
+is prose. Relocating a file that nothing loads, to verify a gate that already runs, would
+have verified nothing.
+
+**Part A — `.claude/settings.json`.** Line 13 determined **before** editing: the key is
+`"//"`, the JSON comment convention — **not** a recognized Claude Code settings key, so it
+carries **no runtime semantics** (comment case, not live-key case). Its ruff sentence
+(`Ruff gate: install via assets/ruff-pre-commit.yaml (see INSTALL.md)`) was **removed**.
+Removal was scoped to that sentence rather than the whole `"//"` entry, because the note is
+multi-topic — it also documents the Tier-1 plugin identity (ADR-70 #73 Unit-5a/5b), the
+marketplace source, the closure loop, and the force-add rationale, none of which relate to
+`assets/`. Deleting the entry wholesale would have destroyed unrelated tracked documentation.
+
+**Part B — `INSTALL.md` §2.** The instruction pointed at the now-deleted fragment, so it was
+rewritten to be **followable as written with no external file dependency**: the pinned-rev
+stanza is now **inline** in the section (byte-faithful to the live gate @ v0.15.5), with this
+repo's `.pre-commit-config.yaml` named as the reference copy. The deleted file's non-obvious
+*pinned-rev* rationale (pin rather than `language: system` → deterministic isolated env, no
+version-mismatch / phantom-I001) was carried into §2 rather than lost with the file; the
+*why-separate* rationale was already present in §2 and is unchanged.
+
+**Result:** `assets/` no longer exists (removing its sole file removed the directory). Both
+live references repaired; no dangling path remains in any consumed surface.
+
+**Supersedes:** `docs/audits/archive/2026-07-11-technical-root-parity-disposition.md` **row 6**
+— `assets/ruff-pre-commit.yaml` · **LOCAL (declared)** · *"none — kept; corp deliberately does
+not carry it (runs its own ruff gate)"*. That row's disposition is **superseded by this
+dissolution**; the audit file itself is immutable and was **not** edited. This outcome is
+consistent with the fleet **placement principle** (a file lives in `config/` unless
+root-mandated) — for this fragment the correct home is **nonexistence**, since the gate it
+described is already live in root `.pre-commit-config.yaml`, where pre-commit mandates it.
+
+**Changes:** `assets/ruff-pre-commit.yaml` (deleted, dir gone) · `.claude/settings.json`
+(`"//"` ruff sentence removed) · `INSTALL.md` (§2 rewritten, stanza inlined) · `JOURNAL.md`.
+
+**Abandoned:** Nothing. Scope held to the four grant steps — the six non-live string matches
+(`JOURNAL.md:1640`, three `docs/audits/` files, two cli4-parity blinded files) are
+append-only/immutable historical record and were deliberately **left untouched**.
+
+**Next:** terra review naming the four surfaces → operator GO → `--no-ff` merge → operator
+witnesses (a) `assets/` absent, (b) the rewritten INSTALL instruction works as written.
+
+---
+
 ### 2026-07-21 — closure hygiene: [#2] + [#3] struck, spike-evidence tag anchored in the record
 
 **Did:** Two closure-hygiene actions in one `docs/` branch — neither is new work (the moratorium
