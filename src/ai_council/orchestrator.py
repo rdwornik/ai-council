@@ -20,7 +20,7 @@ from ai_council.output import (
     save_to_file,
     save_verdict_package,
 )
-from ai_council.providers.base import AIProvider, ProviderError
+from ai_council.providers.base import AIProvider
 from ai_council.runner import exclude_synthesizer_from_panel, pick_synthesizer
 from ai_council.seat_router import build_seat_router
 from ai_council.synthesis import build_failed_synthesis_result, synthesize
@@ -157,6 +157,7 @@ class CouncilRunner:
             # writing some). The verdict package is deliberately NOT emitted below: it
             # hardcodes exit_semantics 0 and would assert a usable verdict that does not exist.
             synthesis_error: BaseException | None = None
+            synth_attempt_start = time.monotonic()
             try:
                 result = await synthesize(
                     question=request.question,
@@ -175,10 +176,15 @@ class CouncilRunner:
                     seats=outcome.seats,
                     crux=outcome.crux,
                 )
-            except (ProviderError, RuntimeError) as exc:
+            # Catch Exception, not just ProviderError/RuntimeError: a ValueError/TypeError/
+            # AttributeError from synthesis or metrics code would otherwise unwind past every
+            # writer and recreate the exact loss this guard exists to prevent — the same
+            # narrow-except defect class as P1-2. BaseException (CancelledError,
+            # KeyboardInterrupt, SystemExit) still propagates: a shutdown writes nothing.
+            except Exception as exc:  # noqa: BLE001 - preservation boundary, see above
                 logger.error(
                     "Synthesis failed (%s) — preserving %d completed round(s): %s",
-                    type(exc).__name__, len(outcome.rounds), exc,
+                    type(exc).__name__, len(outcome.rounds), exc, exc_info=exc,
                 )
                 synthesis_error = exc
                 result = build_failed_synthesis_result(
@@ -195,6 +201,7 @@ class CouncilRunner:
                     debate_mode=request.mode,
                     seats=outcome.seats,
                     crux=outcome.crux,
+                    synth_latency_sec=time.monotonic() - synth_attempt_start,
                 )
 
         # #18: surface the crux outcome here, not in debate.py (which owns no console).
@@ -316,12 +323,23 @@ class CouncilRunner:
         # R4: every canonical artifact is now on disk and every diagnostic emitted. If any
         # REQUIRED --return-dir write missed, fail here with the full set — deliberately not
         # in a finally, where an exception would mask the original.
-        raise_for_routing_failures(routing_failures)
-
-        # P1-9: the debate was preserved, but the run did NOT produce a verdict. Re-raise the
-        # original cause so the CLI still exits 1 (CONTRACT §4) with its accurate wording —
-        # exit 3 would be wrong, it means "degraded but complete, verdict is usable".
+        # P1-9: when synthesis already failed, THAT is the primary cause and must reach the
+        # operator. Raising the routing aggregate first would replace it with an
+        # OutputRoutingError and hide why the run actually failed — so the misses are logged
+        # loudly here (never silently dropped: R4 still fails the run, just not the message)
+        # and the original cause is re-raised. Exit is 1 either way (CONTRACT §4); exit 3
+        # would be wrong, it means "degraded but complete, verdict is usable".
         if synthesis_error is not None:
+            for failure in routing_failures:
+                logger.error(
+                    "Required return-dir write missed for %s -> %s: %s",
+                    failure.artifact, failure.destination, failure.cause,
+                )
             raise synthesis_error
+
+        # R4: every canonical artifact is now on disk and every diagnostic emitted. If any
+        # REQUIRED --return-dir write missed, fail here with the full set — deliberately not
+        # in a finally, where an exception would mask the original.
+        raise_for_routing_failures(routing_failures)
 
         return result

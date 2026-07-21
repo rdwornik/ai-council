@@ -7,8 +7,84 @@ import pytest
 
 from ai_council.models import DebateResult, ModelResponse, Round
 from ai_council.providers.base import ProviderError
-from ai_council.synthesis import _format_full_transcript, synthesize
+from ai_council.synthesis import (
+    EmptySynthesisError,
+    _format_full_transcript,
+    build_failed_synthesis_result,
+    synthesize,
+)
 from tests.conftest import MockProvider
+
+
+async def test_empty_content_error_carries_the_billed_response(
+    sample_prompts_config, sample_question, sample_round
+):
+    """terra HIGH: the empty-content path had ALREADY received a billable ModelResponse, so
+    booking the failed synthesis at zero tokens silently understated real spend. The error
+    carries the response so the preservation path can book what was actually charged."""
+    synthesizer = MockProvider("openai", "")
+    synthesizer.generate = AsyncMock(
+        return_value=ModelResponse(
+            provider="openai", model="gpt-5.2", round_number=2, content="",
+            latency_sec=1.0, token_count=900, input_tokens=800, output_tokens=100,
+        )
+    )
+    with pytest.raises(RuntimeError, match="empty content") as exc_info:
+        await synthesize(
+            question=sample_question,
+            rounds=[sample_round],
+            synthesizer=synthesizer,
+            prompts=sample_prompts_config,
+            debate_start_time=time.monotonic(),
+            model_configs={},
+        )
+    assert isinstance(exc_info.value, EmptySynthesisError)
+    assert exc_info.value.response.input_tokens == 800
+    assert exc_info.value.response.output_tokens == 100
+
+
+def test_failed_result_books_the_billed_usage_when_a_response_exists(
+    sample_question, sample_round
+):
+    """A synthesis that returned empty content was still charged — the sidecar must say so."""
+    billed = ModelResponse(
+        provider="openai", model="gpt-5.2", round_number=2, content="",
+        latency_sec=1.0, token_count=900, input_tokens=800, output_tokens=100,
+    )
+    result = build_failed_synthesis_result(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer_name="openai",
+        error=EmptySynthesisError("Synthesizer openai returned empty content", billed),
+        debate_start_time=time.monotonic() - 3.0,
+        model_configs={},
+        synth_latency_sec=2.5,
+    )
+    synth_call = [c for c in result.metrics.calls if c.round_number == 0]
+    assert len(synth_call) == 1
+    assert synth_call[0].input_tokens == 800  # never rounded down to a fabricated zero
+    assert synth_call[0].output_tokens == 100
+    assert result.synthesis_metrics.transcript_size_tokens == 800
+    assert result.synthesis_metrics.output_tokens == 100
+
+
+def test_failed_result_records_real_latency_not_zero(sample_question, sample_round):
+    """terra HIGH: latency was hardcoded 0.0, contradicting the run's real total_duration."""
+    result = build_failed_synthesis_result(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer_name="openai",
+        error=ProviderError("openai", "API error"),
+        debate_start_time=time.monotonic() - 3.0,
+        model_configs={},
+        synth_latency_sec=2.5,
+    )
+    assert result.synthesis_metrics.synth_latency_seconds == 2.5
+    synth_call = [c for c in result.metrics.calls if c.round_number == 0][0]
+    assert synth_call.latency_sec == 2.5
+    # No response was ever returned, so zero TOKENS here is observed truth, not a fabrication.
+    assert synth_call.input_tokens == 0
+    assert result.synthesis_metrics.transcript_size_tokens is None  # unknown, not zero
 
 
 def test_format_full_transcript():

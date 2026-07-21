@@ -358,6 +358,72 @@ async def test_synthesis_failure_marks_the_run_degraded(
     assert "boom-detail-9987" in content  # the original cause is preserved, not swallowed
 
 
+async def test_unexpected_synthesis_exception_also_preserves_the_run(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """terra HIGH: the preservation boundary caught only ProviderError/RuntimeError, so a
+    ValueError/TypeError/AttributeError from synthesis code still unwound past every writer
+    and recreated the exact loss P1-9 exists to prevent — the same narrow-except defect class
+    as P1-2 itself."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome,
+        ValueError("malformed usage payload"),
+    )
+    transcripts = list(tmp_path.glob("council-out-*.md"))
+    assert len(transcripts) == 1
+    assert "SYNTHESIS FAILED" in transcripts[0].read_text(encoding="utf-8")
+
+
+async def test_synthesis_failure_is_the_raised_cause_even_when_routing_fails(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """terra HIGH: raise_for_routing_failures ran BEFORE the saved synthesis_error, so a
+    --return-dir miss replaced the real cause with OutputRoutingError and the operator lost
+    the reason the run actually failed."""
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a directory", encoding="utf-8")
+    request = RunRequest(
+        question=Question(text="Should we use YAML or JSON?", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=1,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+        return_dir=blocker / "sub",  # unwritable: parent is a file
+    )
+    with (
+        patch("ai_council.orchestrator.run_debate", new=AsyncMock(return_value=populated_outcome)),
+        patch("ai_council.orchestrator.synthesize",
+              new=AsyncMock(side_effect=ProviderError("openai", "primary-cause-4471"))),
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        with pytest.raises(ProviderError, match="primary-cause-4471"):
+            await runner.run(request, output_dir=tmp_path)
+
+
+async def test_failed_transcript_carries_no_dangling_verdict_pointer(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """terra HIGH: the header emitted the verdict summary — "Dissent: unanimous" and "machine-
+    readable fields are authoritative in the council-verdict-*.json sibling" — on a path that
+    deliberately emits NO verdict package. Same defect class as #63: a preserved artifact
+    naming a file the consumer then fails to find is worse than the original defect."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome,
+        ProviderError("openai", "API error"),
+    )
+    content = list(tmp_path.glob("council-out-*.md"))[0].read_text(encoding="utf-8")
+    assert "council-verdict-" not in content  # no pointer to a file never written
+    assert "Machine-readable fields are authoritative" not in content
+    assert "**Dissent:**" not in content  # dissent is undetectable without a synthesis
+    assert "No verdict was produced" in content
+    # The rounds ARE still the authoritative record — that claim is true and must survive.
+    assert "authoritative record of this run" in content
+
+
 async def test_runner_run_raises_when_panel_too_small(two_providers, multi_model_config, tmp_path):
     """Panel with no available providers raises RuntimeError."""
     request = RunRequest(

@@ -24,6 +24,20 @@ logger = logging.getLogger(__name__)
 SYNTHESIS_FAILED_MARKER = "SYNTHESIS FAILED"
 
 
+class EmptySynthesisError(RuntimeError):
+    """The synthesizer returned an empty body.
+
+    Subclasses RuntimeError so the documented `Raises:` contract and every existing caller
+    keep working. Carries the ModelResponse because this failure happens AFTER a completed —
+    and therefore BILLED — provider call: the preservation path books its real usage rather
+    than fabricating a zero, which would silently understate the run's spend.
+    """
+
+    def __init__(self, message: str, response: ModelResponse) -> None:
+        super().__init__(message)
+        self.response = response
+
+
 def build_failed_synthesis_result(
     question: Question,
     rounds: list[Round],
@@ -38,6 +52,7 @@ def build_failed_synthesis_result(
     debate_mode: str = "pick",
     seats: list[SeatMetrics] | None = None,
     crux: CruxArtifact | None = None,
+    synth_latency_sec: float = 0.0,
 ) -> DebateResult:
     """Preserve a completed debate when synthesis fails (P1-9).
 
@@ -63,19 +78,26 @@ def build_failed_synthesis_result(
         f"of this run; no verdict package was emitted."
     )
 
+    # An empty-content failure happened AFTER a completed, billed call, so its usage is known
+    # and must be booked. A ProviderError means nothing was ever returned — zero tokens there
+    # is observed truth, not a fabrication, and the UNKNOWN fields stay None rather than 0.
+    billed_response: ModelResponse | None = getattr(error, "response", None)
+
     metrics = None
     if model_configs is not None:
-        # The synthesis call is booked at zero tokens because it produced no billable output.
-        # This is the convention build_call_metrics already uses for a provider that returns
-        # no usage data (metrics.py) — the round calls carry the run's real spend.
-        failed_synthesis_call = ProviderCallMetrics(
-            provider=synthesizer_name,
-            round_number=0,  # 0 = synthesis call
-            input_tokens=0,
-            output_tokens=0,
-            estimated_cost_usd=0.0,
-            latency_sec=0.0,
-        )
+        if billed_response is not None:
+            failed_synthesis_call = build_call_metrics(
+                billed_response, model_configs, round_number=0
+            )
+        else:
+            failed_synthesis_call = ProviderCallMetrics(
+                provider=synthesizer_name,
+                round_number=0,  # 0 = synthesis call
+                input_tokens=0,
+                output_tokens=0,
+                estimated_cost_usd=0.0,
+                latency_sec=synth_latency_sec,
+            )
         crux_calls = [crux.call_metrics] if crux and crux.call_metrics else None
         metrics = build_debate_metrics(
             rounds, failed_synthesis_call, model_configs, total_duration, seats=seats,
@@ -101,10 +123,17 @@ def build_failed_synthesis_result(
         provider_statuses=provider_statuses or {},
         metrics=metrics,
         synthesis_metrics=SynthesisMetrics(
-            synthesizer_model=synthesizer_name,  # the requested seat; nothing was served
-            transcript_size_tokens=None,
-            output_tokens=None,
-            synth_latency_seconds=0.0,
+            synthesizer_model=(
+                billed_response.model if billed_response is not None else synthesizer_name
+            ),
+            # None = genuinely unknown (nothing was returned), never an observed zero.
+            transcript_size_tokens=(
+                billed_response.input_tokens if billed_response is not None else None
+            ),
+            output_tokens=(
+                billed_response.output_tokens if billed_response is not None else None
+            ),
+            synth_latency_seconds=synth_latency_sec,
             error_class=error_class,
         ),
         crux=crux,
@@ -208,7 +237,10 @@ async def synthesize(
         raise
 
     if not synthesis_response.content:
-        raise RuntimeError(f"Synthesizer {synthesizer.name()} returned empty content")
+        # This call completed and was billed — carry it so the failure path books real usage.
+        raise EmptySynthesisError(
+            f"Synthesizer {synthesizer.name()} returned empty content", synthesis_response
+        )
 
     synth_latency = time.monotonic() - synth_start
     synthesis_obs = SynthesisMetrics(

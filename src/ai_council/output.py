@@ -1133,13 +1133,42 @@ def _dropped_providers(provider_statuses: dict[str, str]) -> list[str]:
     return sorted(k for k, v in provider_statuses.items() if v != SEAT_STATUS_OK)
 
 
+def _synthesis_failed(result: DebateResult) -> bool:
+    """True when this result stands in for a synthesis that never returned (P1-9).
+
+    Read off the STRUCTURED observability field, not by sniffing the synthesis body for a
+    marker string — the codebase already has four string-matching classifiers that misfire,
+    and this one has real data available. ``error_class`` is "none" on every success path and
+    a classified token only on the preservation path.
+    """
+    return result.synthesis_metrics is not None and result.synthesis_metrics.error_class != "none"
+
+
 def _verdict_summary_lines(result: DebateResult) -> list[str]:
     """Human-readable mirror block for the top of council-out (DRAFT-INT-1).
 
     Prose mirror of the machine-authoritative council-verdict-*.json sibling: the decision,
     dissent status, panel seated-vs-requested, verdict author, and any degradation — so a
     Lane B/operator read is self-contained without opening the JSON.
+
+    On the P1-9 preservation path there IS no verdict package, so this renders an explicit
+    no-verdict block instead: a preserved transcript claiming "Dissent: unanimous" and
+    pointing at a council-verdict-*.json sibling that was deliberately never written is the
+    same defect #63 guards against — naming a file the consumer then fails to find.
     """
+    if _synthesis_failed(result):
+        seated = sorted({r.provider for r in result.rounds[0].responses})
+        requested = sorted(set(result.provider_statuses) | set(seated))
+        return [
+            "## Verdict Summary",
+            "",
+            "**No verdict was produced.** The synthesizer did not return one, so this run "
+            "emitted no verdict package and no minority report.",
+            f"**Panel seated:** {len(seated)}/{len(requested)}",
+            f"**Degradation:** {result.degradation_summary or 'Synthesis failed.'}",
+            "",
+            "_The debate rounds below are the authoritative record of this run._",
+        ]
     sections = _split_sections(result.synthesis)
     decision = _extracted_field(sections, _DECISION_HEADING_MARKERS, one_line=True)["value"]
     seated = sorted({r.provider for r in result.rounds[0].responses})
