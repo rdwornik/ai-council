@@ -170,6 +170,43 @@ def test_classify_digits_in_request_id_not_server_error():
     assert result == "content_policy"
 
 
+def test_classify_status_code_followed_by_period():
+    """Codex review H1: the word-boundary guard excluded '.' on both sides to stop version
+    strings matching, which also hid codes at the end of a sentence."""
+    assert classify_error(Exception("upstream returned 503.")) == "server_error"
+    assert classify_error(Exception("HTTP 429.")) == "rate_limit"
+
+
+def test_classify_version_string_is_not_a_status_code():
+    """The other half of H1: a dotted version must still not register as a status code."""
+    assert classify_error(Exception("client v1.429.0 rejected the payload")) != "rate_limit"
+
+
+def test_classify_typed_400_content_policy_not_invalid_request():
+    """Codex review H2: OpenAI sends policy rejections as a 400 BadRequestError. Typed
+    dispatch mapped 400 -> invalid_request before the content_policy marker could be seen,
+    degrading the healthcheck diagnostic."""
+    exc = _StatusExc("content_policy_violation: your prompt was rejected", 400)
+    assert classify_error(exc) == "content_policy"
+
+
+def test_classify_content_policy_marker_through_cause_chain():
+    """Same as above, wrapped the way generate() wraps it."""
+    inner = _StatusExc("content_policy_violation", 400)
+    outer = ProviderError("openai", "API call failed: content_policy_violation")
+    outer.__cause__ = inner
+    assert classify_error(outer) == "content_policy"
+
+
+def test_classify_server_error_mentioning_safety_stays_retryable():
+    """The conservative half of the H2 fix: only the structured content_policy token is
+    hoisted ahead of typed dispatch. Bare prose 'safety' must not outrank a 5xx, or we
+    recreate the exact auth-outranks-500 defect P1-7 fixed."""
+    exc = Exception("500 internal error in the safety subsystem")
+    assert classify_error(exc) == "server_error"
+    assert is_retryable(classify_error(exc)) is True
+
+
 def test_classify_server_error_outranks_auth():
     """A 5xx that merely *mentions* auth is a recoverable server failure. The auth arm used to
     win, marking it non-retryable and burning the seat on a fully recoverable error."""

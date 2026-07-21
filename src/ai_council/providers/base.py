@@ -80,6 +80,16 @@ _BILLING_MARKERS: tuple[str, ...] = (
     "billing details",
 )
 
+# Content-policy rejections arrive as a typed 400, which would otherwise dispatch to the
+# generic "invalid_request" before the message was ever consulted. Only these STRUCTURED API
+# tokens are checked ahead of typed dispatch — the looser prose marker ("safety") stays in the
+# string fallback, ordered after server_error, so a 5xx that merely mentions a safety
+# subsystem is not recategorised as a permanent failure (the P1-7 defect in a new costume).
+_CONTENT_POLICY_MARKERS: tuple[str, ...] = (
+    "content_policy",
+    "content policy",
+)
+
 
 def _cause_chain(exc: BaseException) -> list[BaseException]:
     """The exception and its explicit `raise ... from` causes, outermost first.
@@ -101,10 +111,13 @@ def _http_code_in(msg: str, *codes: str) -> bool:
     """True when `msg` contains one of `codes` as a standalone token.
 
     Word-boundary matched so request ids, model names and token counts don't register as
-    status codes — ``gpt-4290`` is not a 429 and ``req_5031`` is not a 503. ``.`` is excluded
-    on both sides too, so version strings like ``1.429.0`` don't match either.
+    status codes — ``gpt-4290`` is not a 429 and ``req_5031`` is not a 503. Dots are excluded
+    only where they form part of a number (``v1.429.0``), so a code ending a sentence —
+    ``upstream returned 503.`` — still matches.
     """
-    return any(re.search(rf"(?<![\w.]){code}(?![\w.])", msg) for code in codes)
+    return any(
+        re.search(rf"(?<!\w)(?<!\d\.){code}(?!\w)(?!\.\d)", msg) for code in codes
+    )
 
 
 def _classify_typed(exc: BaseException) -> str | None:
@@ -126,11 +139,11 @@ def classify_error(exc: Exception) -> str:
     server_error, content_policy, invalid_request, billing, unknown.
     Used by healthcheck and retry logic to produce specific messages.
 
-    Three ordered stages: billing markers (message-only, so they must outrank the typed 400 /
-    429 those failures arrive as), then typed dispatch over the ``__cause__`` chain (the
-    authoritative path — ``generate()`` wraps SDK errors with ``from exc``, so the typed
-    exception survives inside the ProviderError), then a string fallback for exceptions
-    carrying no type signal at all.
+    Three ordered stages: message-only markers first (billing and content-policy rejections
+    both arrive as a typed 400 or 429, so a typed check alone would mislabel them), then typed
+    dispatch over the ``__cause__`` chain (the authoritative path — ``generate()`` wraps SDK
+    errors with ``from exc``, so the typed exception survives inside the ProviderError), then a
+    string fallback for exceptions carrying no type signal at all.
     """
     chain = _cause_chain(exc)
 
@@ -138,6 +151,8 @@ def classify_error(exc: Exception) -> str:
         link_msg = str(link).lower()
         if any(marker in link_msg for marker in _BILLING_MARKERS):
             return "billing"
+        if any(marker in link_msg for marker in _CONTENT_POLICY_MARKERS):
+            return "content_policy"
 
     for link in chain:
         typed = _classify_typed(link)
