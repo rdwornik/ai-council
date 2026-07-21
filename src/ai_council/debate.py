@@ -276,14 +276,32 @@ async def run_debate(
             return result
 
         tasks = [_run_seat(p) for p in providers]
-        results = await asyncio.gather(*tasks)
+        # P1-2: WITHOUT return_exceptions=True one seat's escaped exception cancelled every
+        # sibling seat mid-flight, discarded their already-paid-for responses, and unwound the
+        # whole run — the exact opposite of the same-seat fallback seat_router advertises.
+        # _call_provider envelopes the API leg and the seat router envelopes the CLI leg, so a
+        # raw exception arriving here is an unclassified defect: degrade that seat, log loudly.
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         responses: list[ModelResponse] = []
-        for provider, result in zip(providers, results):
+        for provider, result in zip(providers, results, strict=True):
             if isinstance(result, ModelResponse):
                 responses.append(result)
                 provider_statuses[provider.name()] = "ok"
-            # ProviderError already logged in _call_provider
+            elif isinstance(result, BaseException) and not isinstance(result, Exception):
+                # CancelledError / KeyboardInterrupt / SystemExit are returned as RESULTS under
+                # return_exceptions=True. A shutdown is never a seat failure — re-raise it.
+                raise result
+            elif isinstance(result, ProviderError):
+                pass  # already logged in _call_provider
+            elif isinstance(result, Exception):
+                logger.error(
+                    "Seat %s raised an unclassified %s — degrading this seat only: %s",
+                    provider.name(),
+                    type(result).__name__,
+                    result,
+                    exc_info=result,
+                )
 
         if _policy.should_abort(len(responses), round_num):
             if round_num == 1:

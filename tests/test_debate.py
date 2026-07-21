@@ -1,5 +1,6 @@
 """Tests for src/debate.py."""
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock
 
@@ -535,6 +536,99 @@ async def test_run_debate_round2_all_fail_returns_partial(
     assert "round 2" in outcome.degradation_summary.lower()
     assert len(outcome.rounds) == 1  # only round 1 completed
     assert outcome.rounds[0].number == 1
+
+
+# ------------------------------------------------- P1-2 round survives a raw seat exception
+
+
+class _RaisingRouter:
+    """A seat_router double whose try_cli raises a NON-ProviderError for one named seat.
+
+    The router now guards its own CLI leg, so this stands in for ANY future escape from the
+    per-seat coroutine (a record_api bug, a prompt-map miss, a new code path). The gather's
+    return_exceptions triage is the structural backstop, and this is what exercises it.
+    """
+
+    def __init__(self, exc: BaseException, fail_for: str) -> None:
+        self._exc = exc
+        self._fail_for = fail_for
+
+    async def try_cli(self, name: str, prompt: str, round_number: int):  # noqa: ANN202
+        if name == self._fail_for:
+            raise self._exc
+        return None  # every other seat falls through to its API leg
+
+    def record_api(self, name: str, result: object) -> None:
+        return None
+
+    def collect(self) -> list:
+        return []
+
+
+async def test_raw_seat_exception_does_not_cancel_the_round(
+    sample_prompts_config, sample_question, caplog
+):
+    """P1-2: asyncio.gather ran WITHOUT return_exceptions=True, so one seat's non-ProviderError
+    propagated out of run_debate — cancelling every sibling seat mid-flight, discarding their
+    already-paid-for responses, and returning no DebateOutcome at all."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    with caplog.at_level(logging.ERROR, logger="ai_council.debate"):
+        outcome = await run_debate(
+            question=sample_question,
+            providers=[good, doomed],
+            prompts=sample_prompts_config,
+            num_rounds=1,
+            seat_router=_RaisingRouter(
+                AttributeError("'list' object has no attribute 'get'"), fail_for="doomed"
+            ),
+        )
+
+    # The round completed and the sibling seat's response survived.
+    assert len(outcome.rounds) == 1
+    assert [r.provider for r in outcome.rounds[0].responses] == ["good"]
+    # The raw failure is booked as ONE seat failing, not a run kill.
+    assert outcome.provider_statuses["good"] == "ok"
+    assert outcome.provider_statuses["doomed"] == "failed"
+    # It is logged loudly — an unclassified escape is a defect, not routine degradation.
+    assert "doomed" in caplog.text
+    assert "AttributeError" in caplog.text
+
+
+async def test_raw_seat_exception_still_allows_remaining_rounds(
+    sample_prompts_config, sample_question
+):
+    """The surviving seat must carry on into round 2 — a degraded panel, not a dead debate."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[good, doomed],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+        seat_router=_RaisingRouter(ValueError("int() with base 10: ''"), fail_for="doomed"),
+    )
+    assert len(outcome.rounds) == 2
+    assert all(len(r.responses) == 1 for r in outcome.rounds)
+
+
+async def test_seat_cancellation_propagates(sample_prompts_config, sample_question):
+    """CancelledError must NOT be swallowed by the triage — return_exceptions=True returns a
+    cancelled child's CancelledError as a RESULT, so it has to be re-raised explicitly or
+    Ctrl-C would silently look like a seat failure."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_debate(
+            question=sample_question,
+            providers=[good, doomed],
+            prompts=sample_prompts_config,
+            num_rounds=1,
+            seat_router=_RaisingRouter(asyncio.CancelledError(), fail_for="doomed"),
+        )
 
 
 # --------------------------------------------------------------- #18 bounded crux check
