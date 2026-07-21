@@ -139,6 +139,59 @@ worth noting: ~12 existing provider tests patched `provider._client` post-constr
 building breaks — **one anthropic test was observed making a live API call** when it broke. New
 `_bind_client()` helper registers the double against the running loop; all mocks now land.
 
+
+---
+
+### 2026-07-21 — Lane B: three orchestration-resilience fixes (P1-2/P1-8/P1-9) + 4 terra passes [no task closed]
+
+**Did:** Fixed the three verified orchestration-resilience defects from the night code audit
+(`docs/audits/2026-07-20-night-code-audit-opus.md`) in worktree `fix-debate-resilience`, plan-mode
+first, tests-first throughout. **Committed and STOPPED — not merged, not pushed; Rob is the serial
+merge gate.** Ten commits on `worktree-fix-debate-resilience`, `57434e5..7a10ee1`.
+
+- **P1-2** (`57434e5`, `3635ac6`, `2286a97`) — `gather(return_exceptions=True)` + isinstance triage;
+  `seat_router` widened to honour its own docstring's "ANY CLI failure falls back" guarantee;
+  `cli_base` parse sites enveloped in `ProviderError`.
+- **P1-8** (`8d4dff4`, `c99863d`) — `provider_statuses` derived from the **last COMPLETED round**
+  instead of "ever succeeded"; new `lost` status; `output.py` counts it as dropped.
+- **P1-9** (`e3be11d`) — a synthesis failure now preserves transcript + metrics sidecar and
+  re-raises, instead of discarding the whole paid-for run.
+
+**Result:** 768 passing (from 724 baseline — 44 new tests), mypy clean (40 files), ruff clean,
+`scripts/verify_cli_output_contract.py` 10/11 (L11 GAP is the pre-existing live-witness leg, gated
+on `AICOUNCIL_LIVE_WITNESS=1`, unrelated).
+
+**Contract:** P1-8 stays **strictly inside contract-1.0** — no verdict-package field added, removed
+or renamed; `contract_version` `"1.0"` and `exit_semantics` `0` untouched. Discharged by grep before
+coding (every value-consumer tested `== "failed"`; none branched on `== "ok"`; `provider_statuses`
+never reaches the package; **no exit code depends on a debate's `degraded` flag** — `inbox_any_degraded`
+is research-only) and pinned by a new key-set equality test mirroring the crux Phase-A freeze test.
+
+**Terra found real defects — four passes, three of them productive.** Pass 1: 4 HIGH, all on the
+P1-9 path — the preservation boundary caught only `ProviderError`/`RuntimeError` (the same
+narrow-except class as P1-2 itself), `raise_for_routing_failures` masked the synthesis cause, the
+preserved transcript pointed at a `council-verdict-*.json` deliberately never written (#63's defect
+class), and the failed synthesis was booked at zero tokens **and** zero latency — wrong, because the
+empty-content path already held a *billed* response. Pass 2: `.response` read by duck-typing, which
+`openai.APIStatusError`/`httpx.HTTPStatusError` both satisfy — would raise inside the handler and
+lose the artifacts. Pass 3: hostile subclass + unprintable `__str__`. Pass 4: clean, review lane
+closed. Every finding reproduced with a failing test before the fix.
+
+**Changes:** `src/ai_council/{debate,models,orchestrator,output,seat_router,synthesis}.py`,
+`src/ai_council/providers/cli_base.py`; tests in `test_{debate,seat_router,cli_base,output,runner,synthesis}.py`;
+4 new `docs/audits/2026-07-21-codex-debate-resilience*.md`.
+
+**Abandoned:** Nothing. Two scope questions were raised to the operator rather than assumed:
+`orchestrator.py` (approved — P1-9's recovery must live where the writers are) and the
+`SEAT_STATUSES` constant placement in `models.py`. A third was avoided outright — `metrics.py` was
+*not* expanded; the failed-synthesis call is booked through the existing `build_call_metrics` path.
+
+**Next:** Rob reviews and merges. `BACKLOG.md` deliberately untouched (moratorium) — P1-2/P1-8/P1-9
+were confirmed by the audit as **not** already tracked, so no `[#id]` applies. Lane A
+(`worktree-fix-provider-errors`, P1-1/P1-3/P1-7) is disjoint — verified at open **and** at close:
+it touches only `providers/` + `test_{base_provider,providers}.py`, zero overlap with this lane's
+seven files.
+
 ---
 
 ### 2026-07-21 — night-audit reintegration: 4 reports off 3 worktrees + combined review [no task closed]

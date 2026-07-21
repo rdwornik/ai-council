@@ -104,6 +104,26 @@ def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
             pass
 
 
+def _usage_int(provider: str, usage: dict, field: str) -> int | None:
+    """Read one integer token field, or raise ProviderError (P1-2).
+
+    A CLI that books a token count as a string ("1200") used to escape _extract as a bare
+    TypeError on the sum. Returns None for an absent/null field so the caller's existing
+    `or 0` / None-means-unknown semantics are preserved exactly.
+    """
+    raw = usage.get(field)
+    if raw is None:
+        return None
+    # bool is an int subclass — a JSON `true` here is malformed, not a count of 1.
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ProviderError(
+            provider,
+            f"CLI parse error: unreadable .usage.{field} "
+            f"(expected int, got {type(raw).__name__})",
+        )
+    return raw
+
+
 @dataclass
 class CliOutcome:
     """The rich result the seat-router consumes (richer than ModelResponse: carries the
@@ -209,7 +229,20 @@ class CliProvider(AIProvider):
                 self._config.name,
                 f"CLI process error: exit {proc.returncode}: {stderr.strip()[:200]}",
             )
-        return self._extract(stdout, stderr)
+        # P1-2: _extract sat OUTSIDE every guard here, so a raw parser exception escaped run()
+        # -> generate() -> try_cli's `except ProviderError` (no match) -> the debate's gather,
+        # cancelling every sibling seat with no API fallback and no fallback_event. The subclass
+        # parsers raise ProviderError themselves; this envelope is the structural backstop so a
+        # future parser bug degrades ONE seat instead of the round. ProviderError passes through
+        # unwrapped — its message is what classify_cli_failure maps to a cause token.
+        try:
+            return self._extract(stdout, stderr)
+        except ProviderError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - contract envelope, see above
+            raise ProviderError(
+                self._config.name, f"CLI parse error: {type(exc).__name__}: {exc}"
+            ) from exc
 
     async def generate(
         self, prompt: str, round_number: int, *, timeout: float | None = None
@@ -264,6 +297,13 @@ class ClaudeCliProvider(CliProvider):
             doc = json.loads(stdout)
         except json.JSONDecodeError as exc:
             raise ProviderError(self._config.name, f"CLI parse error: bad JSON: {exc}") from exc
+        # json.loads guarantees VALID JSON, not an OBJECT. An array or scalar on a CLI
+        # error/telemetry path used to reach doc.get() and raise a bare AttributeError (P1-2).
+        if not isinstance(doc, dict):
+            raise ProviderError(
+                self._config.name,
+                f"CLI parse error: expected a JSON object, got {type(doc).__name__}",
+            )
         content = str(doc.get("result") or "").strip()
         if not content:
             raise ProviderError(self._config.name, "CLI parse error: empty .result")
@@ -274,18 +314,26 @@ class ClaudeCliProvider(CliProvider):
             )
         actual_model = next(iter(model_usage))
         usage = doc.get("usage") or {}
+        # `or {}` only rescues FALSY values — a truthy non-dict reached .get() below and raised
+        # a bare AttributeError; non-numeric fields raised a bare TypeError on the sum (P1-2).
+        if not isinstance(usage, dict):
+            raise ProviderError(
+                self._config.name,
+                f"CLI parse error: unreadable .usage (expected object, got {type(usage).__name__})",
+            )
         # Real prompt input = fresh input + newly-cached + cache-read: the claude CLI books most
         # of a multi-paragraph prompt to cache_creation_input_tokens, so the bare usage.input_tokens
         # under-reports it (witnessed: input_tokens=1 while cache_creation_input_tokens=4641 for a
         # real prompt — F-M2). cache_read is ~0 for a single-shot seat call (--tools "", one turn),
         # so the agentic ~8x cache-read inflation caveat does not apply; this is a token COUNT, not
         # a spend cap (CLI cost is $0 regardless).
+        name = self._config.name
         input_tokens: int | None = (
-            (usage.get("input_tokens") or 0)
-            + (usage.get("cache_creation_input_tokens") or 0)
-            + (usage.get("cache_read_input_tokens") or 0)
+            (_usage_int(name, usage, "input_tokens") or 0)
+            + (_usage_int(name, usage, "cache_creation_input_tokens") or 0)
+            + (_usage_int(name, usage, "cache_read_input_tokens") or 0)
         ) if usage else None
-        output_tokens = usage.get("output_tokens")
+        output_tokens = _usage_int(name, usage, "output_tokens") if usage else None
         token_count = (
             (input_tokens or 0) + (output_tokens or 0)
             if (input_tokens is not None or output_tokens is not None)
@@ -327,7 +375,12 @@ class CodexCliProvider(CliProvider):
         # it as output_tokens: metrics.build_call_metrics sums input_tokens/output_tokens and never
         # reads token_count, so a codex call would otherwise book 0 tokens in the sidecar (F-M1).
         tok = self._TOKENS_RE.search(stderr)
-        token_count = int(tok.group(1).replace(",", "")) if tok else None
+        # The ([\d,]+) class matches a digit-free COMMA RUN, so "tokens used: ," produced
+        # int("") -> a bare ValueError that killed the round (P1-2). `if tok else None` guards
+        # only a MISSING match, never a matched-but-digit-free one. An unreadable count is
+        # telemetry, not the answer — degrade it to None and keep the seat.
+        digits = tok.group(1).replace(",", "") if tok else ""
+        token_count = int(digits) if digits.isdigit() else None
         return CliOutcome(
             content=content,
             actual_model=actual_model,

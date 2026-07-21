@@ -1,5 +1,6 @@
 """Tests for src/debate.py."""
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock
 
@@ -7,6 +8,10 @@ import pytest
 
 from ai_council.debate import _anonymize_responses, run_debate
 from ai_council.models import (
+    SEAT_STATUS_FAILED,
+    SEAT_STATUS_LOST,
+    SEAT_STATUS_OK,
+    SEAT_STATUSES,
     CruxArtifact,
     CruxStatus,
     DebateOutcome,
@@ -535,6 +540,215 @@ async def test_run_debate_round2_all_fail_returns_partial(
     assert "round 2" in outcome.degradation_summary.lower()
     assert len(outcome.rounds) == 1  # only round 1 completed
     assert outcome.rounds[0].number == 1
+
+
+# ------------------------------------------- P1-8 mid-debate seat loss is stated honestly
+
+
+def _round1_then_fail(name: str):  # noqa: ANN202
+    """A seat that answers Round 1 and dies from Round 2 on — the commonest partial failure."""
+
+    async def _gen(prompt: str, round_number: int, *, timeout: float | None = None):  # noqa: ANN202
+        if round_number == 1:
+            return ModelResponse(name, "mock-model", round_number, f"R1 from {name}", 0.1, 5)
+        raise ProviderError(name, "API error")
+
+    return _gen
+
+
+async def test_seat_lost_mid_debate_is_marked_lost(sample_prompts_config, sample_question):
+    """P1-8: provider_statuses meant 'ever succeeded' — :285 flipped a seat to "ok" on success
+    in ANY round and never flipped it back. A seat that answered Round 1 then died in Round 2
+    stayed "ok", so panel.dropped and degradation.failed_providers were both empty and
+    degradation.degraded was false: mid-debate seat loss was invisible on the whole surface."""
+    steady = MockProvider("steady", "Steady response")
+    lost = MockProvider("lost", "unused")
+    lost.generate = AsyncMock(side_effect=_round1_then_fail("lost"))
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[steady, lost],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+
+    assert outcome.provider_statuses == {"steady": SEAT_STATUS_OK, "lost": SEAT_STATUS_LOST}
+    # The two-signal rule the verdict payload claims must actually fire.
+    assert outcome.degraded is True
+    assert outcome.degradation_summary is not None
+    assert "lost" in outcome.degradation_summary
+
+
+async def test_seat_that_never_responded_stays_failed(sample_prompts_config, sample_question):
+    """Regression on the existing semantics: "lost" is ONLY for succeeded-then-dropped. A seat
+    that never answered is "failed", never "lost"."""
+    good = MockProvider("good", "Good response")
+    never = MockProvider("never", "")
+    never.generate = AsyncMock(side_effect=ProviderError("never", "API error"))
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[good, never],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+    assert outcome.provider_statuses == {"good": SEAT_STATUS_OK, "never": SEAT_STATUS_FAILED}
+
+
+async def test_seat_recovering_in_the_final_round_is_ok(sample_prompts_config, sample_question):
+    """Status is relative to the LAST COMPLETED round, so a seat that misses Round 1 and answers
+    Round 2 is "ok" — it is present in the verdict-bearing round."""
+    steady = MockProvider("steady", "Steady response")
+    late = MockProvider("late", "unused")
+
+    async def _late(prompt: str, round_number: int, *, timeout: float | None = None):  # noqa: ANN202
+        if round_number == 1:
+            raise ProviderError("late", "API error")
+        return ModelResponse("late", "mock-model", round_number, "R2 from late", 0.1, 5)
+
+    late.generate = AsyncMock(side_effect=_late)
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[steady, late],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+    assert outcome.provider_statuses["late"] == SEAT_STATUS_OK
+    assert outcome.degraded is False  # nothing was lost by the final round
+
+
+async def test_statuses_use_only_the_documented_vocabulary(
+    sample_prompts_config, sample_question
+):
+    """The constants must be the ONLY source of these values (guards against P2-26's
+    declared-but-never-read shape by asserting the producer actually emits from the set)."""
+    steady = MockProvider("steady", "Steady response")
+    lost = MockProvider("lost", "unused")
+    lost.generate = AsyncMock(side_effect=_round1_then_fail("lost"))
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[steady, lost],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+    assert set(outcome.provider_statuses.values()) <= SEAT_STATUSES
+
+
+async def test_round2_total_failure_keeps_last_completed_round_statuses(
+    sample_prompts_config, sample_question
+):
+    """An ABORTED round is not a completed round. On the degraded early-return both seats
+    answered every round that completed, so both are "ok" — the total-failure degradation is
+    already carried by degraded/degradation_summary and must not be double-counted as loss."""
+    p1 = MockProvider("p1", "unused")
+    p2 = MockProvider("p2", "unused")
+    p1.generate = AsyncMock(side_effect=_round1_then_fail("p1"))
+    p2.generate = AsyncMock(side_effect=_round1_then_fail("p2"))
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[p1, p2],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+    )
+    assert outcome.degraded is True
+    assert len(outcome.rounds) == 1
+    assert outcome.provider_statuses == {"p1": SEAT_STATUS_OK, "p2": SEAT_STATUS_OK}
+
+
+# ------------------------------------------------- P1-2 round survives a raw seat exception
+
+
+class _RaisingRouter:
+    """A seat_router double whose try_cli raises a NON-ProviderError for one named seat.
+
+    The router now guards its own CLI leg, so this stands in for ANY future escape from the
+    per-seat coroutine (a record_api bug, a prompt-map miss, a new code path). The gather's
+    return_exceptions triage is the structural backstop, and this is what exercises it.
+    """
+
+    def __init__(self, exc: BaseException, fail_for: str) -> None:
+        self._exc = exc
+        self._fail_for = fail_for
+
+    async def try_cli(self, name: str, prompt: str, round_number: int):  # noqa: ANN202
+        if name == self._fail_for:
+            raise self._exc
+        return None  # every other seat falls through to its API leg
+
+    def record_api(self, name: str, result: object) -> None:
+        return None
+
+    def collect(self) -> list:
+        return []
+
+
+async def test_raw_seat_exception_does_not_cancel_the_round(
+    sample_prompts_config, sample_question, caplog
+):
+    """P1-2: asyncio.gather ran WITHOUT return_exceptions=True, so one seat's non-ProviderError
+    propagated out of run_debate — cancelling every sibling seat mid-flight, discarding their
+    already-paid-for responses, and returning no DebateOutcome at all."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    with caplog.at_level(logging.ERROR, logger="ai_council.debate"):
+        outcome = await run_debate(
+            question=sample_question,
+            providers=[good, doomed],
+            prompts=sample_prompts_config,
+            num_rounds=1,
+            seat_router=_RaisingRouter(
+                AttributeError("'list' object has no attribute 'get'"), fail_for="doomed"
+            ),
+        )
+
+    # The round completed and the sibling seat's response survived.
+    assert len(outcome.rounds) == 1
+    assert [r.provider for r in outcome.rounds[0].responses] == ["good"]
+    # The raw failure is booked as ONE seat failing, not a run kill.
+    assert outcome.provider_statuses["good"] == "ok"
+    assert outcome.provider_statuses["doomed"] == "failed"
+    # It is logged loudly — an unclassified escape is a defect, not routine degradation.
+    assert "doomed" in caplog.text
+    assert "AttributeError" in caplog.text
+
+
+async def test_raw_seat_exception_still_allows_remaining_rounds(
+    sample_prompts_config, sample_question
+):
+    """The surviving seat must carry on into round 2 — a degraded panel, not a dead debate."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    outcome = await run_debate(
+        question=sample_question,
+        providers=[good, doomed],
+        prompts=sample_prompts_config,
+        num_rounds=2,
+        seat_router=_RaisingRouter(ValueError("int() with base 10: ''"), fail_for="doomed"),
+    )
+    assert len(outcome.rounds) == 2
+    assert all(len(r.responses) == 1 for r in outcome.rounds)
+
+
+async def test_seat_cancellation_propagates(sample_prompts_config, sample_question):
+    """CancelledError must NOT be swallowed by the triage — return_exceptions=True returns a
+    cancelled child's CancelledError as a RESULT, so it has to be re-raised explicitly or
+    Ctrl-C would silently look like a seat failure."""
+    good = MockProvider("good", "Good response")
+    doomed = MockProvider("doomed", "never seen")
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_debate(
+            question=sample_question,
+            providers=[good, doomed],
+            prompts=sample_prompts_config,
+            num_rounds=1,
+            seat_router=_RaisingRouter(asyncio.CancelledError(), fail_for="doomed"),
+        )
 
 
 # --------------------------------------------------------------- #18 bounded crux check

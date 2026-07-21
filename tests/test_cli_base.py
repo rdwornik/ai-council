@@ -112,6 +112,39 @@ def test_claude_extract_bad_json_raises() -> None:
         p._extract("not json at all", "")
 
 
+@pytest.mark.parametrize(
+    "payload",
+    ['[{"result": "hi"}]', "null", "123", '"just a string"', "true"],
+    ids=["array", "null", "int", "string", "bool"],
+)
+def test_claude_extract_non_object_json_raises_provider_error(payload: str) -> None:
+    """P1-2: json.loads guarantees valid JSON, not an OBJECT. A CLI that emits an array or a
+    scalar on an error/telemetry path used to escape as AttributeError from doc.get(), which
+    is NOT a ProviderError — so the seat router's fallback never fired and the whole round died."""
+    p = _make(ClaudeCliProvider, "claude")
+    with pytest.raises(ProviderError, match="expected a JSON object"):
+        p._extract(payload, "")
+
+
+def test_claude_extract_non_dict_usage_raises_provider_error() -> None:
+    """P1-2: `doc.get("usage") or {}` only rescues FALSY values — a truthy non-dict (a string
+    here) reached .get() and raised AttributeError."""
+    p = _make(ClaudeCliProvider, "claude")
+    doc = json.dumps({"result": "hi", "modelUsage": {"m": {}}, "usage": "n/a"})
+    with pytest.raises(ProviderError, match="unreadable .usage"):
+        p._extract(doc, "")
+
+
+def test_claude_extract_non_numeric_tokens_raises_provider_error() -> None:
+    """P1-2: string token fields used to escape as TypeError from str + int."""
+    p = _make(ClaudeCliProvider, "claude")
+    doc = json.dumps(
+        {"result": "hi", "modelUsage": {"m": {}}, "usage": {"input_tokens": "1200"}}
+    )
+    with pytest.raises(ProviderError, match="unreadable .usage"):
+        p._extract(doc, "")
+
+
 # --- codex _extract (identity via stderr banner) ---
 
 
@@ -143,6 +176,30 @@ def test_codex_extract_identity_unreadable_raises() -> None:  # I1
     p = _make(CodexCliProvider, "codex")
     with pytest.raises(ProviderError, match="identity-unreadable"):
         p._extract("answer", "no model banner here")
+
+
+@pytest.mark.parametrize(
+    "banner_tail",
+    ["tokens used: ,", "tokens used: ,,,", "tokens used:\n,"],
+    ids=["single-comma", "many-commas", "comma-on-next-line"],
+)
+def test_codex_extract_digit_free_token_match_is_none(banner_tail: str) -> None:
+    """P1-2: the ([\\d,]+) class matches a digit-free COMMA RUN, so `tokens used: ,` produced
+    int("") -> ValueError. The `if tok else None` guard only covers a MISSING match, never a
+    matched-but-digit-free one. A bare ValueError is not a ProviderError, so it killed the round."""
+    p = _make(CodexCliProvider, "codex")
+    out = p._extract("answer", f"model: gpt-5.6-sol\n{banner_tail}\n")
+    assert out.token_count is None  # unreadable count degrades to None, never raises
+    assert out.output_tokens is None
+    assert out.content == "answer"  # the answer itself still survives
+
+
+def test_codex_extract_valid_tokens_still_parsed() -> None:
+    """Regression guard on the fix: a real comma-grouped count must still parse."""
+    p = _make(CodexCliProvider, "codex")
+    out = p._extract("answer", "model: gpt-5.6-sol\ntokens used: 12,345\n")
+    assert out.token_count == 12345
+    assert out.output_tokens == 12345
 
 
 def test_codex_extract_empty_stdout_raises() -> None:
@@ -197,6 +254,40 @@ async def test_run_timeout_is_hard_kill() -> None:  # I6
         with pytest.raises(ProviderError, match="timed out"):
             await p.run("hi", timeout=0.05)
     kill_tree.assert_called()  # the whole process tree is terminated on timeout
+
+
+async def test_run_wraps_raw_extract_failure_in_provider_error() -> None:
+    """P1-2: `return self._extract(...)` sits OUTSIDE every try in run(), so any raw exception
+    from a subclass parser escaped run() -> generate() -> try_cli's `except ProviderError`
+    (no match) -> the bare gather, killing the whole debate. run() now envelopes it."""
+
+    class _BadParser(ClaudeCliProvider):
+        def _extract(self, stdout: str, stderr: str):  # noqa: ANN202 - test double
+            raise ValueError("synthetic parser explosion")
+
+    p = _make(_BadParser, "claude")
+    proc = _mock_proc(b'{"result": "ok"}', b"")
+    with patch("ai_council.providers.cli_base.asyncio.create_subprocess_exec",
+               AsyncMock(return_value=proc)):
+        with pytest.raises(ProviderError, match="CLI parse error"):
+            await p.run("hi")
+
+
+async def test_run_does_not_double_wrap_a_provider_error() -> None:
+    """The envelope must let an already-classified ProviderError through UNCHANGED — its message
+    is what classify_cli_failure maps to a cause token (identity-unreadable, quota, ...)."""
+
+    class _IdentityFailure(ClaudeCliProvider):
+        def _extract(self, stdout: str, stderr: str):  # noqa: ANN202 - test double
+            raise ProviderError("claude", "identity-unreadable: no served model in .modelUsage")
+
+    p = _make(_IdentityFailure, "claude")
+    proc = _mock_proc(b'{"result": "ok"}', b"")
+    with patch("ai_council.providers.cli_base.asyncio.create_subprocess_exec",
+               AsyncMock(return_value=proc)):
+        with pytest.raises(ProviderError, match="identity-unreadable") as exc_info:
+            await p.run("hi")
+    assert "CLI parse error" not in str(exc_info.value)  # not re-wrapped
 
 
 def test_scrubbed_env_is_allowlist_only() -> None:

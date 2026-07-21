@@ -6,6 +6,9 @@ import random
 from collections.abc import Callable
 
 from ai_council.models import (
+    SEAT_STATUS_FAILED,
+    SEAT_STATUS_LOST,
+    SEAT_STATUS_OK,
     CruxArtifact,
     CruxChecker,
     CruxStatus,
@@ -23,6 +26,34 @@ logger = logging.getLogger(__name__)
 
 # Quality gate: warn when fewer than this many models respond in Round 1
 _MIN_QUALITY_RESPONSES = 3
+
+
+def _finalize_statuses(
+    providers: list[AIProvider], responders_by_round: list[set[str]]
+) -> dict[str, str]:
+    """Derive each seat's status relative to the LAST COMPLETED round (P1-8).
+
+    Replaces the old monotonic "ever succeeded" flag, which flipped a seat to "ok" on success
+    in ANY round and never flipped it back — so a seat that answered Round 1 and died in
+    Round 2 read as "ok" and its loss was invisible in panel.dropped,
+    degradation.failed_providers and degradation.degraded alike.
+
+    ``responders_by_round`` holds one entry per round that actually COMPLETED; an aborted
+    round never appends, so the total-failure path is judged against the last good round
+    rather than counting every seat as lost twice.
+    """
+    final = responders_by_round[-1] if responders_by_round else set()
+    ever: set[str] = set().union(*responders_by_round) if responders_by_round else set()
+    statuses: dict[str, str] = {}
+    for provider in providers:
+        name = provider.name()
+        if name in final:
+            statuses[name] = SEAT_STATUS_OK
+        elif name in ever:
+            statuses[name] = SEAT_STATUS_LOST
+        else:
+            statuses[name] = SEAT_STATUS_FAILED
+    return statuses
 
 
 def _anonymize_responses(
@@ -218,7 +249,9 @@ async def run_debate(
     _policy = policy or RunPolicy.default()
     _directives = persona_directives or {}
     rounds: list[Round] = []
-    provider_statuses: dict[str, str] = {p.name(): "failed" for p in providers}
+    # One entry per COMPLETED round (P1-8) — the raw material for _finalize_statuses. Replaces
+    # the old pre-seeded monotonic dict, which could only ever move a seat toward "ok".
+    responders_by_round: list[set[str]] = []
     crux_artifact: CruxArtifact | None = None
 
     for round_num in range(1, num_rounds + 1):
@@ -276,14 +309,31 @@ async def run_debate(
             return result
 
         tasks = [_run_seat(p) for p in providers]
-        results = await asyncio.gather(*tasks)
+        # P1-2: WITHOUT return_exceptions=True one seat's escaped exception cancelled every
+        # sibling seat mid-flight, discarded their already-paid-for responses, and unwound the
+        # whole run — the exact opposite of the same-seat fallback seat_router advertises.
+        # _call_provider envelopes the API leg and the seat router envelopes the CLI leg, so a
+        # raw exception arriving here is an unclassified defect: degrade that seat, log loudly.
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         responses: list[ModelResponse] = []
-        for provider, result in zip(providers, results):
+        for provider, result in zip(providers, results, strict=True):
             if isinstance(result, ModelResponse):
                 responses.append(result)
-                provider_statuses[provider.name()] = "ok"
-            # ProviderError already logged in _call_provider
+            elif isinstance(result, BaseException) and not isinstance(result, Exception):
+                # CancelledError / KeyboardInterrupt / SystemExit are returned as RESULTS under
+                # return_exceptions=True. A shutdown is never a seat failure — re-raise it.
+                raise result
+            elif isinstance(result, ProviderError):
+                pass  # already logged in _call_provider
+            elif isinstance(result, Exception):
+                logger.error(
+                    "Seat %s raised an unclassified %s — degrading this seat only: %s",
+                    provider.name(),
+                    type(result).__name__,
+                    result,
+                    exc_info=result,
+                )
 
         if _policy.should_abort(len(responses), round_num):
             if round_num == 1:
@@ -298,7 +348,9 @@ async def run_debate(
                 rounds=rounds,
                 degraded=True,
                 degradation_summary=degradation_summary,
-                provider_statuses=provider_statuses,
+                # This round aborted, so it never entered responders_by_round: statuses are
+                # judged against the last round that COMPLETED (P1-8).
+                provider_statuses=_finalize_statuses(providers, responders_by_round),
                 seats=seat_router.collect() if seat_router is not None else [],
                 crux=crux_artifact,
             )
@@ -318,6 +370,7 @@ async def run_debate(
 
         current_round = Round(number=round_num, responses=responses)
         rounds.append(current_round)
+        responders_by_round.append({r.provider for r in responses})
 
         logger.info(
             "Round %d complete: %d/%d providers succeeded",
@@ -329,9 +382,26 @@ async def run_debate(
         if on_round_complete:
             on_round_complete(current_round)
 
+    statuses = _finalize_statuses(providers, responders_by_round)
+    # P1-8: a seat lost mid-debate IS a shrunk panel. output.py's payload comment promises the
+    # panel/degradation fields carry "the shrunk-panel truth (two-signal rule)"; before this the
+    # rule fired only on TOTAL failure, so the commonest partial-failure shape reported
+    # degraded=false. (Distinct from the crux case at orchestrator.py:171-174, which
+    # deliberately does not set this — a retrieval miss is not a lost seat.)
+    lost = sorted(name for name, status in statuses.items() if status == SEAT_STATUS_LOST)
+    lost_summary: str | None = None
+    if lost:
+        lost_summary = (
+            f"{len(lost)} seat(s) responded in an earlier round but were absent from the "
+            f"final round: {', '.join(lost)}."
+        )
+        logger.warning("Degraded debate: %s", lost_summary)
+
     return DebateOutcome(
         rounds=rounds,
-        provider_statuses=provider_statuses,
+        degraded=bool(lost),
+        degradation_summary=lost_summary,
+        provider_statuses=statuses,
         seats=seat_router.collect() if seat_router is not None else [],
         crux=crux_artifact,
     )

@@ -1,6 +1,9 @@
 """Tests for the seat router — CLI admission gate, same-seat API fallback, seats[] telemetry."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from ai_council.models import ModelResponse
 from ai_council.providers.base import ProviderError
@@ -67,6 +70,40 @@ async def test_try_cli_identity_unreadable_flips_flag() -> None:
     sm = r.collect()[0]
     assert sm.identity_readable is False
     assert sm.fallback_events[0].cause == "identity-unreadable"
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        AttributeError("'list' object has no attribute 'get'"),
+        ValueError("invalid literal for int() with base 10: ''"),
+        TypeError("can only concatenate str (not \"int\") to str"),
+        KeyError("modelUsage"),
+    ],
+    ids=["attribute-error", "value-error", "type-error", "key-error"],
+)
+async def test_try_cli_non_provider_error_still_falls_back(exc: Exception) -> None:
+    """P1-2: the module docstring promises 'On ANY CLI failure the seat falls back... recording
+    a fallback_events[] entry', but `except ProviderError` honoured that only for ProviderError.
+    Anything else escaped try_cli entirely — no API fallback, no event, and (via the debate's
+    bare gather) every sibling seat cancelled with it."""
+    r = _router(_cli(raises=exc))
+    resp = await r.try_cli("seat", "prompt", 2)
+    assert resp is None  # signals the caller to run the API leg — the fallback guarantee
+    sm = r.collect()[0]
+    assert len(sm.fallback_events) == 1
+    fe = sm.fallback_events[0]
+    assert fe.round == 2 and fe.from_backend == "cli" and fe.to_backend == "api"
+    assert fe.cause in {"quota", "timeout", "parse", "identity-unreadable", "process-error"}
+    assert type(exc).__name__ in fe.detail  # the raw type is preserved for diagnosis
+
+
+async def test_try_cli_does_not_swallow_cancellation() -> None:
+    """CancelledError is a BaseException — a shutdown must never be mistaken for a seat failure."""
+    r = _router(_cli(raises=asyncio.CancelledError()))
+    with pytest.raises(asyncio.CancelledError):
+        await r.try_cli("seat", "prompt", 1)
+    assert r.collect()[0].fallback_events == []  # not booked as a fallback
 
 
 async def test_try_cli_api_backend_returns_none_immediately() -> None:
