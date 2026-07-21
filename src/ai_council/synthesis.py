@@ -8,6 +8,7 @@ from ai_council.models import (
     CruxArtifact,
     DebateResult,
     ModelResponse,
+    ProviderCallMetrics,
     Question,
     Round,
     SeatMetrics,
@@ -17,6 +18,97 @@ from ai_council.providers.base import AIProvider, ProviderError, classify_error
 from config.config_loader import ModeConfig, ModelConfig, PromptsConfig
 
 logger = logging.getLogger(__name__)
+
+# Written in place of the synthesis body when the synthesizer never returned one. A reader
+# must never mistake a FAILED synthesis for a thin one.
+SYNTHESIS_FAILED_MARKER = "SYNTHESIS FAILED"
+
+
+def build_failed_synthesis_result(
+    question: Question,
+    rounds: list[Round],
+    synthesizer_name: str,
+    error: BaseException,
+    debate_start_time: float,
+    panel_mode: str = "default",
+    synthesizer_is_participant: bool = False,
+    model_configs: dict[str, ModelConfig] | None = None,
+    degradation_summary: str | None = None,
+    provider_statuses: dict[str, str] | None = None,
+    debate_mode: str = "pick",
+    seats: list[SeatMetrics] | None = None,
+    crux: CruxArtifact | None = None,
+) -> DebateResult:
+    """Preserve a completed debate when synthesis fails (P1-9).
+
+    By the time synthesis runs, every panelist across every round has been paid for. Before
+    this, `synthesize` raised straight past all of `CouncilRunner.run`'s writers, so a
+    synthesizer hiccup — the single most replaceable call in the pipeline — destroyed the
+    transcript, the metrics sidecar and the whole round record. That contradicted the
+    degradation philosophy the rest of the codebase is built on (debate.py returns partial
+    rounds; output.py downgrades a sidecar failure to a note; crux_check never raises).
+
+    The caller writes THIS result and then re-raises, so the run still exits non-zero and no
+    verdict package is emitted — there is no verdict without synthesis.
+    """
+    total_duration = time.monotonic() - debate_start_time
+    error_class = classify_error(error) if isinstance(error, ProviderError) else "unknown"
+    reason = f"{type(error).__name__}: {error}"
+
+    # No "## Synthesis" heading here — output.py's _build_body already emits one above this.
+    synthesis_body = (
+        f"**Status:** {SYNTHESIS_FAILED_MARKER} — {reason}\n\n"
+        f"The debate completed and every round above is intact, but the synthesizer "
+        f"({synthesizer_name}) returned no verdict. The rounds are the authoritative record "
+        f"of this run; no verdict package was emitted."
+    )
+
+    metrics = None
+    if model_configs is not None:
+        # The synthesis call is booked at zero tokens because it produced no billable output.
+        # This is the convention build_call_metrics already uses for a provider that returns
+        # no usage data (metrics.py) — the round calls carry the run's real spend.
+        failed_synthesis_call = ProviderCallMetrics(
+            provider=synthesizer_name,
+            round_number=0,  # 0 = synthesis call
+            input_tokens=0,
+            output_tokens=0,
+            estimated_cost_usd=0.0,
+            latency_sec=0.0,
+        )
+        crux_calls = [crux.call_metrics] if crux and crux.call_metrics else None
+        metrics = build_debate_metrics(
+            rounds, failed_synthesis_call, model_configs, total_duration, seats=seats,
+            extra_calls=crux_calls,
+        )
+
+    # Keep any pre-existing debate degradation (a dropped seat) alongside the synthesis cause.
+    combined_summary = "; ".join(
+        part for part in (degradation_summary, f"synthesis failed — {reason}") if part
+    )
+
+    return DebateResult(
+        question=question,
+        rounds=rounds,
+        synthesis=synthesis_body,
+        synthesizer=synthesizer_name,
+        total_duration_sec=total_duration,
+        panel_mode=panel_mode,
+        mode=debate_mode,
+        synthesizer_is_participant=synthesizer_is_participant,
+        degraded=True,
+        degradation_summary=combined_summary,
+        provider_statuses=provider_statuses or {},
+        metrics=metrics,
+        synthesis_metrics=SynthesisMetrics(
+            synthesizer_model=synthesizer_name,  # the requested seat; nothing was served
+            transcript_size_tokens=None,
+            output_tokens=None,
+            synth_latency_seconds=0.0,
+            error_class=error_class,
+        ),
+        crux=crux,
+    )
 
 
 def _format_full_transcript(rounds: list[Round]) -> str:

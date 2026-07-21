@@ -1,12 +1,21 @@
 """Tests for CouncilRunner and module-level runner helpers."""
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from ai_council.models import DebateOutcome, DebateResult, Question, Round, RunRequest
+from ai_council.models import (
+    DebateOutcome,
+    DebateResult,
+    ModelResponse,
+    Question,
+    Round,
+    RunRequest,
+)
 from ai_council.orchestrator import CouncilRunner
 from ai_council.policy import RunPolicy
+from ai_council.providers.base import ProviderError
 from ai_council.runner import (
     build_all_providers,
     determine_panel,
@@ -228,6 +237,125 @@ async def test_runner_run_returns_debate_result(all_providers, multi_model_confi
         result = await runner.run(request, output_dir=tmp_path)
 
     assert result is fake_result
+
+
+# ---------------------------------------------------------------------------
+# P1-9 — a synthesis failure must not discard the paid-for debate
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def populated_outcome():
+    """A completed two-seat debate — everything below has already been paid for."""
+    responses = [
+        ModelResponse("claude", "claude-opus-4-8", 1, "Claude's round 1 argument.", 1.0, 10,
+                      input_tokens=5, output_tokens=5),
+        ModelResponse("gemini", "gemini-3-pro", 1, "Gemini's round 1 argument.", 1.1, 12,
+                      input_tokens=6, output_tokens=6),
+    ]
+    return DebateOutcome(
+        rounds=[Round(number=1, responses=responses)],
+        provider_statuses={"claude": "ok", "gemini": "ok"},
+    )
+
+
+def _synthesis_failure_request():
+    return RunRequest(
+        question=Question(text="Should we use YAML or JSON?", source="cli"),
+        panel_names=["claude", "gemini"],
+        synthesizer_name="openai",
+        rounds=1,
+        policy=RunPolicy.default(),
+        panel_mode="custom",
+    )
+
+
+async def _run_with_failing_synthesis(
+    all_providers, multi_model_config, tmp_path, outcome, exc
+):
+    """Drive the REAL writer path with synthesis raising — no save_* is patched out.
+
+    P1-16: both orchestration functions are mocked out of existence in every existing test
+    that names them, so the sequencing this fix changes has no coverage at the site that
+    implements it. These tests exercise the actual seam.
+    """
+    with (
+        patch("ai_council.orchestrator.run_debate", new=AsyncMock(return_value=outcome)),
+        patch("ai_council.orchestrator.synthesize", new=AsyncMock(side_effect=exc)),
+        patch("ai_council.orchestrator.print_round_summary"),
+        patch("ai_council.orchestrator.print_synthesis"),
+        patch("ai_council.orchestrator.print_cost_summary"),
+    ):
+        runner = CouncilRunner(all_providers, multi_model_config)
+        with pytest.raises(type(exc)):
+            await runner.run(_synthesis_failure_request(), output_dir=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ProviderError("openai", "API error"),
+        RuntimeError("Synthesizer openai returned empty content"),
+    ],
+    ids=["provider-error", "empty-content"],
+)
+async def test_synthesis_failure_preserves_the_transcript(
+    all_providers, multi_model_config, tmp_path, populated_outcome, exc
+):
+    """P1-9: synthesize() raised before ANY writer ran (orchestrator.py:153 precedes :204), so
+    a synthesizer hiccup — the single most replaceable call in the pipeline — destroyed the
+    transcript, the metrics sidecar and every round the run had already paid for."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome, exc
+    )
+
+    transcripts = list(tmp_path.glob("council-out-*.md"))
+    assert len(transcripts) == 1, "the debate transcript must survive a synthesis failure"
+    content = transcripts[0].read_text(encoding="utf-8")
+    assert "SYNTHESIS FAILED" in content  # stated plainly, never a silent empty synthesis
+    assert "Claude's round 1 argument." in content
+    assert "Gemini's round 1 argument." in content
+
+
+async def test_synthesis_failure_emits_no_verdict_package(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """There is no verdict without synthesis. The package hardcodes exit_semantics: 0, so
+    emitting one here would assert a usable verdict while the process exits 1."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome,
+        ProviderError("openai", "API error"),
+    )
+    assert list(tmp_path.glob("council-verdict-*.json")) == []
+    assert list(tmp_path.glob("council-minority-*.md")) == []
+
+
+async def test_synthesis_failure_still_writes_the_metrics_sidecar(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """The run was billed for every panelist — the cost record must survive with it."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome,
+        ProviderError("openai", "API error"),
+    )
+    sidecars = list(tmp_path.glob("council-out-*_metrics.json"))
+    assert len(sidecars) == 1
+    data = json.loads(sidecars[0].read_text(encoding="utf-8"))
+    booked = {c["provider"] for c in data["calls"]}
+    assert {"claude", "gemini"} <= booked  # every paid-for panel call is still on the ledger
+
+
+async def test_synthesis_failure_marks_the_run_degraded(
+    all_providers, multi_model_config, tmp_path, populated_outcome
+):
+    """The transcript must say WHY it has no synthesis, not merely lack one."""
+    await _run_with_failing_synthesis(
+        all_providers, multi_model_config, tmp_path, populated_outcome,
+        ProviderError("openai", "boom-detail-9987"),
+    )
+    content = list(tmp_path.glob("council-out-*.md"))[0].read_text(encoding="utf-8")
+    assert "DEGRADED" in content
+    assert "boom-detail-9987" in content  # the original cause is preserved, not swallowed
 
 
 async def test_runner_run_raises_when_panel_too_small(two_providers, multi_model_config, tmp_path):

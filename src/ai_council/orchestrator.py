@@ -20,10 +20,10 @@ from ai_council.output import (
     save_to_file,
     save_verdict_package,
 )
-from ai_council.providers.base import AIProvider
+from ai_council.providers.base import AIProvider, ProviderError
 from ai_council.runner import exclude_synthesizer_from_panel, pick_synthesizer
 from ai_council.seat_router import build_seat_router
-from ai_council.synthesis import synthesize
+from ai_council.synthesis import build_failed_synthesis_result, synthesize
 from config.config_loader import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -150,23 +150,52 @@ class CouncilRunner:
             )
             progress.update(debate_task, description="Running synthesis...")
 
-            result = await synthesize(
-                question=request.question,
-                rounds=outcome.rounds,
-                synthesizer=synthesizer,
-                prompts=self._config.prompts,
-                debate_start_time=debate_start,
-                panel_mode=request.panel_mode,
-                synthesizer_is_participant=is_participant,
-                model_configs=self._config.models,
-                degraded=outcome.degraded,
-                degradation_summary=outcome.degradation_summary,
-                provider_statuses=outcome.provider_statuses,
-                mode_config=mode_config,
-                debate_mode=request.mode,
-                seats=outcome.seats,
-                crux=outcome.crux,
-            )
+            # P1-9: a synthesis failure used to raise straight past every writer below, so a
+            # synthesizer hiccup destroyed a debate that had already been paid for in full.
+            # Preserve the completed rounds, then re-raise after the writes so the run still
+            # exits 1 (CONTRACT §4 "hard error; no artifacts guaranteed" — which permits
+            # writing some). The verdict package is deliberately NOT emitted below: it
+            # hardcodes exit_semantics 0 and would assert a usable verdict that does not exist.
+            synthesis_error: BaseException | None = None
+            try:
+                result = await synthesize(
+                    question=request.question,
+                    rounds=outcome.rounds,
+                    synthesizer=synthesizer,
+                    prompts=self._config.prompts,
+                    debate_start_time=debate_start,
+                    panel_mode=request.panel_mode,
+                    synthesizer_is_participant=is_participant,
+                    model_configs=self._config.models,
+                    degraded=outcome.degraded,
+                    degradation_summary=outcome.degradation_summary,
+                    provider_statuses=outcome.provider_statuses,
+                    mode_config=mode_config,
+                    debate_mode=request.mode,
+                    seats=outcome.seats,
+                    crux=outcome.crux,
+                )
+            except (ProviderError, RuntimeError) as exc:
+                logger.error(
+                    "Synthesis failed (%s) — preserving %d completed round(s): %s",
+                    type(exc).__name__, len(outcome.rounds), exc,
+                )
+                synthesis_error = exc
+                result = build_failed_synthesis_result(
+                    question=request.question,
+                    rounds=outcome.rounds,
+                    synthesizer_name=synthesizer.name(),
+                    error=exc,
+                    debate_start_time=debate_start,
+                    panel_mode=request.panel_mode,
+                    synthesizer_is_participant=is_participant,
+                    model_configs=self._config.models,
+                    degradation_summary=outcome.degradation_summary,
+                    provider_statuses=outcome.provider_statuses,
+                    debate_mode=request.mode,
+                    seats=outcome.seats,
+                    crux=outcome.crux,
+                )
 
         # #18: surface the crux outcome here, not in debate.py (which owns no console).
         # Without this, a retrieval failure would be silent in the transcript — the
@@ -219,52 +248,63 @@ class CouncilRunner:
                 f"[dim yellow]Secondary output dir not found: {secondary_dir}[/dim yellow]"
             )
 
-        # Rama 4 (#15): emit dissent as a first-class artifact on a non-unanimous verdict,
-        # routed to the same destinations as the verdict (incl. any --return-dir). Share the
-        # transcript's exact <ts>-<mode>-<slug> so all of a run's artifacts are one matched set.
-        run_base = saved_paths[0].stem[len("council-out-"):]
-        minority_paths = save_minority_report(
-            result,
-            output_dir,
-            slug_override=request.slug_override,
-            secondary_dir=secondary_dir,
-            target_paths=request.target_paths,
-            return_dir=request.return_dir,
-            stem_base=run_base,
-            routing_failures=routing_failures,
-        )
-        if minority_paths:
-            console.print(
-                f"[yellow]Minority report (non-unanimous verdict):[/yellow] {minority_paths[0]}"
+        # P1-9: both artifacts below are VERDICT deliverables and there is no verdict without
+        # synthesis — dissent detection reads the synthesis text, and the verdict package
+        # hardcodes exit_semantics 0, which would contradict the exit 1 this run is heading
+        # for. The transcript and its metrics sidecar above are the paid-for content and are
+        # already on disk; that is what P1-9 preserves.
+        if synthesis_error is None:
+            # Rama 4 (#15): emit dissent as a first-class artifact on a non-unanimous verdict,
+            # routed to the same destinations as the verdict (incl. any --return-dir). Share the
+            # transcript's exact <ts>-<mode>-<slug> so all of a run's artifacts are one matched set.
+            run_base = saved_paths[0].stem[len("council-out-"):]
+            minority_paths = save_minority_report(
+                result,
+                output_dir,
+                slug_override=request.slug_override,
+                secondary_dir=secondary_dir,
+                target_paths=request.target_paths,
+                return_dir=request.return_dir,
+                stem_base=run_base,
+                routing_failures=routing_failures,
             )
-            for p in minority_paths[1:]:
-                console.print(f"[dim]Minority copied: {p}[/dim]")
+            if minority_paths:
+                console.print(
+                    f"[yellow]Minority report (non-unanimous verdict):[/yellow] {minority_paths[0]}"
+                )
+                for p in minority_paths[1:]:
+                    console.print(f"[dim]Minority copied: {p}[/dim]")
 
-        # DRAFT-INT-1 (#26): the transcript-free caller deliverable. Sibling of save_to_file,
-        # routed to the same destinations; inherits the transcript's deterministic <ts>.
-        written: dict[str, list[Path]] = {"transcript": saved_paths}
-        if result.metrics:
-            # Never record a path that was not written: the sidecar write can fail and
-            # degrade rather than abort (#63), and a manifest advertising a missing file is
-            # worse than the original defect — a consumer repo follows it and gets nothing.
-            metrics_path = saved_paths[0].with_name(saved_paths[0].stem + "_metrics.json")
-            if metrics_path.exists():
-                written["metrics"] = [metrics_path]
-        if minority_paths:
-            written["minority"] = minority_paths
-        verdict_paths = save_verdict_package(
-            result,
-            output_dir,
-            saved_paths[0],
-            written=written,
-            secondary_dir=secondary_dir,
-            target_paths=request.target_paths,
-            return_dir=request.return_dir,
-            routing_failures=routing_failures,
-        )
-        console.print(f"[dim]Verdict package: {verdict_paths[0]}[/dim]")
-        for p in verdict_paths[1:]:
-            console.print(f"[dim]Verdict copied: {p}[/dim]")
+            # DRAFT-INT-1 (#26): the transcript-free caller deliverable. Sibling of save_to_file,
+            # routed to the same destinations; inherits the transcript's deterministic <ts>.
+            written: dict[str, list[Path]] = {"transcript": saved_paths}
+            if result.metrics:
+                # Never record a path that was not written: the sidecar write can fail and
+                # degrade rather than abort (#63), and a manifest advertising a missing file is
+                # worse than the original defect — a consumer repo follows it and gets nothing.
+                metrics_path = saved_paths[0].with_name(saved_paths[0].stem + "_metrics.json")
+                if metrics_path.exists():
+                    written["metrics"] = [metrics_path]
+            if minority_paths:
+                written["minority"] = minority_paths
+            verdict_paths = save_verdict_package(
+                result,
+                output_dir,
+                saved_paths[0],
+                written=written,
+                secondary_dir=secondary_dir,
+                target_paths=request.target_paths,
+                return_dir=request.return_dir,
+                routing_failures=routing_failures,
+            )
+            console.print(f"[dim]Verdict package: {verdict_paths[0]}[/dim]")
+            for p in verdict_paths[1:]:
+                console.print(f"[dim]Verdict copied: {p}[/dim]")
+        else:
+            console.print(
+                "[yellow]![/yellow] No verdict package: synthesis failed. The transcript and "
+                "metrics for the completed debate were preserved."
+            )
 
         if output_format == "json":
             import dataclasses
@@ -277,5 +317,11 @@ class CouncilRunner:
         # REQUIRED --return-dir write missed, fail here with the full set — deliberately not
         # in a finally, where an exception would mask the original.
         raise_for_routing_failures(routing_failures)
+
+        # P1-9: the debate was preserved, but the run did NOT produce a verdict. Re-raise the
+        # original cause so the CLI still exits 1 (CONTRACT §4) with its accurate wording —
+        # exit 3 would be wrong, it means "degraded but complete, verdict is usable".
+        if synthesis_error is not None:
+            raise synthesis_error
 
         return result
