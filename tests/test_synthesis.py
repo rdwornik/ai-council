@@ -8,6 +8,7 @@ import pytest
 from ai_council.models import DebateResult, ModelResponse, Round
 from ai_council.providers.base import ProviderError
 from ai_council.synthesis import (
+    SYNTHESIS_FAILED_MARKER,
     EmptySynthesisError,
     _format_full_transcript,
     build_failed_synthesis_result,
@@ -66,6 +67,37 @@ def test_failed_result_books_the_billed_usage_when_a_response_exists(
     assert synth_call[0].output_tokens == 100
     assert result.synthesis_metrics.transcript_size_tokens == 800
     assert result.synthesis_metrics.output_tokens == 100
+
+
+def test_foreign_response_attribute_does_not_defeat_preservation(
+    sample_question, sample_round
+):
+    """terra follow-up HIGH: reading `.response` by duck-typing meant an SDK exception — which
+    commonly carries an HTTP response under that exact name — was treated as a ModelResponse.
+    build_call_metrics would then raise AttributeError INSIDE the except handler, masking the
+    original error and losing every artifact: H1's data-loss path, recreated."""
+
+    class _FakeSdkError(Exception):
+        """Shaped like openai.APIStatusError / httpx.HTTPStatusError."""
+
+        def __init__(self) -> None:
+            super().__init__("503 upstream unavailable")
+            self.response = object()  # an HTTP response, NOT a ModelResponse
+
+    result = build_failed_synthesis_result(
+        question=sample_question,
+        rounds=[sample_round],
+        synthesizer_name="openai",
+        error=_FakeSdkError(),
+        debate_start_time=time.monotonic() - 1.0,
+        model_configs={},
+        synth_latency_sec=1.0,
+    )
+    # Preservation still succeeds, and the foreign attribute is ignored rather than trusted.
+    assert result.metrics is not None
+    assert result.synthesis_metrics.transcript_size_tokens is None
+    assert result.synthesis_metrics.synthesizer_model == "openai"
+    assert SYNTHESIS_FAILED_MARKER in result.synthesis
 
 
 def test_failed_result_records_real_latency_not_zero(sample_question, sample_round):

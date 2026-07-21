@@ -81,7 +81,15 @@ def build_failed_synthesis_result(
     # An empty-content failure happened AFTER a completed, billed call, so its usage is known
     # and must be booked. A ProviderError means nothing was ever returned — zero tokens there
     # is observed truth, not a fabrication, and the UNKNOWN fields stay None rather than 0.
-    billed_response: ModelResponse | None = getattr(error, "response", None)
+    #
+    # Read the response ONLY off our own exception type. Duck-typing `getattr(error,
+    # "response")` here would trust an SDK exception's HTTP response (openai.APIStatusError
+    # and httpx.HTTPStatusError both carry that exact attribute name) as a ModelResponse, and
+    # the resulting AttributeError would be raised INSIDE the caller's except handler —
+    # masking the original error and losing every artifact this function exists to preserve.
+    billed_response: ModelResponse | None = (
+        error.response if isinstance(error, EmptySynthesisError) else None
+    )
 
     metrics = None
     if model_configs is not None:
