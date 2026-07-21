@@ -1,5 +1,7 @@
 """Unit tests for individual AI providers — all SDK calls mocked, no real API keys needed."""
 
+import asyncio
+import importlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -39,6 +41,20 @@ def _openai_response(content: str = "Hello world", in_tokens: int = 10, out_toke
     return resp
 
 
+def _bind_client(provider) -> MagicMock:
+    """Attach a mock SDK client to `provider` for the CURRENTLY running event loop.
+
+    Providers build their SDK client lazily, once per event loop (P1-3), so a double assigned
+    to `provider._client` alone would be discarded by `_client_for_loop` and the provider would
+    build a real client and hit the network. Registering the loop alongside the client uses the
+    production cache exactly as `_invoke` does. Must be called from inside an async test.
+    """
+    client = MagicMock()
+    provider._client = client
+    provider._client_loop = asyncio.get_running_loop()
+    return client
+
+
 # ---------------------------------------------------------------------------
 # AnthropicProvider
 # ---------------------------------------------------------------------------
@@ -72,7 +88,7 @@ async def test_anthropic_generate_returns_model_response(monkeypatch):
         api_key_env="CLAUDE_API_KEY", timeout_sec=30, max_tokens=512,
     )
     provider = AnthropicProvider(cfg)
-    provider._client.messages.create = AsyncMock(return_value=_anthropic_response())
+    _bind_client(provider).messages.create = AsyncMock(return_value=_anthropic_response())
 
     result = await provider.generate("Test prompt", round_number=1)
 
@@ -94,7 +110,7 @@ async def test_anthropic_generate_propagates_api_error(monkeypatch):
         api_key_env="CLAUDE_API_KEY", timeout_sec=30, max_tokens=512,
     )
     provider = AnthropicProvider(cfg)
-    provider._client.messages.create = AsyncMock(side_effect=Exception("500 Internal Server Error"))
+    _bind_client(provider).messages.create = AsyncMock(side_effect=Exception("500 Internal Server Error"))
 
     with pytest.raises(ProviderError, match="API call failed"):
         await provider.generate("Test prompt", round_number=1)
@@ -112,7 +128,7 @@ async def test_anthropic_generate_raises_on_empty_content(monkeypatch):
     empty_resp = MagicMock()
     empty_resp.content = []
     empty_resp.usage = None
-    provider._client.messages.create = AsyncMock(return_value=empty_resp)
+    _bind_client(provider).messages.create = AsyncMock(return_value=empty_resp)
 
     with pytest.raises(ProviderError, match="Empty response content"):
         await provider.generate("Test prompt", round_number=1)
@@ -145,7 +161,7 @@ async def test_anthropic_no_usage_gives_none_tokens(monkeypatch):
     resp = MagicMock()
     resp.content = [block]
     resp.usage = None
-    provider._client.messages.create = AsyncMock(return_value=resp)
+    _bind_client(provider).messages.create = AsyncMock(return_value=resp)
 
     result = await provider.generate("prompt", round_number=2)
     assert result.token_count is None
@@ -275,7 +291,7 @@ async def test_openai_generate_returns_model_response(monkeypatch):
         api_key_env="OPENAI_API_KEY", timeout_sec=30, max_tokens=512,
     )
     provider = OpenAIProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(
+    _bind_client(provider).chat.completions.create = AsyncMock(
         return_value=_openai_response("GPT says hi")
     )
 
@@ -298,7 +314,7 @@ async def test_openai_generate_propagates_api_error(monkeypatch):
         api_key_env="OPENAI_API_KEY", timeout_sec=30, max_tokens=512,
     )
     provider = OpenAIProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(side_effect=Exception("429 Too Many Requests"))
+    _bind_client(provider).chat.completions.create = AsyncMock(side_effect=Exception("429 Too Many Requests"))
 
     with pytest.raises(ProviderError, match="API call failed"):
         await provider.generate("Test", round_number=1)
@@ -316,7 +332,7 @@ async def test_openai_empty_choices_raises(monkeypatch):
     empty_resp = MagicMock()
     empty_resp.choices = []
     empty_resp.usage = None
-    provider._client.chat.completions.create = AsyncMock(return_value=empty_resp)
+    _bind_client(provider).chat.completions.create = AsyncMock(return_value=empty_resp)
 
     with pytest.raises(ProviderError, match="Empty response content"):
         await provider.generate("Test", round_number=1)
@@ -349,7 +365,7 @@ async def test_xai_generate_returns_model_response(monkeypatch):
         base_url="https://api.x.ai/v1",
     )
     provider = XAIProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(
+    _bind_client(provider).chat.completions.create = AsyncMock(
         return_value=_openai_response("Grok says hi")
     )
 
@@ -397,7 +413,7 @@ async def test_xai_generate_propagates_api_error(monkeypatch):
         base_url="https://api.x.ai/v1",
     )
     provider = XAIProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(side_effect=Exception("503 Service Unavailable"))
+    _bind_client(provider).chat.completions.create = AsyncMock(side_effect=Exception("503 Service Unavailable"))
 
     with pytest.raises(ProviderError, match="API call failed"):
         await provider.generate("Test", round_number=1)
@@ -418,7 +434,7 @@ async def test_deepseek_generate_returns_model_response(monkeypatch):
         base_url="https://api.deepseek.com/v1",
     )
     provider = DeepSeekProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(
+    _bind_client(provider).chat.completions.create = AsyncMock(
         return_value=_openai_response("DeepSeek says hi")
     )
 
@@ -466,7 +482,7 @@ async def test_deepseek_generate_propagates_api_error(monkeypatch):
         base_url="https://api.deepseek.com/v1",
     )
     provider = DeepSeekProvider(cfg)
-    provider._client.chat.completions.create = AsyncMock(side_effect=Exception("Connection refused"))
+    _bind_client(provider).chat.completions.create = AsyncMock(side_effect=Exception("Connection refused"))
 
     with pytest.raises(ProviderError, match="API call failed"):
         await provider.generate("Test", round_number=1)
@@ -485,7 +501,7 @@ async def test_deepseek_empty_choices_raises(monkeypatch):
     empty_resp = MagicMock()
     empty_resp.choices = []
     empty_resp.usage = None
-    provider._client.chat.completions.create = AsyncMock(return_value=empty_resp)
+    _bind_client(provider).chat.completions.create = AsyncMock(return_value=empty_resp)
 
     with pytest.raises(ProviderError, match="Empty response content"):
         await provider.generate("Test", round_number=1)
@@ -544,3 +560,180 @@ async def test_all_providers_name_and_model_string(monkeypatch):
     gp = GeminiProvider(gcfg)
     assert gp.name() == "gemini"
     assert gp.model_string() == "gemini-2.5-pro"
+
+
+# ---------------------------------------------------------------------------
+# P1-1 -- _parse() must not escape the ProviderError contract
+# ---------------------------------------------------------------------------
+# A malformed SDK payload used to raise a bare AttributeError out of generate(), because
+# _parse ran outside the try/except. synthesis.py and crux_check.py catch only ProviderError,
+# and CruxCheckService.check's docstring claims "Never raises."
+
+
+def _malformed_openai_response() -> MagicMock:
+    """A non-empty `choices` whose element has no `.message`.
+
+    Deliberately a plain ``object()``, not a MagicMock: MagicMock auto-creates any attribute,
+    so it would silently satisfy `choice.message.content` and never reproduce the defect.
+    """
+    resp = MagicMock()
+    resp.choices = [object()]
+    resp.usage = None
+    return resp
+
+
+async def test_openai_malformed_payload_raises_provider_error(monkeypatch):
+    """A malformed payload must surface as ProviderError, not a raw AttributeError."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
+    from ai_council.providers.openai_provider import OpenAIProvider
+
+    provider = OpenAIProvider(_model_cfg("openai"))
+    _bind_client(provider).chat.completions.create = AsyncMock(
+        return_value=_malformed_openai_response()
+    )
+
+    with pytest.raises(ProviderError, match="Malformed response"):
+        await provider.generate("Test", round_number=1)
+
+
+async def test_anthropic_malformed_payload_raises_provider_error(monkeypatch):
+    """Same contract for the anthropic block shape -- blocks lacking `.type` / `.text`."""
+    monkeypatch.setenv("CLAUDE_API_KEY", "sk-test-anthropic")
+    from ai_council.providers.anthropic import AnthropicProvider
+
+    provider = AnthropicProvider(_model_cfg("claude"))
+    resp = MagicMock()
+    resp.content = [object()]
+    resp.usage = None
+    _bind_client(provider).messages.create = AsyncMock(return_value=resp)
+
+    with pytest.raises(ProviderError, match="Malformed response"):
+        await provider.generate("Test", round_number=1)
+
+
+async def test_parse_provider_error_passes_through_unwrapped(monkeypatch):
+    """A ProviderError raised deliberately by _parse keeps its own message -- the new guard
+    must not re-wrap it as the generic "Malformed response"."""
+    monkeypatch.setenv("CLAUDE_API_KEY", "sk-test-anthropic")
+    from ai_council.providers.anthropic import AnthropicProvider
+
+    provider = AnthropicProvider(_model_cfg("claude"))
+    block = MagicMock()
+    block.type = "image"  # non-empty content, but zero text blocks
+    resp = MagicMock()
+    resp.content = [block]
+    resp.usage = None
+    _bind_client(provider).messages.create = AsyncMock(return_value=resp)
+
+    with pytest.raises(ProviderError, match="No text blocks in response"):
+        await provider.generate("Test", round_number=1)
+
+
+# ---------------------------------------------------------------------------
+# P1-3 -- SDK clients must be bound to the running event loop
+# ---------------------------------------------------------------------------
+# cli.py builds the provider pool once, then calls asyncio.run per inbox file. A client built
+# in __init__ carries an httpx pool bound to the FIRST loop, which is closed by the time file
+# 2 runs. This is the failure class CLAUDE.md section 10 documents for google-genai; gemini.py
+# complies and the other four did not.
+
+_LAZY_CLIENT_CASES = [
+    ("ai_council.providers.openai_provider", "OpenAIProvider",
+     "ai_council.providers.openai_provider.AsyncOpenAI", "openai", None),
+    ("ai_council.providers.anthropic", "AnthropicProvider",
+     "ai_council.providers.anthropic.anthropic_sdk.AsyncAnthropic", "claude", None),
+    ("ai_council.providers.xai", "XAIProvider",
+     "ai_council.providers.xai.AsyncOpenAI", "xai", "https://api.x.ai/v1"),
+    ("ai_council.providers.deepseek", "DeepSeekProvider",
+     "ai_council.providers.deepseek.AsyncOpenAI", "deepseek", "https://api.deepseek.com/v1"),
+]
+
+
+@pytest.mark.parametrize(
+    "module_path, class_name, ctor_target, cfg_name, base_url", _LAZY_CLIENT_CASES
+)
+def test_client_not_built_at_construction(
+    monkeypatch, module_path, class_name, ctor_target, cfg_name, base_url
+):
+    """No SDK client may be constructed during __init__ -- there is no running loop there."""
+    monkeypatch.setenv(f"{cfg_name.upper()}_API_KEY", "sk-test")
+    cls = getattr(importlib.import_module(module_path), class_name)
+
+    with patch(ctor_target) as ctor:
+        cls(_model_cfg(cfg_name, base_url))
+        assert not ctor.called
+
+
+def _recording_openai_factory() -> tuple[object, list]:
+    """A stand-in AsyncOpenAI constructor that records every client it builds."""
+    made: list = []
+
+    def _factory(*args, **kwargs):
+        client = MagicMock()
+        client.chat.completions.create = AsyncMock(return_value=_openai_response())
+        made.append(client)
+        return client
+
+    return _factory, made
+
+
+def test_openai_client_rebuilt_when_event_loop_changes(monkeypatch):
+    """The inbox-batch trigger: one provider instance driven under two separate asyncio.run
+    calls must not reuse a client whose httpx pool belongs to the first, closed loop."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
+    from ai_council.providers.openai_provider import OpenAIProvider
+
+    factory, made = _recording_openai_factory()
+    with patch("ai_council.providers.openai_provider.AsyncOpenAI", side_effect=factory):
+        provider = OpenAIProvider(_model_cfg("openai"))
+        assert made == []  # nothing built at construction time
+
+        asyncio.run(provider._invoke("file one"))
+        asyncio.run(provider._invoke("file two"))
+
+        assert len(made) == 2, "client must be rebuilt when the event loop changes"
+        assert made[0] is not made[1]
+
+
+def test_openai_client_reused_within_one_loop(monkeypatch):
+    """The cache earning its keep: a single debate's rounds share one connection pool."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai")
+    from ai_council.providers.openai_provider import OpenAIProvider
+
+    factory, made = _recording_openai_factory()
+    with patch("ai_council.providers.openai_provider.AsyncOpenAI", side_effect=factory):
+        provider = OpenAIProvider(_model_cfg("openai"))
+
+        async def _three_rounds():
+            for _ in range(3):
+                await provider._invoke("round")
+
+        asyncio.run(_three_rounds())
+
+        assert len(made) == 1, "one loop must not rebuild the client per call"
+
+
+def test_anthropic_client_rebuilt_when_event_loop_changes(monkeypatch):
+    """Anthropic seat, same loop-rebinding contract as the OpenAI-compatible seats."""
+    monkeypatch.setenv("CLAUDE_API_KEY", "sk-test-anthropic")
+    from ai_council.providers.anthropic import AnthropicProvider
+
+    made: list = []
+
+    def _factory(*args, **kwargs):
+        client = MagicMock()
+        client.messages.create = AsyncMock(return_value=_anthropic_response())
+        made.append(client)
+        return client
+
+    with patch(
+        "ai_council.providers.anthropic.anthropic_sdk.AsyncAnthropic", side_effect=_factory
+    ):
+        provider = AnthropicProvider(_model_cfg("claude"))
+        assert made == []
+
+        asyncio.run(provider._invoke("file one"))
+        asyncio.run(provider._invoke("file two"))
+
+        assert len(made) == 2
+        assert made[0] is not made[1]

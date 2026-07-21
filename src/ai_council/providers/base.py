@@ -14,6 +14,7 @@ import os
 import re
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -314,7 +315,18 @@ class AIProvider(ABC):
         except Exception as exc:
             raise ProviderError(self._config.name, f"API call failed: {exc}") from exc
 
-        parsed = self._parse(raw)
+        # _parse runs INSIDE a guard: a malformed SDK payload (a missing `.choices[0].message`,
+        # a block without `.type`) would otherwise raise AttributeError/IndexError straight
+        # through generate(), breaking the `Raises: ProviderError` contract above that
+        # synthesis.py and crux_check.py both depend on. A ProviderError raised deliberately
+        # by a provider's _parse keeps its own message.
+        try:
+            parsed = self._parse(raw)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(self._config.name, f"Malformed response: {exc}") from exc
+
         if not parsed.content:
             raise ProviderError(self._config.name, "Empty response content")
 
@@ -337,8 +349,31 @@ class AIProvider(ABC):
             output_tokens=parsed.output_tokens,
         )
 
+    def _client_for_loop(self, factory: Callable[[], Any]) -> Any:
+        """Return an SDK client bound to the *currently running* event loop.
+
+        Rebuilds whenever the running loop changes. SDK clients hold httpx connection pools
+        bound to the loop that created them, and `cli.py` builds the provider pool once but
+        then calls ``asyncio.run`` per inbox file — so a client cached in ``__init__`` outlives
+        the loop it belongs to and the second file in a batch fails. This is the same failure
+        class CLAUDE.md §10 documents for google-genai; ``gemini.py`` avoids it by building per
+        call, and this caches per loop so a single debate's rounds still share one pool.
+
+        The loop is compared by object identity, not ``id()``: the cached reference keeps the
+        loop alive, so a dead loop's address can never be recycled into a false cache hit.
+        """
+        loop = asyncio.get_running_loop()
+        if getattr(self, "_client_loop", None) is not loop:
+            self._client = factory()
+            self._client_loop = loop
+        return self._client
+
     def _configure(self) -> None:
-        """Build the SDK client. Default: no-op (gemini builds a client per call).
+        """Validate seat config at construction. Default: no-op.
+
+        Runs inside ``__init__``, where there is no event loop — so it must NOT build an SDK
+        client (see ``_client_for_loop``). Config validation that should fail fast at pool-build
+        time belongs here; xai/deepseek use it for their required ``base_url``.
 
         The base has already set ``self._config`` and ``self._api_key`` before this runs.
         """

@@ -11,13 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 class AnthropicProvider(AIProvider):
-    """Anthropic Claude provider via anthropic SDK."""
+    """Anthropic Claude provider via anthropic SDK.
 
-    def _configure(self) -> None:
-        self._client = anthropic_sdk.AsyncAnthropic(api_key=self._api_key)
+    No `_configure` override: the client is built lazily per event loop inside `_invoke`, so its
+    httpx connection pool is always bound to the running loop. See `AIProvider._client_for_loop`.
+    """
 
     async def _invoke(self, prompt: str) -> Any:
-        return await self._client.messages.create(
+        client = self._client_for_loop(
+            lambda: anthropic_sdk.AsyncAnthropic(api_key=self._api_key)
+        )
+        return await client.messages.create(
             model=self._config.model,
             max_tokens=self._config.max_tokens,
             messages=[{"role": "user", "content": prompt}],
