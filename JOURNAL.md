@@ -19,6 +19,55 @@
 
 ---
 
+### 2026-07-21 — provider-layer P1 fixes: P1-1, P1-3, P1-7 landed (LANE A) [no task closed]
+
+**Did:** Fixed the three verified provider-layer correctness defects from the 2026-07-20 night code
+audit, in the `fix-provider-errors` worktree, tests-first throughout. Every audit cite was
+re-verified against source before fixing — **the audit's line numbers had drifted** (real positions:
+`classify_error` 44-92 not 65-86, `parse_openai_chat` 150-172 not 157, `generate()` 199-252).
+Commits `ea3a3b1` (P1-7), `da69153` (P1-1 + P1-3), `dc28df6` (codex review artifact), `84d3f23`
+(review fixes). **Not merged — Rob is the serial merge gate.**
+
+- **P1-7** — `classify_error` substring-matched naked HTTP digits and checked `auth` before
+  `server_error`. Now three ordered stages: message-only markers (billing, content-policy), then
+  typed dispatch over the `__cause__` chain via `status_code` / SDK class name, then a hardened
+  string fallback. Dispatch is by class **name**, not `isinstance`, so one table covers both the
+  openai and anthropic hierarchies without importing either SDK into `base.py`.
+- **P1-1** — `_parse()` ran outside `generate()`'s guard, so a malformed payload raised a bare
+  `AttributeError` through the documented `Raises: ProviderError` contract. Now wrapped, with a
+  deliberate `ProviderError` from `_parse` passing through unchanged.
+- **P1-3** — four of five providers built their SDK client in `__init__`. New
+  `AIProvider._client_for_loop` builds lazily and caches per event loop, compared by object
+  identity so a dead loop cannot be recycled into a false cache hit. `xai`/`deepseek` keep
+  `_configure` reduced to the `base_url` guard (a config error must still fail fast at pool-build
+  time). `gemini.py` unchanged — it was already correct and stays the reference.
+
+**Result:** `.\scripts\check.ps1` green — 749 passed, mypy clean, ruff clean. Two gates Rob set
+before implementation both cleared: (1) the `openai`/`anthropic` `_configure` overrides did nothing
+beyond client construction, and api-key fail-fast lives in `base.py:180-182` inside `__init__`,
+untouched; (2) `classify_error`'s signature and 10-value vocabulary are unchanged and
+`healthcheck.py`'s message dict needed no edit — but **retry eligibility at `debate.py:68` does flip
+for three input classes** (`"500 … auth service degraded"` auth→server_error now retries;
+`"gpt-4290"` rate_limit→unknown now breaks; typed `APIConnectionError` unknown→connection_error now
+retries). LANE B (`fix-debate-resilience`) was verified unstarted at both open and close, so nothing
+was pinned to the old semantics. `seat_router.py` was named as a consumer but is **not** one.
+
+**Abandoned:** Codex review H3 (rebinding does not close the previous SDK client) deliberately NOT
+fixed — a proper fix needs an async close-on-owning-loop lifecycle reaching into `cli.py`, outside
+this lane's surface, and it is the same property `gemini.py` already has. Left for triage.
+
+**Changes:** `src/ai_council/providers/` (base, openai_provider, anthropic, xai, deepseek —
+`gemini.py` untouched), `tests/test_base_provider.py`, `tests/test_providers.py`,
+`docs/audits/2026-07-21-codex-provider-errors.md`. `BACKLOG.md` deliberately untouched (Rob strikes
+separately); `debate.py`/`output.py`/`synthesis.py` untouched (LANE B).
+
+**Next:** Rob's merge gate. Two findings want triage: **H3** above, and — separately — the codex
+review caught **two regressions the P1-7 commit introduced** (a word-boundary regex that hid a
+status code ending a sentence; typed 400 masking `content_policy`), both fixed in `84d3f23`. Also
+worth noting: ~12 existing provider tests patched `provider._client` post-construction, a seam lazy
+building breaks — **one anthropic test was observed making a live API call** when it broke. New
+`_bind_client()` helper registers the double against the running loop; all mocks now land.
+
 ### 2026-07-21 — night-audit reintegration: 4 reports off 3 worktrees + combined review [no task closed]
 
 **Did:** Merged the whole 2026-07-20/21 night batch into `main` and synthesized it. Three serial
