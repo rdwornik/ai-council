@@ -11,8 +11,10 @@ is a shared base, NOT a provider merge (CLAUDE.md 5.7 / ADR-12 no-merge rule).
 import asyncio
 import logging
 import os
+import re
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -41,32 +43,134 @@ CLI_FALLBACK_CAUSES: frozenset[str] = frozenset(
 )
 
 
+# HTTP status -> category, for the typed dispatch below. Any other 5xx falls through to
+# "server_error"; anything unmapped falls through to class-name dispatch then the string arms.
+_STATUS_CATEGORIES: dict[int, str] = {
+    400: "invalid_request",
+    401: "auth",
+    403: "auth",
+    404: "model_not_found",
+    429: "rate_limit",
+}
+
+# SDK exception class name -> category. Dispatch is by NAME, not isinstance, deliberately:
+# the openai and anthropic hierarchies use identical names, so one table covers both without
+# importing either SDK into this module (and without breaking on a future/absent SDK).
+_EXC_NAME_CATEGORIES: dict[str, str] = {
+    "APIConnectionError": "connection_error",
+    "APIConnectionTimeoutError": "timeout",
+    "APITimeoutError": "timeout",
+    "AuthenticationError": "auth",
+    "BadRequestError": "invalid_request",
+    "InternalServerError": "server_error",
+    "NotFoundError": "model_not_found",
+    "PermissionDeniedError": "auth",
+    "RateLimitError": "rate_limit",
+    "UnprocessableEntityError": "invalid_request",
+}
+
+# Billing exhaustion is a MESSAGE-only distinction: Anthropic sends it as a 400 and OpenAI as
+# a 429, so the status code alone would mislabel both. Checked ahead of typed dispatch.
+_BILLING_MARKERS: tuple[str, ...] = (
+    "credit balance",
+    "insufficient_quota",
+    "insufficient quota",
+    "exceeded your current quota",
+    "plans & billing",
+    "billing details",
+)
+
+# Content-policy rejections arrive as a typed 400, which would otherwise dispatch to the
+# generic "invalid_request" before the message was ever consulted. Only these STRUCTURED API
+# tokens are checked ahead of typed dispatch — the looser prose marker ("safety") stays in the
+# string fallback, ordered after server_error, so a 5xx that merely mentions a safety
+# subsystem is not recategorised as a permanent failure (the P1-7 defect in a new costume).
+_CONTENT_POLICY_MARKERS: tuple[str, ...] = (
+    "content_policy",
+    "content policy",
+)
+
+
+def _cause_chain(exc: BaseException) -> list[BaseException]:
+    """The exception and its explicit `raise ... from` causes, outermost first.
+
+    Only ``__cause__`` is followed, never ``__context__`` — implicit chaining would drag in
+    unrelated exceptions that merely happened to be in flight. Guarded against cycles.
+    """
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(current)
+        current = current.__cause__
+    return chain
+
+
+def _http_code_in(msg: str, *codes: str) -> bool:
+    """True when `msg` contains one of `codes` as a standalone token.
+
+    Word-boundary matched so request ids, model names and token counts don't register as
+    status codes — ``gpt-4290`` is not a 429 and ``req_5031`` is not a 503. Dots are excluded
+    only where they form part of a number (``v1.429.0``), so a code ending a sentence —
+    ``upstream returned 503.`` — still matches.
+    """
+    return any(
+        re.search(rf"(?<!\w)(?<!\d\.){code}(?!\w)(?!\.\d)", msg) for code in codes
+    )
+
+
+def _classify_typed(exc: BaseException) -> str | None:
+    """Classify off the SDK exception itself — status code first, then class name."""
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and not isinstance(status, bool):
+        mapped = _STATUS_CATEGORIES.get(status)
+        if mapped is not None:
+            return mapped
+        if 500 <= status <= 599:
+            return "server_error"
+    return _EXC_NAME_CATEGORIES.get(type(exc).__name__)
+
+
 def classify_error(exc: Exception) -> str:
     """Map an exception to a canonical error category string.
 
     Returns one of: timeout, rate_limit, auth, model_not_found, connection_error,
     server_error, content_policy, invalid_request, billing, unknown.
     Used by healthcheck and retry logic to produce specific messages.
+
+    Three ordered stages: message-only markers first (billing and content-policy rejections
+    both arrive as a typed 400 or 429, so a typed check alone would mislabel them), then typed
+    dispatch over the ``__cause__`` chain (the authoritative path — ``generate()`` wraps SDK
+    errors with ``from exc``, so the typed exception survives inside the ProviderError), then a
+    string fallback for exceptions carrying no type signal at all.
     """
+    chain = _cause_chain(exc)
+
+    for link in chain:
+        link_msg = str(link).lower()
+        if any(marker in link_msg for marker in _BILLING_MARKERS):
+            return "billing"
+        if any(marker in link_msg for marker in _CONTENT_POLICY_MARKERS):
+            return "content_policy"
+
+    for link in chain:
+        typed = _classify_typed(link)
+        if typed is not None:
+            return typed
+
     msg = str(exc).lower()
-    # Billing exhaustion comes through 400 (Anthropic: "credit balance is too low")
-    # or 429 (OpenAI: "insufficient_quota"). Check before generic rate_limit / invalid.
-    if (
-        "credit balance" in msg
-        or "insufficient_quota" in msg
-        or "insufficient quota" in msg
-        or "exceeded your current quota" in msg
-        or "plans & billing" in msg
-        or "billing details" in msg
-    ):
-        return "billing"
     if "timeout" in msg or "timed out" in msg:
         return "timeout"
-    if "429" in msg or "rate limit" in msg or "rate_limit" in msg:
+    if _http_code_in(msg, "429") or "rate limit" in msg or "rate_limit" in msg:
         return "rate_limit"
+    # server_error is checked BEFORE auth: a 5xx that merely mentions authentication is a
+    # recoverable server failure, and the old auth-first order marked it non-retryable, which
+    # made debate.py break the retry loop and burn the seat on a fully recoverable error.
+    if _http_code_in(msg, "500", "502", "503") or "server error" in msg:
+        return "server_error"
     if (
-        "401" in msg
-        or "403" in msg
+        _http_code_in(msg, "401", "403")
         or "unauthorized" in msg
         or "forbidden" in msg
         or "auth" in msg
@@ -74,7 +178,7 @@ def classify_error(exc: Exception) -> str:
         or "api_key" in msg
     ):
         return "auth"
-    if "404" in msg or "model_not_found" in msg:
+    if _http_code_in(msg, "404") or "model_not_found" in msg:
         return "model_not_found"
     if (
         "connection" in msg
@@ -83,8 +187,6 @@ def classify_error(exc: Exception) -> str:
         or "connect" in msg
     ):
         return "connection_error"
-    if "500" in msg or "502" in msg or "503" in msg or "server error" in msg:
-        return "server_error"
     if "content_policy" in msg or "content policy" in msg or "safety" in msg:
         return "content_policy"
     if "invalid" in msg:
@@ -228,7 +330,18 @@ class AIProvider(ABC):
         except Exception as exc:
             raise ProviderError(self._config.name, f"API call failed: {exc}") from exc
 
-        parsed = self._parse(raw)
+        # _parse runs INSIDE a guard: a malformed SDK payload (a missing `.choices[0].message`,
+        # a block without `.type`) would otherwise raise AttributeError/IndexError straight
+        # through generate(), breaking the `Raises: ProviderError` contract above that
+        # synthesis.py and crux_check.py both depend on. A ProviderError raised deliberately
+        # by a provider's _parse keeps its own message.
+        try:
+            parsed = self._parse(raw)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ProviderError(self._config.name, f"Malformed response: {exc}") from exc
+
         if not parsed.content:
             raise ProviderError(self._config.name, "Empty response content")
 
@@ -251,8 +364,31 @@ class AIProvider(ABC):
             output_tokens=parsed.output_tokens,
         )
 
+    def _client_for_loop(self, factory: Callable[[], Any]) -> Any:
+        """Return an SDK client bound to the *currently running* event loop.
+
+        Rebuilds whenever the running loop changes. SDK clients hold httpx connection pools
+        bound to the loop that created them, and `cli.py` builds the provider pool once but
+        then calls ``asyncio.run`` per inbox file — so a client cached in ``__init__`` outlives
+        the loop it belongs to and the second file in a batch fails. This is the same failure
+        class CLAUDE.md §10 documents for google-genai; ``gemini.py`` avoids it by building per
+        call, and this caches per loop so a single debate's rounds still share one pool.
+
+        The loop is compared by object identity, not ``id()``: the cached reference keeps the
+        loop alive, so a dead loop's address can never be recycled into a false cache hit.
+        """
+        loop = asyncio.get_running_loop()
+        if getattr(self, "_client_loop", None) is not loop:
+            self._client = factory()
+            self._client_loop = loop
+        return self._client
+
     def _configure(self) -> None:
-        """Build the SDK client. Default: no-op (gemini builds a client per call).
+        """Validate seat config at construction. Default: no-op.
+
+        Runs inside ``__init__``, where there is no event loop — so it must NOT build an SDK
+        client (see ``_client_for_loop``). Config validation that should fail fast at pool-build
+        time belongs here; xai/deepseek use it for their required ``base_url``.
 
         The base has already set ``self._config`` and ``self._api_key`` before this runs.
         """

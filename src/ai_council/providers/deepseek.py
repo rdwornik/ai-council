@@ -14,12 +14,16 @@ class DeepSeekProvider(AIProvider):
     """DeepSeek provider via OpenAI-compatible API."""
 
     def _configure(self) -> None:
+        # Config validation only — a missing base_url must still fail fast at pool-build time.
+        # The client itself is built lazily per event loop in _invoke (see _client_for_loop).
         if not self._config.base_url:
             raise ProviderError(self._config.name, "base_url is required for DeepSeek provider")
-        self._client = AsyncOpenAI(api_key=self._api_key, base_url=self._config.base_url)
 
     async def _invoke(self, prompt: str) -> Any:
-        return await self._client.chat.completions.create(
+        client = self._client_for_loop(
+            lambda: AsyncOpenAI(api_key=self._api_key, base_url=self._config.base_url)
+        )
+        return await client.chat.completions.create(
             model=self._config.model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=self._config.max_tokens,
