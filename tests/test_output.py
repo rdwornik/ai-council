@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 
 from ai_council.models import (
+    SEAT_STATUS_FAILED,
+    SEAT_STATUS_LOST,
+    SEAT_STATUS_OK,
     DebateMetrics,
     DebateResult,
     FallbackEvent,
@@ -1099,6 +1102,81 @@ def test_verdict_panel_and_degradation_record(tmp_path, sample_question, sample_
     assert data["degradation"]["degraded"] is True
     assert "timeout" in data["degradation"]["summary"]
     assert data["degradation"]["failed_providers"] == ["deepseek"]
+
+
+def test_verdict_surfaces_a_seat_lost_mid_debate(tmp_path, sample_question, sample_round):
+    """P1-8: a seat that answered Round 1 then died read as "ok", so it stayed out of
+    panel.dropped and degradation.failed_providers entirely — mid-debate loss was invisible in
+    every field a foreign repo consumes as binding input."""
+    result = _pick_result(
+        sample_question,
+        sample_round,
+        provider_statuses={"claude": SEAT_STATUS_OK, "deepseek": SEAT_STATUS_LOST},
+        degraded=True,
+        degradation_summary="1 seat(s) responded in an earlier round but were absent from the final round: deepseek.",
+    )
+    data = _emit(result, tmp_path / "out")
+    assert data["panel"]["dropped"] == ["deepseek"]
+    assert data["degradation"]["failed_providers"] == ["deepseek"]
+    assert data["degradation"]["degraded"] is True
+    assert "deepseek" in data["degradation"]["summary"]
+    # seated stays ROUND-1 derived and unchanged — the seat did take its seat.
+    assert "deepseek" in data["panel"]["requested"]
+
+
+def test_verdict_lost_and_failed_both_count_as_dropped(tmp_path, sample_question, sample_round):
+    """Both non-ok statuses reach the caller's dropped list; the ok seat never does."""
+    result = _pick_result(
+        sample_question,
+        sample_round,
+        provider_statuses={
+            "claude": SEAT_STATUS_OK,
+            "deepseek": SEAT_STATUS_LOST,
+            "grok": SEAT_STATUS_FAILED,
+        },
+        degraded=True,
+    )
+    data = _emit(result, tmp_path / "out")
+    assert data["panel"]["dropped"] == ["deepseek", "grok"]
+    assert data["degradation"]["failed_providers"] == ["deepseek", "grok"]
+
+
+def test_verdict_unknown_status_counts_as_dropped(tmp_path, sample_question, sample_round):
+    """Drift guard: an unrecognized value must fall to DROPPED, never be silently seated.
+    Matches the pessimistic seeding the producer has always used."""
+    result = _pick_result(
+        sample_question,
+        sample_round,
+        provider_statuses={"claude": SEAT_STATUS_OK, "deepseek": "some-future-status"},
+    )
+    data = _emit(result, tmp_path / "out")
+    assert data["panel"]["dropped"] == ["deepseek"]
+
+
+def test_verdict_field_set_identical_with_and_without_a_lost_seat(
+    tmp_path, sample_question, sample_round
+):
+    """CONTRACT GUARD (P1-8): the "lost" status is a VALUE correction inside the existing field
+    set — it must add, remove or rename nothing. Mirrors the crux Phase-A freeze test below."""
+    ok_only = _pick_result(
+        sample_question, sample_round, provider_statuses={"claude": SEAT_STATUS_OK}
+    )
+    with_lost = _pick_result(
+        sample_question,
+        sample_round,
+        provider_statuses={"claude": SEAT_STATUS_OK, "deepseek": SEAT_STATUS_LOST},
+        degraded=True,
+    )
+    a = _emit(ok_only, tmp_path / "a")
+    b = _emit(with_lost, tmp_path / "b")
+
+    assert a.keys() == b.keys()
+    assert a["panel"].keys() == b["panel"].keys()
+    assert a["degradation"].keys() == b["degradation"].keys()
+    assert a["contract_version"] == b["contract_version"] == "1.0"
+    assert a["exit_semantics"] == b["exit_semantics"] == 0
+    # The status vocabulary itself must never leak into the package as a value.
+    assert SEAT_STATUS_LOST not in json.dumps(b)
 
 
 def test_verdict_fallback_events_persisted_by_reference(tmp_path, sample_question, sample_round):

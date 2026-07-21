@@ -16,6 +16,9 @@ from rich.text import Text
 from rich.tree import Tree
 
 from ai_council.models import (
+    SEAT_STATUS_LOST,
+    SEAT_STATUS_OK,
+    SEAT_STATUSES,
     DebateMetrics,
     DebateResult,
     FallbackEvent,
@@ -407,20 +410,24 @@ def _build_header(result: DebateResult) -> list[str]:
             f"**Cost:** ~${result.metrics.total_estimated_cost_usd:.4f} ({total_tokens:,} tokens)"
         )
     if result.degraded:
-        failed = [k for k, v in result.provider_statuses.items() if v == "failed"]
+        failed = _dropped_providers(result.provider_statuses)
         degradation_note = result.degradation_summary or "Some providers failed during the debate."
         lines.append(f"**Status:** DEGRADED — {degradation_note}")
         if failed:
             lines.append(f"**Failed providers:** {', '.join(failed)}")
 
-    # Provider notes: retried-and-recovered + skipped providers
+    # Provider notes: retried-and-recovered + dropped providers
     retried = sorted({r.provider for rnd in result.rounds for r in rnd.responses if r.was_retry})
-    failed_providers = [k for k, v in result.provider_statuses.items() if v == "failed"]
+    failed_providers = _dropped_providers(result.provider_statuses)
     provider_note_parts: list[str] = []
     for p in retried:
         provider_note_parts.append(f"{p} retried (timeout, recovered)")
     for p in failed_providers:
-        provider_note_parts.append(f"{p} skipped")
+        # A lost seat was not "skipped" — it answered, then went missing (P1-8).
+        if result.provider_statuses.get(p) == SEAT_STATUS_LOST:
+            provider_note_parts.append(f"{p} dropped mid-debate")
+        else:
+            provider_note_parts.append(f"{p} skipped")
     if provider_note_parts:
         lines.append(f"**Provider Notes:** {'; '.join(provider_note_parts)}.")
     # Human-readable mirror of the verdict package (DRAFT-INT-1, folded here per the
@@ -1104,6 +1111,28 @@ def _extracted_options(
     return {"items": items, "source": "extraction", "heading": heading}
 
 
+def _dropped_providers(provider_statuses: dict[str, str]) -> list[str]:
+    """Seats absent from the final round — panel.dropped / degradation.failed_providers (P1-8).
+
+    Derived as "not ok" rather than "== failed": a seat that answered an earlier round and then
+    went missing ("lost") is just as absent from the verdict-bearing round as one that never
+    answered, and both belong in the caller's dropped list. Before this, only never-answered
+    seats were counted, so mid-debate loss reached the contract surface as an empty list.
+
+    An unrecognized value is counted as dropped and logged: the pessimistic direction matches
+    the producer's own seeding, so a future vocabulary drift degrades loudly instead of
+    silently promoting an unknown seat to seated.
+    """
+    unknown = sorted(set(provider_statuses.values()) - SEAT_STATUSES)
+    if unknown:
+        logger.warning(
+            "Unrecognized provider_statuses value(s) %s — counting as dropped. "
+            "Extend SEAT_STATUSES in models.py rather than emitting a bare string.",
+            ", ".join(unknown),
+        )
+    return sorted(k for k, v in provider_statuses.items() if v != SEAT_STATUS_OK)
+
+
 def _verdict_summary_lines(result: DebateResult) -> list[str]:
     """Human-readable mirror block for the top of council-out (DRAFT-INT-1).
 
@@ -1115,7 +1144,7 @@ def _verdict_summary_lines(result: DebateResult) -> list[str]:
     decision = _extracted_field(sections, _DECISION_HEADING_MARKERS, one_line=True)["value"]
     seated = sorted({r.provider for r in result.rounds[0].responses})
     requested = sorted(set(result.provider_statuses) | set(seated))
-    dropped = sorted(k for k, v in result.provider_statuses.items() if v == "failed")
+    dropped = _dropped_providers(result.provider_statuses)
     dissent = "unanimous" if extract_dissent(result.synthesis) is None else "non-unanimous (see minority report)"
 
     lines = [
@@ -1157,7 +1186,7 @@ def _build_verdict_payload(
 
     seated = sorted({r.provider for r in result.rounds[0].responses})
     requested = sorted(set(result.provider_statuses) | set(seated))
-    dropped = sorted(k for k, v in result.provider_statuses.items() if v == "failed")
+    dropped = _dropped_providers(result.provider_statuses)
 
     if extract_dissent(result.synthesis) is None:
         dissent = {"status": "unanimous", "minority_artifact": None, "gist": None, "source": "extraction"}
