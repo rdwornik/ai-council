@@ -81,12 +81,20 @@ class SeatRouter:
         seat.cli = {"name": spec.cli_command, "version": cli.version}
         try:
             response = await cli.generate(prompt, round_number)
-        except ProviderError as exc:
+        # P1-2: this caught only ProviderError, so the module docstring's "On ANY CLI failure the
+        # seat falls back" held only for the classified case. A raw AttributeError/ValueError from
+        # a parser escaped try_cli entirely — no API leg, no fallback_events[] entry — and via
+        # debate.py's gather took every sibling seat down with it. Catching Exception (NOT
+        # BaseException) restores the advertised guarantee; CancelledError still propagates, so a
+        # shutdown is never mis-booked as a seat failure.
+        except Exception as exc:  # noqa: BLE001 - contract: ANY CLI failure degrades ONE seat
             cause = classify_cli_failure(exc)
+            # An unclassified failure keeps its type name so the seats[] record stays diagnosable.
+            detail = str(exc) if isinstance(exc, ProviderError) else f"{type(exc).__name__}: {exc}"
             seat.fallback_events.append(
                 FallbackEvent(
                     round=round_number, from_backend="cli", to_backend="api",
-                    cause=cause, detail=str(exc),
+                    cause=cause, detail=detail,
                 )
             )
             if cause == "identity-unreadable":
