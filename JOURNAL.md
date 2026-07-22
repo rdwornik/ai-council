@@ -19,7 +19,45 @@
 
 ---
 
-### 2026-07-21 — `assets/` dissolved: vestigial ruff fragment removed, two live references repaired
+### 2026-07-22 — Unit 1: boost→decide chain made explicit in VISION / ARCHITECTURE / ADR-11 (governance text only)
+
+**Did:** Executed the frozen-contract doc unit (session `2026-07-21-ai-council-architect`, Unit 1):
+made the boost→decide chain — raw question → boosted brief (type-classified decision /
+research / hybrid) → debate → verdict → binding ADR — explicit on the three governance
+surfaces that stated the decision half only, and recorded the boost layer's owner ruling
+(**C — council-side entry stage**, operator-ruled; executes the EXTEND position of
+`docs/audits/2026-07-21-night-input-layer-audit-fable.md` §5). ADR-11 gained an appended
+`## Amendment (2026-07-22)` carrying all five ruled clauses: (a) `council boost` file-in /
+file-out stateless entry stage; (b) clarification-not-reversal of decision 5 (the rejected
+object was statefulness — this is a CLI-surface extension under CLI-as-ABI); (c) the
+interactive / MCP-elicitation clarify-loop deferred as a separable rider needing its own
+ADR — gaps are annotated in the brief, never asked back; (d) additive → backward
+compatible; (e) the ADR-95 boundary rule (may restructure / classify / decompose ≤3 linked
+sub-briefs / flag gaps; may never assert an unsupplied fact; `research` reached via an
+emitted sub-commission, `detect_mode()` unchanged).
+
+**Result:** Commit `52379e6` on `docs/boost-chain-amendments` — **held unmerged, operator
+is the integration gate.** Acceptance contract 7/7 green: ADR diff append-only (38
+insertions, **0 deletions** — decisions 1–5 and `## Considered and rejected` untouched,
+verified on the committed diff); no files or directories created; four read-only
+validators exit 0 (freshness / docs-registry / sealed-keys / audit-casing, exit codes
+read explicitly); 799 tests collected, 0 errors. `last_reviewed` on VISION +
+ARCHITECTURE honestly re-stamped 2026-07-22 after a genuine end-to-end re-read (the A2
+gate would otherwise trip deterministically on the next commit). Branch cut from `main`
+@ `88b0876`, not the prompt's stale `cbcdff1` base (the assets-dissolve merge landed
+in between) — flagged in-session.
+
+**Changes:** `VISION.md ## Vision` (+chain, methodology-naive caller; pre-existing claims
+intact), `ARCHITECTURE.md ## Purpose [CORE]` (modes = decide half, `council boost` =
+input half), `docs/decisions/ADR-11-delegated-invocation-contract.md` (appended
+amendment). Governance text only — zero code, zero tests, zero new paths.
+
+**Abandoned:** Nothing. (Deliberately NOT done, per contract: no `council boost`
+implementation or scaffolding — that is Unit 2, TDD-first against its own frozen
+contract; no BACKLOG structural change — pure advance, #36–#38 remain open.)
+
+**Next:** Operator merges `docs/boost-chain-amendments` serially; Unit 2 (the `council
+boost` build) against a separate frozen contract.
 
 **Did:** Executed the operator grant of **2026-07-19** to dissolve the vestigial `assets/`
 directory (sole file: `assets/ruff-pre-commit.yaml`, 1074 B) and repair its two live

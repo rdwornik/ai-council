@@ -61,6 +61,44 @@ frontmatter leaks into the question text; (2) research mode ignores `--return-di
   AI_COUNCIL_PROCESS.md §authoritative-sources; Stage-3 "Command:" wording now that this ADR
   is ratified.
 
+## Amendment (2026-07-22)
+
+**(a) What is added.** A council-side entry stage: `council boost` — raw question in
+(file or arg), boosted brief out (file). Owner ruled **C — council-side entry stage** by
+the operator (executing the EXTEND position of
+`docs/audits/2026-07-21-night-input-layer-audit-fable.md` §5).
+
+**(b) Why this is a CLARIFICATION of decision 5, not a reversal.** The object this ADR
+rejected is **statefulness** — a Python library API or an MCP/server surface (see
+`## Considered and rejected`). `council boost` is file-in / file-out, stateless, one
+invocation, exit-code-carrying: it is a **CLI-surface EXTENSION** under decision 5's
+CLI-as-ABI ("no Python library API, no server/MCP. The CLI surface named in the contract
+doc becomes a compatibility surface"), not a new surface class.
+
+**(c) What is NOT admitted — the interactive rider, deferred.** A bounded clarify-loop
+that asks the caller questions mid-flight (MCP elicitation) **would** reopen this ADR:
+it is named in `## Considered and rejected`, and it additionally collides with
+decision 1's explicit no-interactive-concepts cut (Lane B: "no context-pull /
+interactive concepts"). It is deferred as a **separable rider requiring its own ADR**.
+Information gaps are therefore handled by **advisory annotation in the emitted brief**,
+never by asking the caller.
+
+**(d) Contract impact.** Additive subcommand → backward compatible, not a breaking
+change; recorded here as a CLI-surface extension per decision 5's "breaking changes
+require an ADR" discipline.
+
+**(e) The ADR-95 boundary rule (folded here deliberately — no net-new document).**
+Because substance-shaping now moves council-side, the boundary is stated as a rule:
+
+> The boost **may** restructure, interrogate, classify, decompose (into at most three
+> linked sub-briefs), and **flag** gaps. The boost **may never assert a fact the caller
+> did not supply.** A gap is annotated, never filled.
+
+Hybrid asks are handled by **decomposition into linked sub-briefs** (a research
+sub-commission may feed a decision sub-brief). `research` mode is reached by the boost
+**emitting a research sub-commission**, not by any change to `detect_mode()` — which
+structurally cannot emit that mode.
+
 ## Consequences
 
 - External repos can commission the Council today, without waiting for Epic B or #9;

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-20
+last_reviewed: 2026-07-22
 status: active
 owner: Rob
 ---
@@ -7,11 +7,11 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-20` (`three-lane reintegration: single output-destination resolver in cli.py, single verify-or-raise write helper in output.py, +2 pre-commit guards on the enforcement surface`)
+> Last updated: `2026-07-22` (`boost→decide chain: council boost named in Purpose as the input stage preceding the operating modes — ADR-11 amendment 2026-07-22`)
 
 ## Purpose [CORE]
 
-`ai-council` is a multi-model AI debate and research CLI with four operating modes (pick, ideas, judge, research). It coordinates a configurable panel of AI models (Anthropic, OpenAI, Google, xAI, DeepSeek) through structured rounds of parallel debate and blind-vote critique, synthesizes a final verdict from a non-participating synthesizer, and routes transcripts to both its operational archive and target project directories. Within the `Dev/` ecosystem it is the primary mechanism for producing Architecture Decision Records: Council debate produces a verdict; that verdict is authored into an ADR that is ratified and distributed by `.dev-knowledge` to all downstream repos.
+`ai-council` is a multi-model AI debate and research CLI with four operating modes (pick, ideas, judge, research). The operating modes are the *decide* half of a boost→decide chain: `council boost` is the *input* half that precedes them, turning a raw question from a methodology-naive caller into a type-classified boosted brief (decision / research / hybrid) before the debate runs (ADR-11 amendment 2026-07-22). It coordinates a configurable panel of AI models (Anthropic, OpenAI, Google, xAI, DeepSeek) through structured rounds of parallel debate and blind-vote critique, synthesizes a final verdict from a non-participating synthesizer, and routes transcripts to both its operational archive and target project directories. Within the `Dev/` ecosystem it is the primary mechanism for producing Architecture Decision Records: Council debate produces a verdict; that verdict is authored into an ADR that is ratified and distributed by `.dev-knowledge` to all downstream repos.
 
 ---
 
