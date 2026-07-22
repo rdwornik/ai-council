@@ -87,15 +87,21 @@ async def test_timeout_counts_as_failure():
 
     providers["slow"].generate = AsyncMock(side_effect=hang)
 
-    # Patch the default timeout to 0.05s so the test runs fast
+    # Patch both timeout knobs to 0.05s so the test runs fast. _ping_timeout
+    # prefers the provider's configured timeout_sec (MockProvider sets 30s)
+    # capped at _MAX_TIMEOUT_SEC, so patching _DEFAULT_TIMEOUT_SEC alone never
+    # took effect and this test genuinely waited the full 30s.
     import ai_council.healthcheck as hc
 
-    original = hc._DEFAULT_TIMEOUT_SEC
+    original_default = hc._DEFAULT_TIMEOUT_SEC
+    original_max = hc._MAX_TIMEOUT_SEC
     hc._DEFAULT_TIMEOUT_SEC = 0.05
+    hc._MAX_TIMEOUT_SEC = 0.05
     try:
         results = await run_health_checks(providers)
     finally:
-        hc._DEFAULT_TIMEOUT_SEC = original
+        hc._DEFAULT_TIMEOUT_SEC = original_default
+        hc._MAX_TIMEOUT_SEC = original_max
 
     ok, err = results["slow"]
     assert ok is False
