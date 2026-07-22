@@ -92,3 +92,21 @@ sanctioned_divergences:
       revisited with the fleet-template-membership question (the hub's own .vscode entry
       carries the same 2026-08-13 review_date).
     review_date: 2026-08-13
+
+  # --- [COLORS] declared-interim adoption (2026-07-22 operator GO) ---------------------
+  - component: vscode-boundary-decoration
+    reason: >-
+      DECLARED-UNTIL-MECHANISM: ai-council carries the hub's .vscode boundary decoration
+      (settings.json highlight keys + extensions.json recommendation for
+      fabiospampinato.vscode-highlight) MANUALLY, ahead of the editor-config carrier --
+      hub deploy/manifest-v1.4.0.yaml declares the component but implemented: false (no
+      write-through mechanism exists; hub #371 owns the consumer leg, vehicle gated on
+      the buy-vs-build fleet-template ADR). Adopted 2026-07-22 per operator GO (clause
+      (f): the owner=hub grey / owner=repo navy boundary must be VISIBLE in the
+      consumer, hub [#352] spec followed verbatim). Merged into the consumer-authored
+      settings.json per ADR-93 -- files.watcherExclude preserved, no clobber; hub
+      repo-personal keys deliberately NOT copied. Sibling of the broader `.vscode`
+      surface entry above (which owns the e1 tracks-vscode-at-all question). RETIRE this
+      entry when the carrier ships and takes ownership of the file -- the review_date is
+      the trigger so the interim cannot become silently permanent.
+    review_date: 2026-10-22

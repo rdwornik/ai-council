@@ -1,5 +1,35 @@
 {
+  "//": "SHARED FLEET CONFIGURATION -- the #312/#352 methodology-boundary decoration, adopted DECLARED-INTERIM ahead of the hub editor-config carrier (hub deploy/manifest-v1.4.0.yaml component `vscode-boundary-decoration`, implemented: false -- no write-through mechanism exists yet; hub #371 owns the consumer leg). Source: hub .vscode/settings.json; declared in this repo's .methodology.yaml. Do not add machine-local settings here. Hub repo-personal keys are deliberately NOT copied (the hub file's //repo-personal marker forbids propagation).",
+
   "files.watcherExclude": {
     "**/.claude/worktrees/**": true
+  },
+
+  "//boundary": "Background decoration of the #312 Form-A methodology boundary. owner=hub regions paint GREY, owner=repo regions paint NAVY, tuned for a dark theme (hub [#352] -- follow the ticket, colours are not re-decided here). The regions are keyed on the MARKER vocabulary (<!-- methodology:start id=... owner=hub|repo -->), the single source of truth. Requires the recommended extension in .vscode/extensions.json; VS Code core cannot paint arbitrary line ranges from settings alone.",
+
+  "highlight.regexFlags": "gm",
+  "highlight.regexes": {
+    "((?:^> \\*\\*\\[HUB - methodology\\]\\*\\* region `[a-z0-9-]+` - [^\\n]*\\n)?^<!--[ \\t]*methodology:start[ \\t]+id=([a-z0-9-]+)[ \\t]+owner=hub(?:[ \\t]+v=\\S+)?[ \\t]*-->[\\s\\S]*?^<!--[ \\t]*methodology:end[ \\t]+id=\\2[ \\t]*-->$)": {
+      "filterFileRegex": ".*(CLAUDE\\.md|[\\\\/]\\.claude[\\\\/].*\\.md)$",
+      "decorations": [
+        {
+          "backgroundColor": "rgba(140,140,140,0.16)",
+          "isWholeLine": true,
+          "overviewRulerColor": "rgba(140,140,140,0.70)",
+          "overviewRulerLane": 2
+        }
+      ]
+    },
+    "((?:^> \\*\\*\\[REPO - local\\]\\*\\* region `[a-z0-9-]+` - [^\\n]*\\n)?^<!--[ \\t]*methodology:start[ \\t]+id=([a-z0-9-]+)[ \\t]+owner=repo(?:[ \\t]+v=\\S+)?[ \\t]*-->[\\s\\S]*?^<!--[ \\t]*methodology:end[ \\t]+id=\\2[ \\t]*-->$)": {
+      "filterFileRegex": ".*(CLAUDE\\.md|[\\\\/]\\.claude[\\\\/].*\\.md)$",
+      "decorations": [
+        {
+          "backgroundColor": "rgba(38,79,140,0.30)",
+          "isWholeLine": true,
+          "overviewRulerColor": "rgba(38,79,140,0.85)",
+          "overviewRulerLane": 2
+        }
+      ]
+    }
   }
 }

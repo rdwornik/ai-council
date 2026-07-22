@@ -1,0 +1,7 @@
+{
+  "//": "SHARED FLEET CONFIGURATION -- hub-owned, carried to consumers (hub deploy manifest component `vscode-boundary-decoration`; adopted DECLARED-INTERIM here, see .methodology.yaml).",
+  "//boundary": "vscode-highlight renders the owner=hub / owner=repo background bands configured in settings.json. VS Code core has no mechanism to paint arbitrary line ranges from settings alone, so the decoration needs this extension; without it the file degrades to plain markdown (the generated headers stay readable).",
+  "recommendations": [
+    "fabiospampinato.vscode-highlight"
+  ]
+}
