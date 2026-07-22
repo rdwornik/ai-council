@@ -96,7 +96,8 @@ Known-correct deselections confirmed: 5 envcheck + 1 billed integration; markers
 
 ## 6. LANDING VERIFICATION
 
-Recorded after the final commit (see JOURNAL-adjacent note in the batch transcript):
-- `python scripts/validate_audit_casing.py` · `python scripts/validate_sealed_keys.py` · `python scripts/validate_docs_registry.py` · `python scripts/validate_backlog.py BACKLOG.md` — exit codes reported in the batch close-out.
-- Full unit suite re-run — collected count vs floor 825 (818 passed + 1 xfailed + 6 deselected) — reported in the batch close-out.
+Close-out (2026-07-23, after final commit):
+- Validators: `validate_audit_casing.py` exit **0** · `validate_sealed_keys.py` exit **0** · `validate_docs_registry.py` exit **0** · `validate_backlog.py BACKLOG.md` exit **0** (OK: 7 themes, 13 stories, 49 tasks, 0 warnings).
+- Full unit suite: **825 collected — 818 passed, 1 xfailed, 6 deselected** (floor met exactly) in **59.36s** serial.
+- **Measurement caveat, recorded for honesty:** the 139.94s "before" number in §4 was taken while four codex scan processes ran concurrently (CPU contention), so the raw before/after delta overstates the healthcheck fix. The uncontaminated attributable saving is the test's own measured call duration: 30.07s → ~0.05s. Uncontended serial baseline going forward: **59.36s**; xdist `-n auto` reference point: 35.76s (itself measured under the same contention, so likely also pessimistic).
 - Working tree clean; branch NOT merged, NOT pushed.
