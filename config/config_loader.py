@@ -131,6 +131,20 @@ class CruxCheckConfig:
 
 
 @dataclass
+class BoostConfig:
+    """The `council boost` input stage (Unit 2 P1, ADR-11 boost→decide chain).
+
+    Both prompts are cheap single calls in the detect_mode shape. Their output is
+    ADVISORY (hybrid gate posture): classification is validated by a deterministic
+    heuristic, and the decompose answer must pass boost.py's hard verbatim gate.
+    """
+
+    classify_prompt: str
+    decompose_prompt: str
+    timeout_sec: float = 20.0
+
+
+@dataclass
 class AppConfig:
     defaults: DefaultsConfig
     models: dict[str, ModelConfig]
@@ -146,6 +160,8 @@ class AppConfig:
     research: ResearchConfig | None = None
     # #18 bounded crux check; None when the section is absent → the step is simply not built.
     crux_check: CruxCheckConfig | None = None
+    # Unit 2 P1 boost stage; None when the section is absent → `council boost` fails loud.
+    boost: BoostConfig | None = None
     dev_root: Path | None = None
     target_projects: list[str] = field(default_factory=list)
     # Raw RunPolicy `policy:` block (B7); None when absent → RunPolicy code defaults apply.
@@ -333,6 +349,11 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
     if "crux_check" in raw:
         crux_check = _load_crux_check_config(raw["crux_check"] or {})
 
+    # Parse boost config (optional section; absent → `council boost` fails loud)
+    boost: BoostConfig | None = None
+    if "boost" in raw:
+        boost = _load_boost_config(raw["boost"] or {})
+
     # Parse target_projects (new schema per ADR-43 amendment cycle 1, 2026-05-11):
     # dev_root + list of project names; paths computed at resolve time.
     raw_tp = raw.get("target_projects", [])
@@ -395,6 +416,7 @@ def load_config(settings_path: Path = _SETTINGS_PATH) -> AppConfig:
         persona_mode_directives=persona_mode_directives,
         research=research,
         crux_check=crux_check,
+        boost=boost,
         dev_root=dev_root,
         target_projects=target_projects,
         policy=policy,
@@ -408,6 +430,20 @@ def _load_crux_check_config(raw: dict) -> CruxCheckConfig:
         budget_sec=float(raw.get("budget_sec", 90.0)),
         injection_header=str(raw.get("injection_header", "")),
         extraction_prompt=str(raw.get("extraction_prompt", "")),
+    )
+
+
+def _load_boost_config(raw: dict) -> BoostConfig:
+    """Parse the boost: section of settings.yaml (Unit 2 P1). Fails loud on a
+    missing prompt — a boost section without its prompts is a config error, not
+    a silent heuristic-only downgrade."""
+    missing = [k for k in ("classify_prompt", "decompose_prompt") if not str(raw.get(k, "")).strip()]
+    if missing:
+        raise ValueError(f"boost: section is missing required prompt(s): {missing}")
+    return BoostConfig(
+        classify_prompt=str(raw["classify_prompt"]),
+        decompose_prompt=str(raw["decompose_prompt"]),
+        timeout_sec=float(raw.get("timeout_sec", 20.0)),
     )
 
 

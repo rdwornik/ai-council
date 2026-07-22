@@ -18,6 +18,7 @@ from rich.logging import RichHandler
 if TYPE_CHECKING:
     from ai_council.research.models import MergedResearchReport
 
+from ai_council.boost import BoostError, boost_question, derive_slug
 from ai_council.healthcheck import run_health_checks
 from ai_council.inbox import archive_file, clean_slug, ensure_dirs, parse_file, scan_downloads_folder, scan_inbox
 from ai_council.mode_detector import detect_mode
@@ -936,7 +937,66 @@ def boost(
     ``council --file <brief>`` yourself. Exit codes per ADR-08: 0 success,
     1 unusable input, 3 degraded-but-complete (e.g. the classifier fell back).
     """
-    raise NotImplementedError("Unit 2 P1: not yet implemented")
+    _global_env = Path.home() / "Documents" / ".secrets" / ".env"
+    if _global_env.exists():
+        load_dotenv(_global_env, override=False)
+    load_dotenv(override=False)
+    _setup_logging(verbose)
+
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]Config error:[/bold red] {exc}")
+        sys.exit(1)
+
+    caller_meta: dict | None = None
+    if question_file:
+        try:
+            raw_text, caller_meta = parse_file(Path(question_file))
+        except Exception as exc:
+            console.print(f"[bold red]Error:[/bold red] could not parse {question_file}: {exc}")
+            sys.exit(1)
+        slug = clean_slug(Path(question_file).stem)
+    elif question:
+        raw_text = question.strip()
+        slug = derive_slug(raw_text)
+    else:
+        console.print("[bold red]Error:[/bold red] Provide a question (inline argument or --file).")
+        sys.exit(1)
+
+    if not raw_text.strip():
+        console.print("[bold red]Error:[/bold red] The question is empty — nothing to boost.")
+        sys.exit(1)
+
+    out_dir = Path(out_dir_arg).expanduser() if out_dir_arg else config.defaults.output_dir
+
+    # No health check: boost is a single cheap call, and every provider failure
+    # already degrades gracefully to the heuristic (exit 3), never crashes.
+    providers = build_all_providers(config, PROVIDER_CLASSES)
+
+    try:
+        result = asyncio.run(
+            boost_question(
+                raw_text,
+                providers=providers,
+                config=config,
+                out_dir=out_dir,
+                slug=slug,
+                caller_metadata=caller_meta,
+            )
+        )
+    except BoostError as exc:
+        console.print(f"[bold red]Boost error:[/bold red] {exc}")
+        sys.exit(1)
+
+    console.print(f"Classification: {result.classification} ({result.source_label})")
+    for path in result.briefs:
+        console.print(f"Emitted brief: {path}")
+    for advisory in result.advisories:
+        console.print(f"  advisory: {advisory}")
+    if result.degraded:
+        console.print("[yellow]Degraded-but-complete (exit 3): a fallback was used; see advisories.[/yellow]")
+    sys.exit(3 if result.degraded else 0)
 
 
 @main.command("doctor")

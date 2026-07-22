@@ -392,6 +392,39 @@ prompts:
     ## Action Items
     Concrete next steps to implement the recommended decision.
 
+# Boost stage (Unit 2 P1) — the Council's input stage (ADR-11 boost→decide chain).
+# `council boost` turns a raw, template-less question into a well-formed brief the
+# existing debate stage consumes unchanged. Both prompts are cheap single calls in the
+# detect_mode shape (cheapest provider, hard timeout, graceful heuristic fallback).
+# Gate posture is hybrid (ruled): LLM output here is ADVISORY — the classification is
+# validated by a deterministic heuristic, and the decompose answer must pass a HARD
+# verbatim-token gate (no word that the caller did not write may enter a brief).
+boost:
+  timeout_sec: 20
+  classify_prompt: |
+    Classify this raw question into exactly one commission type:
+    - decision: the asker must CHOOSE, JUDGE, or GENERATE something; a council debates and rules on it.
+    - research: the asker needs FACTS FROM THE WORLD surveyed; retrieval and sources, not reasoning.
+    - hybrid: a compound question whose research findings feed a decision.
+
+    Question: {question}
+
+    Respond with ONLY one word: decision, research, or hybrid
+  decompose_prompt: |
+    This compound question contains a research part (facts to retrieve from the world)
+    and a decision part (a choice for a council to make). Split it.
+
+    STRICT RULES:
+    - Quote ONLY words that appear in the question. Do NOT add facts, names, numbers,
+      options, or constraints that the asker did not write.
+    - Do not answer the question.
+
+    Question: {question}
+
+    Respond in exactly this form (two lines, nothing else):
+    RESEARCH: <the research part, quoted from the question>
+    DECISION: <the decision part, quoted from the question>
+
 # Bounded crux check (#18) — an UNCONDITIONAL step between Round 1 and Round 2. One LLM
 # call names the central empirical crux from the anonymized Round-1 block, a narrow headless
 # retrieval checks it, and ONE evidence artifact is injected identically into every Round-2

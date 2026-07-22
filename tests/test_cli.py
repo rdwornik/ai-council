@@ -547,11 +547,11 @@ def test_cli_multiple_target_projects(tmp_path: Path) -> None:
 
 
 def test_group_exposes_run_and_doctor() -> None:
-    """main is a group with run + doctor subcommands (A2)."""
+    """main is a group with run + doctor + boost subcommands (A2; boost per Unit 2 P1)."""
     import click
 
     assert isinstance(main, click.Group)
-    assert set(main.commands) == {"run", "doctor"}
+    assert set(main.commands) == {"run", "doctor", "boost"}
 
 
 def test_bare_question_routes_to_run(tmp_path: Path) -> None:
