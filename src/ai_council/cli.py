@@ -910,6 +910,35 @@ def run(
         sys.exit(1)
 
 
+@main.command("boost")
+@click.argument("question", required=False)
+@click.option(
+    "--file", "question_file",
+    type=click.Path(exists=True),
+    help="Read the raw question from a file instead of the inline argument. "
+         "Any council frontmatter keys the file carries pass through to the brief.",
+)
+@click.option(
+    "--out-dir", "out_dir_arg",
+    default=None,
+    help="Directory the emitted brief(s) are written to (default: ./output).",
+)
+@click.option("--verbose", is_flag=True, help="Enable DEBUG-level logging.")
+def boost(
+    question: str | None,
+    question_file: str | None,
+    out_dir_arg: str | None,
+    verbose: bool,
+) -> None:
+    """Boost a raw question into a well-formed Council brief (input stage, ADR-11).
+
+    Standalone P1 subcommand: emits the brief file(s); feed them to
+    ``council --file <brief>`` yourself. Exit codes per ADR-08: 0 success,
+    1 unusable input, 3 degraded-but-complete (e.g. the classifier fell back).
+    """
+    raise NotImplementedError("Unit 2 P1: not yet implemented")
+
+
 @main.command("doctor")
 @click.option(
     "--output", "output_path",
