@@ -58,6 +58,20 @@ after terra fixes: 818 passed / 1 xfailed / 0 failed. Unit complete; branch
 commits: `f125037` (contract red) → `850f37f` (green) → `0737234` (terra fixes) →
 journal anchors `b501c12`/`6bfac0f`/`65a9108`.
 
+**Integration + reconciliation (same day, operator-authorized):** `check.ps1` exit 0
+(818/6 deselected/1 xfailed) → merged `--no-ff` as **`3bf3ca9`**, pushed, branch
+deleted. Test arithmetic accounted: 825 = 818 + 1 xfailed (T8 pin) + 6 deselected
+(5 envcheck api-key + `test_full_debate_pipeline`); zero skips. BACKLOG [S13]
+reconciled on `chore/backlog-s13-reconcile` (`7c3f61c`, merge **`6680036`**):
+**#37 struck** — done-when verified first-hand (boost EMITS decomposition; T3/T6 +
+live witness) — residual (multi-independent-decision bundles not split in P1) in
+the grooming log; **#36 held for operator ruling** (boost supersedes the need
+functionally; the template artifact named by its done-when does not exist);
+filed **#84**/**#85** (GUIDE synthesizer staleness; rounds-pin vs ideas
+max_rounds divergence). Known blemish: the `6680036` merge message cites
+`@ 4864b70` — wrong decoration; the branch tip was `7c3f61c` (recorded here,
+not force-amended on pushed main).
+
 **Phase 3 update (same session):** terra review returned 2 CRITICAL / 3 HIGH
 (`docs/audits/2026-07-22-codex-council-boost-unit2.md`). All five reproduced as
 failing tests, then closed in `0737234`: C1 rejected-classifier-text-in-brief,
