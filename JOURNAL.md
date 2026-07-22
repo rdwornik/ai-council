@@ -58,6 +58,18 @@ after terra fixes: 818 passed / 1 xfailed / 0 failed. Unit complete; branch
 commits: `f125037` (contract red) → `850f37f` (green) → `0737234` (terra fixes) →
 journal anchors `b501c12`/`6bfac0f`/`65a9108`.
 
+**Session close (same day, operator rulings):** id-collision repaired — the two GUIDE
+tickets renumbered `#84/#85 → #86/#87` (`#84/#85` were unrecorded reservations for the
+`#110→#84` / `#128→#85` carried-hub-id renumber, ADR-41; verified first-hand — no
+reservation existed in repo or hub BACKLOG, standing **Id reservations** note added so
+it cannot recur). Task-count premise corrected: baseline was 48 not 47 (2026-07-21
+"50 → 48"); 48 −#37 +2 = 49, then −#36 +#88 = 49 — fully accounted. **#36 struck**
+(operator ruling: superseded-by-boost — caller submits, does not author); remainder
+filed as **#88** (boost invocation section in `COUNCIL_INVOCATION_CONTRACT.md`,
+distinct from #38). **[S13] retitled** "Stand up the commissioning window —
+council-side input stage + caller-facing docs". Commit `2ee2e0a`, merge **`113a1f9`**,
+pushed; validate_backlog OK (7 themes, 13 stories, 49 tasks, 0 warnings).
+
 **Integration + reconciliation (same day, operator-authorized):** `check.ps1` exit 0
 (818/6 deselected/1 xfailed) → merged `--no-ff` as **`3bf3ca9`**, pushed, branch
 deleted. Test arithmetic accounted: 825 = 818 + 1 xfailed (T8 pin) + 6 deselected
