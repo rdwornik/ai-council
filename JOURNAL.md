@@ -19,6 +19,53 @@
 
 ---
 
+### 2026-07-22 — Unit 2: `council boost` input stage — built TDD-first, terra-reviewed, chain witnessed end-to-end
+
+**Did:** Executing the Unit 2 delegation (P1 standalone subcommand) TDD-first on
+`feat/council-boost`: froze the T1–T8 acceptance contract as failing tests
+(`f125037` — 18 red for-the-right-reason + T8 xfail(strict) P2 parity pin [#69]),
+then implemented to green (`850f37f`): `src/ai_council/boost.py`
+(classify → decompose → reformulate → emit; LLM advisory, deterministic gates hard),
+`boost:` prompt block in `settings.yaml` + `BoostConfig` (crux_check pattern),
+`@main.command("boost")` registration. FR-B5 confabulation guard is architectural:
+brief bodies are caller text + fixed module constants only; the hybrid decompose
+passes a hard verbatim-token gate or degrades to full-text legs (exit 3).
+
+**Result:** Full unit suite 812 passed / 1 xfailed / 0 failed (819 collected ≥ 799
+floor, 0 collection errors); ruff + mypy clean; all four read-only validators exit 0
+(exit codes read explicitly). `test_cli.py` roster pin extended
+{run,doctor} → {run,doctor,boost}.
+
+**Changes:** `src/ai_council/boost.py` (new), `tests/test_boost.py` (new),
+`src/ai_council/cli.py` (+boost command), `config/config_loader.py` (+BoostConfig),
+`config/settings.yaml` (+boost block), `tests/test_cli.py` (roster pin).
+
+**Abandoned:** Nothing.
+
+**Next:** Phase 3 terra review (running), Phase 4 end-to-end demo (classify leg live;
+`council --file` debate leg is spend-gated — operator asked before any billed run).
+Branch held unmerged — operator is the integration gate.
+
+**Phase 4 update (same session):** end-to-end demo WITNESSED. Live boost (deepseek
+classify, $0.0001-scale): raw decision question → valid brief, gaps flagged, nothing
+invented. Live hybrid boost: classified hybrid, real decompose PASSED the span gate
+(both legs exact caller spans), 2 cross-linked sub-briefs with explicit feed order.
+Operator-authorized billed witness ($0.0507 actual): boosted brief → `council --file
+--rounds 1 --models deepseek,gemini --no-persist` → auto-detected pick → verdict +
+minority report + verdict package, exit 0. No GAP: every demo step ran. Full suite
+after terra fixes: 818 passed / 1 xfailed / 0 failed. Unit complete; branch
+`feat/council-boost` held unmerged — operator is the integration gate. Session
+commits: `f125037` (contract red) → `850f37f` (green) → `0737234` (terra fixes) →
+journal anchors `b501c12`/`6bfac0f`/`65a9108`.
+
+**Phase 3 update (same session):** terra review returned 2 CRITICAL / 3 HIGH
+(`docs/audits/2026-07-22-codex-council-boost-unit2.md`). All five reproduced as
+failing tests, then closed in `0737234`: C1 rejected-classifier-text-in-brief,
+C2 span gate replaces token-set gate (verified caller substring emitted), H1
+forced research mode post-merge, H2 partial (research briefs drop rounds;
+declined for decision briefs — canonical template + frozen T1), H3 collision
+suffix. Boost file 25 passed / 1 xfailed; ruff + mypy clean.
+
 ### 2026-07-22 — Unit 1: boost→decide chain made explicit in VISION / ARCHITECTURE / ADR-11 (governance text only)
 
 **Did:** Executed the frozen-contract doc unit (session `2026-07-21-ai-council-architect`, Unit 1):
