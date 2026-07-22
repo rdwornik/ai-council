@@ -338,6 +338,101 @@ class TestT7ExitCodes:
 
 
 # ---------------------------------------------------------------------------
+# Terra review 2026-07-22 (docs/audits/2026-07-22-codex-council-boost-unit2.md):
+# each accepted finding reproduced as a failing test before its fix.
+# ---------------------------------------------------------------------------
+
+class TestTerraFindings:
+    async def test_c1_rejected_classifier_output_never_enters_brief(self, config, tmp_path):
+        # [CRITICAL] boost.py:229 — an invalid classifier response was interpolated
+        # into the advisory block. LLM text must NEVER reach a brief unguarded.
+        result = await boost_question(
+            RAW_DECISION_NO_OPTIONS,
+            providers=_mock_llm("i recommend postgresql for this"),
+            config=config, out_dir=tmp_path, slug="c1",
+        )
+        assert result.degraded
+        body = result.briefs[0].read_text(encoding="utf-8").lower()
+        assert "postgresql" not in body, "rejected classifier text leaked into the brief"
+        assert all("postgresql" not in adv.lower() for adv in result.advisories)
+
+    async def test_c2_reordered_recombination_rejected_by_span_gate(self, config, tmp_path):
+        # [CRITICAL] boost.py:262 — the token-SET gate accepted reordered caller
+        # words (meaning-altering recombination). The gate must accept only a
+        # contiguous caller span.
+        recombined = (
+            "RESEARCH: production approaches to our billing system\n"
+            "DECISION: should we adopt zero-downtime schema migration"
+        )
+        result = await boost_question(
+            RAW_HYBRID,
+            providers=_mock_llm("hybrid", recombined),
+            config=config, out_dir=tmp_path, slug="c2",
+        )
+        assert result.degraded, "recombined (non-contiguous) parts must be rejected"
+
+    async def test_c2_accepted_parts_are_emitted_as_exact_caller_spans(self, config, tmp_path):
+        # Fix direction: emit the VERIFIED caller substring, not the model response.
+        result = await boost_question(
+            RAW_HYBRID,
+            providers=_mock_llm("hybrid", GOOD_DECOMPOSE),
+            config=config, out_dir=tmp_path, slug="c2b",
+        )
+        assert not result.degraded
+        research_body = result.briefs[0].read_text(encoding="utf-8")
+        # The exact caller substring (original chars) appears as the leg headline.
+        assert "What are the current approaches to zero-downtime schema migration in production" in research_body
+
+    async def test_h1_caller_mode_cannot_override_forced_research(self, config, tmp_path):
+        # [HIGH] boost.py:537 — caller `mode: pick` must not defeat FR-B4 routing.
+        result = await boost_question(
+            RAW_RESEARCH,
+            providers=_mock_llm("research"),
+            config=config, out_dir=tmp_path, slug="h1",
+            caller_metadata={"mode": "pick"},
+        )
+        post = frontmatter.load(str(result.briefs[0]))
+        assert post.metadata.get("mode") == "research"
+        assert any("mode" in adv for adv in result.advisories), (
+            "the dropped caller mode must be surfaced as an advisory"
+        )
+
+    async def test_h2_research_brief_carries_no_rounds_unless_caller_supplied(self, config, tmp_path):
+        # [HIGH] boost.py:543 (accepted for research briefs) — research ignores
+        # rounds; promoting the config default into frontmatter is pure noise.
+        result = await boost_question(
+            RAW_RESEARCH,
+            providers=_mock_llm("research"),
+            config=config, out_dir=tmp_path, slug="h2",
+        )
+        post = frontmatter.load(str(result.briefs[0]))
+        assert "rounds" not in post.metadata
+        assert post.metadata.get("mode") == "research"  # frontmatter still present
+
+    async def test_h3_same_second_same_slug_does_not_overwrite(self, config, tmp_path, monkeypatch):
+        # [HIGH] boost.py:500 — second-resolution names + unconditional writes
+        # could silently overwrite a prior brief.
+        class _FrozenDateTime:
+            @staticmethod
+            def now():
+                import datetime as _dt
+                return _dt.datetime(2026, 7, 22, 12, 0, 0)
+
+        monkeypatch.setattr(boost_mod, "datetime", _FrozenDateTime)
+        first = await boost_question(
+            RAW_DECISION_NO_OPTIONS, providers=_mock_llm("decision"),
+            config=config, out_dir=tmp_path, slug="h3",
+        )
+        second = await boost_question(
+            RAW_DECISION_NO_OPTIONS, providers=_mock_llm("decision"),
+            config=config, out_dir=tmp_path, slug="h3",
+        )
+        assert first.briefs[0].exists() and second.briefs[0].exists()
+        assert first.briefs[0] != second.briefs[0], "same-second boost overwrote the prior brief"
+        assert len(list(tmp_path.glob("*.md"))) == 2
+
+
+# ---------------------------------------------------------------------------
 # T8 (#69 spec, P2): --file / --inbox boost parity — pinned, NOT implemented
 # ---------------------------------------------------------------------------
 

@@ -62,14 +62,6 @@ _CONSTRAINT_KEYWORDS = (
     "no more than", "at most", "at least", "constraint", "require",
 )
 
-# Function words excluded from the verbatim gate's content-token comparison, so a
-# quoted fragment is not rejected for its glue words alone.
-_FUNCTION_WORDS = frozenset(
-    "a an and are as at be but by can could do does for from how i in is it its "
-    "of on or our should that the their them these they this to we what when "
-    "which who why will with you your".split()
-)
-
 # ---------------------------------------------------------------------------
 # Emitted-brief scaffold — ALL text the boost may add to a brief lives in the
 # module-level constants below. That is the confabulation-guard architecture:
@@ -90,15 +82,22 @@ DEGRADED_DECOMPOSE_NOTE = (
     "the panel scopes its own leg"
 )
 VERBATIM_REJECT_REASON = (
-    "the {leg} leg failed the verbatim gate (it contains words the caller did not write)"
+    "the {leg} leg failed the verbatim span gate (it is not a contiguous quote of the caller's text)"
 )
 
 # Classification source labels (mirror detect_mode's source_label contract).
+# NONE of these may interpolate model output: source labels reach the emitted
+# brief's advisory block, and LLM text must never enter a brief unguarded
+# (terra 2026-07-22 CRITICAL-1). Rejected responses are logged, not emitted.
 SOURCE_AUTO = "auto-detected via {provider}"
 SOURCE_FALLBACK_NO_PROVIDERS = "heuristic fallback — no providers available"
-SOURCE_FALLBACK_UNEXPECTED = "heuristic fallback — unexpected response '{label}' from {provider}"
+SOURCE_FALLBACK_UNEXPECTED = "heuristic fallback — unexpected classifier response from {provider}"
 SOURCE_FALLBACK_TIMEOUT = "heuristic fallback — timeout after {timeout:.0f}s"
 SOURCE_FALLBACK_ERROR = "heuristic fallback — {exc_type}"
+FORCED_MODE_NOTE = (
+    "caller-supplied mode '{mode}' conflicts with the research classification; "
+    "forced to research (FR-B4 routing)"
+)
 
 GAP_NO_OPTIONS = (
     f"{GAP_MARKER} The caller named no options. The panel must enumerate the "
@@ -229,10 +228,12 @@ async def _classify(
         label = response.content.strip().lower()
         if label in CLASSIFICATIONS:
             return label, SOURCE_AUTO.format(provider=provider.name()), False
+        # The rejected response is LOGGED only — never interpolated into the
+        # source label, which reaches the emitted brief (terra CRITICAL-1).
         logger.warning("Boost classifier returned unknown label '%s'; heuristic fallback", label)
         return (
             heuristic_classification(text),
-            SOURCE_FALLBACK_UNEXPECTED.format(label=label, provider=provider.name()),
+            SOURCE_FALLBACK_UNEXPECTED.format(provider=provider.name()),
             True,
         )
     except asyncio.TimeoutError:
@@ -255,15 +256,23 @@ async def _classify(
 # Decompose (hybrid) — LLM split points behind a HARD verbatim gate
 # ---------------------------------------------------------------------------
 
-def _tokens(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9']+", text.lower()))
-
-
-def _is_verbatim(part: str, raw: str) -> bool:
-    """HARD gate: every content token of `part` must appear in the caller's raw
-    text. A decompose answer that adds facts, names, or options fails here."""
-    content = _tokens(part) - _FUNCTION_WORDS
-    return bool(content) and content <= _tokens(raw)
+def _find_span(part: str, raw: str) -> str | None:
+    """HARD gate (terra CRITICAL-2): `part`'s token sequence must appear as a
+    CONTIGUOUS, ORDER-PRESERVING span of the caller's raw text. Returns the
+    caller's own exact substring for that span (the verified source text, which
+    is what gets emitted — never the model response), or None when no such span
+    exists. A decompose answer that adds, drops-and-recombines, or reorders
+    words fails here."""
+    part_tokens = re.findall(r"[a-z0-9']+", part.lower())
+    if not part_tokens:
+        return None
+    raw_matches = list(re.finditer(r"[A-Za-z0-9']+", raw))
+    raw_tokens = [m.group(0).lower() for m in raw_matches]
+    span_len = len(part_tokens)
+    for start in range(len(raw_tokens) - span_len + 1):
+        if raw_tokens[start:start + span_len] == part_tokens:
+            return raw[raw_matches[start].start():raw_matches[start + span_len - 1].end()]
+    return None
 
 
 def _parse_decompose(content: str) -> tuple[str, str] | None:
@@ -302,11 +311,15 @@ async def _decompose(
     if parts is None:
         return None, "malformed decompose response"
 
+    spans: list[str] = []
     for leg, part in (("research", parts[0]), ("decision", parts[1])):
-        if not _is_verbatim(part, text):
-            logger.warning("Boost decompose %s leg failed the verbatim gate; rejected", leg)
+        span = _find_span(part, text)
+        if span is None:
+            logger.warning("Boost decompose %s leg failed the verbatim span gate; rejected", leg)
             return None, VERBATIM_REJECT_REASON.format(leg=leg)
-    return parts, None
+        spans.append(span)
+    # The VERIFIED caller substrings are what flow onward — never the model text.
+    return (spans[0], spans[1]), None
 
 
 # ---------------------------------------------------------------------------
@@ -462,6 +475,36 @@ def _brief_filename(slug: str, timestamp: str, leg: str | None = None) -> str:
     return f"{base}-{leg}.md" if leg else f"{base}.md"
 
 
+def _unique_path(out_dir: Path, name: str) -> Path:
+    """Collision-safe target path (terra HIGH-3): a same-second, same-slug boost
+    gets a -v2/-v3 suffix instead of silently overwriting the prior brief.
+    Single-process CLI — a filesystem race between exists() and write is out of
+    scope for a stateless tool."""
+    path = out_dir / name
+    stem = path.stem
+    counter = 2
+    while path.exists():
+        path = out_dir / f"{stem}-v{counter}{path.suffix}"
+        counter += 1
+    return path
+
+
+def _research_metadata(
+    caller_meta: dict, advisories: list[str], config: AppConfig
+) -> dict:
+    """Frontmatter for a research(-leg) brief: mode is FORCED to research AFTER
+    the caller merge (terra HIGH-1) — a caller-supplied conflicting mode would
+    otherwise defeat FR-B4 routing. The conflict is surfaced as an advisory.
+    No rounds key unless the caller supplied one (terra HIGH-2): research
+    ignores rounds, and `mode: research` already keeps the frontmatter present."""
+    metadata = dict(caller_meta)
+    caller_mode = metadata.pop("mode", None)
+    if caller_mode is not None and resolve_mode(str(caller_mode), config.modes) != "research":
+        advisories.append(FORCED_MODE_NOTE.format(mode=caller_mode))
+    metadata["mode"] = "research"
+    return metadata
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -510,38 +553,43 @@ async def boost_question(
         else:
             research_text, decision_text = parts
 
-        research_name = _brief_filename(slug, timestamp, "1-research")
-        decision_name = _brief_filename(slug, timestamp, "2-decision")
+        # Metadata first: forcing research mode may append an advisory, and the
+        # advisory block is baked into the bodies below.
+        research_meta = _research_metadata(caller_meta, advisories, config)
+        decision_meta = {"rounds": config.defaults.rounds, **caller_meta}
+
+        research_path = _unique_path(out_dir, _brief_filename(slug, timestamp, "1-research"))
+        decision_path = _unique_path(out_dir, _brief_filename(slug, timestamp, "2-decision"))
 
         research_body = (
-            LINK_RESEARCH_LEG.format(total=2, counterpart=decision_name)
+            LINK_RESEARCH_LEG.format(total=2, counterpart=decision_path.name)
             + "\n"
             + _research_body(research_text, text, advisories)
         )
         decision_body = (
-            LINK_DECISION_LEG.format(index=2, total=2, counterpart=research_name)
+            LINK_DECISION_LEG.format(index=2, total=2, counterpart=research_path.name)
             + "\n"
             + _decision_body(decision_text, text, advisories)
         )
 
-        research_meta = {"rounds": config.defaults.rounds, **caller_meta, "mode": "research"}
-        decision_meta = {"rounds": config.defaults.rounds, **caller_meta}
-
-        research_path = out_dir / research_name
-        decision_path = out_dir / decision_name
         _emit_brief(research_body, research_meta, research_path, config, _RESEARCH_SECTIONS)
         _emit_brief(decision_body, decision_meta, decision_path, config, _DECISION_SECTIONS)
         briefs = [research_path, decision_path]
 
     elif label == "research":
-        metadata = {"rounds": config.defaults.rounds, "mode": "research", **caller_meta}
-        path = out_dir / _brief_filename(slug, timestamp)
+        metadata = _research_metadata(caller_meta, advisories, config)
+        path = _unique_path(out_dir, _brief_filename(slug, timestamp))
         _emit_brief(_research_body(text, text, advisories), metadata, path, config, _RESEARCH_SECTIONS)
         briefs = [path]
 
     else:  # decision
+        # rounds IS pinned here, deliberately: the canonical GUIDE decision
+        # template carries `rounds:` as its one frontmatter key, and T1 requires
+        # frontmatter present — no other council key is behavior-neutral
+        # (terra HIGH-2 disposition: accepted for research briefs, declined here;
+        # the ideas max_rounds=1 divergence is a template-level follow-up).
         metadata = {"rounds": config.defaults.rounds, **caller_meta}
-        path = out_dir / _brief_filename(slug, timestamp)
+        path = _unique_path(out_dir, _brief_filename(slug, timestamp))
         _emit_brief(_decision_body(text, text, advisories), metadata, path, config, _DECISION_SECTIONS)
         briefs = [path]
 
