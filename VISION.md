@@ -1,7 +1,7 @@
 ---
 version: "1.0"
 owner: rob
-last_reviewed: "2026-07-22"
+last_reviewed: "2026-07-23"
 status: active
 ---
 
@@ -17,6 +17,9 @@ raw question → a **boosted brief** (type-classified: decision / research / hyb
 debate → verdict → binding ADR. Boosting is the Council's **input stage** in that
 sequence, not a separate product and not an alternative mission; the caller is assumed
 **methodology-naive** — it submits a raw question and needs to know nothing else.
+The boost scaffolds and flags, honestly bounded: information gaps surface as advisory
+`[BOOST-GAP]` annotations for the panel to resolve — it never enumerates options or
+invents constraints the caller did not supply.
 Produces binding ADRs that govern all repos under `Dev/`. Standalone CLI tool
 consumed by other repos via the `council` entry point.
 

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-20
+last_reviewed: 2026-07-23
 status: active
 owner: Rob
 ---
@@ -214,6 +214,7 @@ Do NOT:
 - ADR-10: Output routing — local `./output/` default + `--return-dir` override; hub never a silent default (Accepted 2026-07-17)
 - ADR-11: Delegated Invocation Contract — two lanes, one machine-readable surface (`COUNCIL_INVOCATION_CONTRACT.md`) (Accepted 2026-07-05)
 - ADR-12: Provider Backend Engine — CLI-subscription seats (v1 = claude+codex) + two-lane cost policy; §5 default-flip evidence-gated (Accepted 2026-07-05)
+- ADR-13: Invocation-contract versioning — `Contract-Version: MAJOR.MINOR` on the CONTRACT; additive bumps MINOR by doc revision, breaking bumps MAJOR + requires an ADR; ratifies DRAFT-INT-2 (Accepted 2026-07-18)
 - ADR-14: ADR lifecycle states — Proposed/Accepted/Revised(dated)/Superseded + header↔index sync; ratifies DRAFT-GOV-1 (Accepted 2026-07-17)
 
 **Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**
@@ -243,9 +244,10 @@ Do NOT:
 - v2.10 (2026-07-17) — GOV-1 consolidation currency pass (#31, gate G1→G2): §11 Local ADR list extended from ADR-08 through **ADR-09/10/11/12 + ADR-14** (the roster stopped at ADR-08 while ADR-09..12 were live and ADR-14 ratified this session — the exact A2 staleness `canonical_freshness` guards). ADR-09/10 flipped `Proposed`→`Accepted` and DRAFT-GOV-1 ratified as ADR-14 (see the ADR index + `docs/intake/2026-07-17-gov1-rulings-register.md`). Genuine end-to-end re-read verified §1–§10 unchanged against live state (hooks, commands, conventions all current since the 2026-07-13 stamp); only §11 was stale. `last_reviewed` re-stamped 2026-07-17.
 - v2.11 (2026-07-19) — night-consolidation currency pass: §11's ADR-01 roster line corrected from "default gemini (Revised 2026-04-30)" to "default openai (Revised 2026-07-18)" — the synthesizer default flipped gemini→openai on 2026-07-18 (operator ruling, `docs/audits/2026-07-17-synthesizer-ruling-gemini-to-openai.md`) and ADR-01 was amended in-body, but the §11 summary still named gemini (the exact A2 staleness `canonical_freshness` guards). Verified §1–§10 unchanged against live state; only §11's ADR-01 summary was stale. `last_reviewed` re-stamped 2026-07-19. Full witness: `docs/audits/2026-07-19-night-consolidation-verification.md`.
 - v2.12 (2026-07-20) — three-lane reintegration close-out: §9's pre-commit roster gains the **two consumer-local guards Lane C shipped** — `validate-sealed-keys` (#67, with its exact-path scoped override and the explicit "not `--no-verify`" note) and `validate-docs-registry` (#68, runtime registry read from `docs/audits/README.md`, **fails CLOSED**, no scoped override, with both malfunction-recovery paths recorded). The roster had listed `validate-audit-casing`/`validate-backlog` but not these, so §9 understated the live commit-gating surface by two organs — the exact A2 staleness `canonical_freshness` guards. §1–§8 and §10–§11 re-read against live state and unchanged: no new commands, skills, or ADRs this session (the arc produced BACKLOG items and audits, deliberately no intake and no ADR — the moratorium held). `last_reviewed` re-stamped 2026-07-20. Witness: `docs/audits/2026-07-19-codex-a1-failloud-adversarial.md`, JOURNAL 2026-07-19/2026-07-20.
+- v2.13 (2026-07-23) — pre-handoff cleanup currency pass (unattended batch, Lane A): §11's local ADR roster gains the missing **ADR-13** line — invocation-contract versioning was ratified 2026-07-18 and ADR-12/ADR-14 were rostered while ADR-13 never was (the exact A2 staleness `canonical_freshness` guards; surfaced by the claim-vs-reality sweep). §1–§10 re-read against live state and unchanged: §7 commands (`session-summary`/`codex-review` user-level, `/override` repo-level, two plugin commands), §8 skills/rules, §9's 12-id pre-commit roster verified against `.pre-commit-config.yaml`, and §10's code anchors (`make_cache_key` at `merger.py:201`, `{previous_responses_anonymized}` at `settings.yaml:324`, `_anonymize_responses` at `debate.py:59`) all verified live. `last_reviewed` re-stamped 2026-07-23. Witness: `docs/audits/2026-07-22-pre-handoff-cleanup.md`.
 <!-- methodology:end id=section-history -->
 
 ---
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-23
 **Maintained by:** Rob
