@@ -54,7 +54,9 @@ Operator-authorized billed witness ($0.0507 actual): boosted brief → `council 
 --rounds 1 --models deepseek,gemini --no-persist` → auto-detected pick → verdict +
 minority report + verdict package, exit 0. No GAP: every demo step ran. Full suite
 after terra fixes: 818 passed / 1 xfailed / 0 failed. Unit complete; branch
-`feat/council-boost` held unmerged — operator is the integration gate.
+`feat/council-boost` held unmerged — operator is the integration gate. Session
+commits: `f125037` (contract red) → `850f37f` (green) → `0737234` (terra fixes) →
+journal anchors `b501c12`/`6bfac0f`/`65a9108`.
 
 **Phase 3 update (same session):** terra review returned 2 CRITICAL / 3 HIGH
 (`docs/audits/2026-07-22-codex-council-boost-unit2.md`). All five reproduced as
