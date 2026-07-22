@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-22
+last_reviewed: 2026-07-23
 status: active
 owner: Rob
 ---
@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-22` (`boost→decide chain: council boost named in Purpose as the input stage preceding the operating modes — ADR-11 amendment 2026-07-22`)
+> Last updated: `2026-07-23` (`pre-handoff claim-vs-reality reconciliation: codemap + responsibilities + layer tables gain boost/crux_check; config path corrected to repo-root config/; pre-commit roster reconciled to the live 12 hook ids; research model names reconciled to settings.yaml; invariants 1/5 reworded to match code (data shapes incl. enum/protocol; synthesizer fallback documented); local ADR span 01…14`)
 
 ## Purpose [CORE]
 
@@ -35,6 +35,8 @@ Modules (source root: `src/ai_council/`; layer per the layer model below):
 | orchestrator | orchestration | src/ai_council/orchestrator.py |
 | runner | orchestration | src/ai_council/runner.py |
 | doctor | orchestration | src/ai_council/doctor.py |
+| boost | core | src/ai_council/boost.py |
+| crux_check | core | src/ai_council/crux_check.py |
 | debate | core | src/ai_council/debate.py |
 | synthesis | core | src/ai_council/synthesis.py |
 | mode_detector | core | src/ai_council/mode_detector.py |
@@ -47,14 +49,24 @@ Modules (source root: `src/ai_council/`; layer per the layer model below):
 | metrics | foundation | src/ai_council/metrics.py |
 | healthcheck | foundation | src/ai_council/healthcheck.py |
 | policy | foundation | src/ai_council/policy.py |
-| config | foundation | src/ai_council/config/ |
+| config | foundation | config/ (repo root — top-level package, not under src/) |
 
 Dependencies (`from -> to`):
 - cli -> orchestrator
 - cli -> doctor
+- cli -> boost
 - inbox -> orchestrator
 - orchestrator -> runner
 - orchestrator -> seat_router
+- orchestrator -> crux_check
+- boost -> mode_detector
+- boost -> providers
+- boost -> config
+- crux_check -> metrics
+- crux_check -> models
+- crux_check -> providers
+- crux_check -> research
+- crux_check -> config
 - doctor -> healthcheck
 - runner -> mode_detector
 - runner -> healthcheck
@@ -77,8 +89,10 @@ Dependencies (`from -> to`):
 
 | Module | Layer | Responsibility |
 |--------|-------|----------------|
-| `cli.py` | interface | CLI entry; `@click.group` with `run` + `doctor` subcommands (`_DefaultGroup` routes bare `council "q"` → `run`); Click args → RunRequest; health-check gate; **one** output-destination resolver shared by `run` + `doctor` (`--output` > `--no-persist` > `AICOUNCIL_OUTPUT_DIR` > config); boundary handlers that turn a required-write failure into a clean non-zero exit |
+| `cli.py` | interface | CLI entry; `@click.group` with `run` + `boost` + `doctor` subcommands (`_DefaultGroup` routes bare `council "q"` → `run`); Click args → RunRequest; health-check gate; **one** output-destination resolver shared by `run` + `doctor` (`--output` > `--no-persist` > `AICOUNCIL_OUTPUT_DIR` > config); boundary handlers that turn a required-write failure into a clean non-zero exit |
 | `inbox.py` | interface | File-based batch input; YAML frontmatter; archive |
+| `boost.py` | core | `council boost` input stage (ADR-11 boost→decide chain): raw methodology-naive question → type-classified brief (decision/research/hybrid); deterministic scaffolding — brief body is caller text + fixed template constants only; gaps become advisory `[BOOST-GAP]` flags; never enumerates options/constraints the caller did not supply |
+| `crux_check.py` | core | Bounded crux check between Round 1 and Round 2 (#18): one LLM call names the central empirical crux from the anonymized Round-1 block, headless retrieval checks it, one evidence artifact injected into Round-2 prompts; never raises into the debate (CruxStatus: grounded / no_empirical_crux / retrieval_unavailable) |
 | `orchestrator.py` | orchestration | CouncilRunner; debate lifecycle coordinator |
 | `runner.py` | orchestration | Panel selection; provider init; mode resolution |
 | `doctor.py` | orchestration | `council doctor` liveness + config truth table (GREEN/YELLOW/RED over keys/seats/config); advisory-only (never blocks a run); writes `output/health/doctor-*.json` (#25/ADR-08 exit convention) |
@@ -113,7 +127,7 @@ Layers (dependency order; `output` is cross-cutting, written by `core`):
 |---|---|
 | interface | cli, inbox |
 | orchestration | orchestrator, runner, doctor |
-| core | debate, synthesis, mode_detector, seat_router, providers, research |
+| core | boost, crux_check, debate, synthesis, mode_detector, seat_router, providers, research |
 | foundation | models, metrics, healthcheck, policy, config |
 | output (cross-cutting) | output, routing |
 
@@ -133,7 +147,7 @@ Layer edges (`from -> to`):
 |-------|---------|
 | `interface` | `cli.py`, `inbox.py` |
 | `orchestration` | `orchestrator.py`, `runner.py`, `doctor.py` |
-| `core` | `debate.py`, `synthesis.py`, `mode_detector.py`, `seat_router.py`, `providers/`, `research/` |
+| `core` | `boost.py`, `crux_check.py`, `debate.py`, `synthesis.py`, `mode_detector.py`, `seat_router.py`, `providers/`, `research/` |
 | `foundation` | `models.py`, `metrics.py`, `healthcheck.py`, `policy.py`, `config/` |
 | `output` (cross-cutting) | `output.py`, `routing.py` |
 
@@ -141,11 +155,11 @@ Utility-exemption modules (importable from any layer): none.
 
 ### Invariants
 
-1. `models.py` contains no logic — pure dataclasses only; the sole source of shared data shapes across all layers.
+1. `models.py` contains no behaviour — pure data shapes only (dataclasses, the `CruxStatus` enum, the `CruxChecker` protocol, status-string constants); the sole source of shared data shapes across all layers.
 2. `cli.py` performs no business logic — it translates CLI arguments into a `RunRequest` and immediately delegates to `CouncilRunner`.
 3. Config strings (model names, prompts, personas, cost rates) are defined solely in `config/settings.yaml` — none hard-coded in Python source.
 4. `_anonymize_responses()` in `debate.py` is the sole implementation of blind voting (ADR-03); its shuffle order is part of the contract and must not be altered without an ADR.
-5. The synthesizer is a non-participating observer — it receives the full transcript but does not vote in debate rounds, and must not be a member of the debating panel.
+5. The synthesizer is a non-participating observer — it receives the full transcript but does not vote in debate rounds, and must not be a member of the debating panel, except the documented last-resort fallback: when no non-panel provider is available, `pick_synthesizer()` returns a panel member flagged `is_participant=True` (see Key Design Decisions).
 6. The research subsystem (`research/`) is an isolated code path — features added to interactive debate mode are not automatically available to research mode; they must be explicitly mirrored.
 7. All mutable session state flows through `DebateResult` and `RunRequest` dataclasses — provider implementations are stateless between calls.
 
@@ -236,10 +250,10 @@ Opt-in, per-invocation mirroring of debate transcripts to named target project d
 | Provider | Env var | Default | `--deep` only | Notes |
 |----------|---------|---------|--------------|-------|
 | `perplexity` | `PERPLEXITY_API_KEY` | yes | no | sonar-pro; OpenAI-compatible |
-| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-reasoning; Responses API; unique X/Twitter signal |
-| `openai_mini` | `OPENAI_API_KEY` | yes | no | o4-mini-deep-research; Responses API |
+| `grok` | `XAI_API_KEY` | yes | no | grok-4.20-0309-reasoning; Responses API; unique X/Twitter signal |
+| `openai_mini` | `OPENAI_API_KEY` | yes | no | gpt-5.4-mini + web_search (Responses API; migrated off o4-mini-deep-research 2026-05-18) |
 | `gemini` | `GEMINI_API_KEY` | yes | no | Interactions API; autonomous agent; ~5-20 min |
-| `openai_deep` | `OPENAI_API_KEY` | no | yes | o3-deep-research; ~45 min timeout |
+| `openai_deep` | `OPENAI_API_KEY` | no | yes | gpt-5.5 + web_search, reasoning=high (Responses API; migrated off o3-deep-research 2026-05-18); ~45 min timeout |
 
 Missing API keys are silently skipped — remaining providers still run.
 
@@ -294,7 +308,7 @@ Do not create files outside these directories without updating this section.
 
 ## Authority and governance
 
-`ai-council` is a **tool repo** governed by `.dev-knowledge` (Layer-2 binding authority, ADR-31). It owns its local tool-design ADRs (`docs/decisions/ADR-01…08`) and conforms to ecosystem ADRs (naming, file lifecycle, the seven-file canonical baseline ADR-38 A6).
+`ai-council` is a **tool repo** governed by `.dev-knowledge` (Layer-2 binding authority, ADR-31). It owns its local tool-design ADRs (`docs/decisions/ADR-01…14`) and conforms to ecosystem ADRs (naming, file lifecycle, the seven-file canonical baseline ADR-38 A6).
 
 - **Conformance:** verified out-of-band, read-only, by `.dev-knowledge/scripts/audit.py` against the canonical standard. `.dev-knowledge` never writes here (Layer-2 invariant, ADR-28).
 - **Decision flow:** Council debate (this tool) → verdict → ADR authored + ratified by `.dev-knowledge` → distributed to downstream repos. Local ADRs cover only this tool's internal design.
@@ -306,7 +320,7 @@ Do not create files outside these directories without updating this section.
 
 - **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit.
 - **`tests/`** — pytest unit + integration suites. Unit suite (no API keys): `pytest tests/ -m "not integration and not envcheck"`.
-- **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · `validate-sealed-keys` (#67 — blocks a staged `SEALED-KEY*.json`; exact-path scoped override, never `--no-verify`) · `validate-docs-registry` (#68 — an unregistered new `docs/` directory blocks the commit; reads the registry from `docs/audits/README.md` at runtime and **fails CLOSED** as `GUARD MALFUNCTION`) · `validate-audit-casing` (ADR-101 R4 audit-filename casing) · `validate-backlog` (ADR-66 story-map structure) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`) and `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed).
+- **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · `validate-sealed-keys` (#67 — blocks a staged `SEALED-KEY*.json`; exact-path scoped override, never `--no-verify`) · `validate-docs-registry` (#68 — an unregistered new `docs/` directory blocks the commit; reads the registry from `docs/audits/README.md` at runtime and **fails CLOSED** as `GUARD MALFUNCTION`) · `validate-audit-casing` (ADR-101 R4 audit-filename casing) · `validate-backlog` (ADR-66 story-map structure) · `ruff` (consumer-owned lint gate, `astral-sh/ruff-pre-commit` mirror; re-activated 2026-07-12 by fleet ruling) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`), `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed), and `block-ff-push` (pre-push; refuses a direct-to-main / FF push to `main`). Twelve hook ids total — this roster mirrors `.pre-commit-config.yaml`.
 - **External conformance (read-only):** `.dev-knowledge/scripts/audit.py` — seven-file canonical baseline + structural spine (ADR-38 A6); manual `run`, no commit gating here.
 
 ---
