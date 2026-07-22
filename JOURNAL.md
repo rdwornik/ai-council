@@ -19,6 +19,33 @@
 
 ---
 
+### 2026-07-22 — Side task: landed `feat/vscode-boundary-colors` ([COLORS] declared-interim boundary decoration)
+
+**Did:** Merged `feat/vscode-boundary-colors` (tip `1d52626`) into `main` via
+`--no-ff` → `c35bc3e`, per operator side-task prompt. Additive-only diff:
+`.vscode/settings.json` highlight regexes (owner=hub grey / owner=repo navy, hub
+#352 spec; `files.watcherExclude` preserved), `.vscode/extensions.json`
+(`fabiospampinato.vscode-highlight` recommendation), `.gitignore` allow-line,
+`.methodology.yaml` declared-interim entry (`vscode-boundary-decoration`,
+review 2026-10-22).
+
+**Result:** Rendering preconditions verified in lieu of pixels (CLI cannot see
+the editor): extension installed, `filterFileRegex` matches CLAUDE.md, both
+regexes simulated against the live file — 8 hub regions + 15 repo regions match.
+CLAUDE.md opened in VS Code; window reload may be needed to pick up workspace
+`highlight.regexes`. CLAUDE.md not hand-edited.
+
+**Changes:** merge only — no working-tree authoring beyond this JOURNAL entry.
+
+**Abandoned:** Prompt steps 1/3 (commit-or-stash `feat/council-boost`, then merge
+`main` into it): the branch does not exist in this checkout (no local branch, no
+worktree) despite the prior entry recording it held unmerged — not recreated
+improvised; flagged to operator.
+
+**Next:** `main` ahead of origin (colors merge + this anchor), push pending
+operator word; operator to visually confirm grey/navy bands; resolve where
+`feat/council-boost` actually lives.
+
 ### 2026-07-22 — Unit 2: `council boost` input stage — built TDD-first, terra-reviewed, chain witnessed end-to-end
 
 **Did:** Executing the Unit 2 delegation (P1 standalone subcommand) TDD-first on
