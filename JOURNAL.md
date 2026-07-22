@@ -46,6 +46,14 @@ floor, 0 collection errors); ruff + mypy clean; all four read-only validators ex
 `council --file` debate leg is spend-gated — operator asked before any billed run).
 Branch held unmerged — operator is the integration gate.
 
+**Phase 3 update (same session):** terra review returned 2 CRITICAL / 3 HIGH
+(`docs/audits/2026-07-22-codex-council-boost-unit2.md`). All five reproduced as
+failing tests, then closed in `0737234`: C1 rejected-classifier-text-in-brief,
+C2 span gate replaces token-set gate (verified caller substring emitted), H1
+forced research mode post-merge, H2 partial (research briefs drop rounds;
+declined for decision briefs — canonical template + frozen T1), H3 collision
+suffix. Boost file 25 passed / 1 xfailed; ruff + mypy clean.
+
 ### 2026-07-22 — Unit 1: boost→decide chain made explicit in VISION / ARCHITECTURE / ADR-11 (governance text only)
 
 **Did:** Executed the frozen-contract doc unit (session `2026-07-21-ai-council-architect`, Unit 1):
