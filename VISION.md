@@ -1,7 +1,7 @@
 ---
 version: "1.0"
 owner: rob
-last_reviewed: "2026-07-19"
+last_reviewed: "2026-07-22"
 status: active
 ---
 
@@ -12,7 +12,12 @@ status: active
 ## Vision
 
 Multi-model AI debate and research tool for architectural decision-making across the dev
-ecosystem. Produces binding ADRs that govern all repos under `Dev/`. Standalone CLI tool
+ecosystem — a decision engine whose input stage is question-boosting. The full chain: a
+raw question → a **boosted brief** (type-classified: decision / research / hybrid) →
+debate → verdict → binding ADR. Boosting is the Council's **input stage** in that
+sequence, not a separate product and not an alternative mission; the caller is assumed
+**methodology-naive** — it submits a raw question and needs to know nothing else.
+Produces binding ADRs that govern all repos under `Dev/`. Standalone CLI tool
 consumed by other repos via the `council` entry point.
 
 ## Scope
