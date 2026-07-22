@@ -19,7 +19,7 @@
 
 ---
 
-### 2026-07-22 — Unit 2 (in progress): `council boost` input stage — TDD build green, terra review pending
+### 2026-07-22 — Unit 2: `council boost` input stage — built TDD-first, terra-reviewed, chain witnessed end-to-end
 
 **Did:** Executing the Unit 2 delegation (P1 standalone subcommand) TDD-first on
 `feat/council-boost`: froze the T1–T8 acceptance contract as failing tests
@@ -45,6 +45,16 @@ floor, 0 collection errors); ruff + mypy clean; all four read-only validators ex
 **Next:** Phase 3 terra review (running), Phase 4 end-to-end demo (classify leg live;
 `council --file` debate leg is spend-gated — operator asked before any billed run).
 Branch held unmerged — operator is the integration gate.
+
+**Phase 4 update (same session):** end-to-end demo WITNESSED. Live boost (deepseek
+classify, $0.0001-scale): raw decision question → valid brief, gaps flagged, nothing
+invented. Live hybrid boost: classified hybrid, real decompose PASSED the span gate
+(both legs exact caller spans), 2 cross-linked sub-briefs with explicit feed order.
+Operator-authorized billed witness ($0.0507 actual): boosted brief → `council --file
+--rounds 1 --models deepseek,gemini --no-persist` → auto-detected pick → verdict +
+minority report + verdict package, exit 0. No GAP: every demo step ran. Full suite
+after terra fixes: 818 passed / 1 xfailed / 0 failed. Unit complete; branch
+`feat/council-boost` held unmerged — operator is the integration gate.
 
 **Phase 3 update (same session):** terra review returned 2 CRITICAL / 3 HIGH
 (`docs/audits/2026-07-22-codex-council-boost-unit2.md`). All five reproduced as
