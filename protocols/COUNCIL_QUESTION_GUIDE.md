@@ -115,7 +115,7 @@ council --target-project .dev-knowledge --target-project corp-monorepo "..."
 
 Target names must be declared in `config/settings.yaml` under `target_projects` with a single `dev_root` path. Unknown name → fail-loud at parse time, listing known names.
 
-See `README.md` Transcript Routing section for full schema and config examples.
+See `ARCHITECTURE.md` § Transcript Routing for full schema and config examples (the former `README.md` was deleted per ADR-38 A5).
 
 ---
 

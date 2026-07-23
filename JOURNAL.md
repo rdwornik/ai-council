@@ -19,6 +19,18 @@
 
 ---
 
+### 2026-07-23 — Night batch: pre-handoff repo audit + cleanup (branch `chore/pre-handoff-cleanup`, commit-and-STOP, not merged)
+
+**Did:** Unattended six-lane claim-vs-reality batch off `main` @ `8888d9e` (prompt stated base `0f1a150`; the colors merge had landed after it was written — recorded, branched from current HEAD). Read-only scans fanned out to codex (`gpt-5.6-luna` lanes A/B/C, `gpt-5.6-terra` lanes D/E; sol withdrawn per prompt), every finding re-verified first-hand before any fix — luna produced 3 false positives, all caught (`check_floor_hash.py` "missing", CLAUDE:239 path, `feedbac`-as-SHA). Four autonomous fixes committed: `31e08c7` (dead-patch healthcheck timeout test genuinely waited 30.07s — 21% of suite; `_ping_timeout` prefers `_config.timeout_sec` over the patched constant; both knobs now patched, assertions unchanged, 30.07s→0.05s), `13525b2` (ARCHITECTURE reconciled: codemap/responsibilities/layer tables gain `boost`+`crux_check`, config path corrected to repo-root `config/`, hook roster completed to the live 12 ids, o3/o4 research names → gpt-5.5/gpt-5.4-mini, invariants 1/5 reworded to match code, ADR span 01…14), `f9d6985` (VISION boost non-enumeration boundary sentence added, verified against `boost.py:102-116`; CLAUDE §11 gains the never-rostered ADR-13 + §12 v2.13; both `last_reviewed` re-stamps backed by genuine re-reads), `6eddb49` (GUIDE dangling README.md pointer → ARCHITECTURE § Transcript Routing; #86/#87 untouched). Report `83c430e`+`ea781bf` → `docs/audits/2026-07-22-pre-handoff-cleanup.md`: 15 evidence-backed proposals (top: panel-default 3-vs-5 authority conflict under #4; pytest-xdist installed-undeclared, measured 35.76s; `council-ask.ps1` referenced-by-nothing; KEY-SEALED.json invariant placement; 8 live-unfiled P1s — true accounting 16 total / 6 deliberately fixed / 2 filed, not the prompt's "9") and the 12-rule claim-vs-reality checker spec, each rule anchored to a drift found tonight.
+
+**Result:** Landing green: four read-only validators exit 0/0/0/0 (`validate_backlog`: 7 themes, 13 stories, 49 tasks, 0 warnings); full unit suite **825 collected — 818 passed, 1 xfailed, 6 deselected** (floor met exactly) in 59.36s serial. Measurement honesty recorded in the report: the 139.94s before-number was contention-skewed (four concurrent codex scans); attributable saving = the test's own 30.07s→0.05s call duration. Lane F: all four load-bearing decisions verified as tracked repo records (owner-C `boost.py:5`, ADR-95 boundary in ADR-11 amendment §(e), P2/#69 at BACKLOG:32, id reservations at BACKLOG:157; #84/#85 free). Lane B: 0 drifted-closed items; #82 premise re-verified TRUE first-hand (`metrics.py:70`).
+
+**Changes:** `tests/test_healthcheck.py`, `ARCHITECTURE.md`, `VISION.md`, `CLAUDE.md`, `protocols/COUNCIL_QUESTION_GUIDE.md`, `docs/audits/2026-07-22-pre-handoff-cleanup.md` (new), this JOURNAL entry. Branch NOT merged, NOT pushed, tree clean — operator reviews and ships.
+
+**Abandoned:** No deletions, moves, deps, or BACKLOG edits (rails; all proposed instead). GUIDE 5-panel claims left unfixed deliberately (entangled with #4). ADR-11 stamp refresh proposed as amendment marker, not made.
+
+**Next:** operator triage of the 15 proposals (report §2, ordered by leverage); next window files the 8 unfiled P1s and builds the checker from report §3.
+
 ### 2026-07-22 — Side task: landed `feat/vscode-boundary-colors` ([COLORS] declared-interim boundary decoration)
 
 **Did:** Merged `feat/vscode-boundary-colors` (tip `1d52626`) into `main` via
