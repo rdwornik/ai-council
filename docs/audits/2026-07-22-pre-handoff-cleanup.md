@@ -101,3 +101,13 @@ Close-out (2026-07-23, after final commit):
 - Full unit suite: **825 collected — 818 passed, 1 xfailed, 6 deselected** (floor met exactly) in **59.36s** serial.
 - **Measurement caveat, recorded for honesty:** the 139.94s "before" number in §4 was taken while four codex scan processes ran concurrently (CPU contention), so the raw before/after delta overstates the healthcheck fix. The uncontaminated attributable saving is the test's own measured call duration: 30.07s → ~0.05s. Uncontended serial baseline going forward: **59.36s**; xdist `-n auto` reference point: 35.76s (itself measured under the same contention, so likely also pessimistic).
 - Working tree clean; branch NOT merged, NOT pushed.
+
+---
+
+## AMENDMENT (2026-07-23, session-close archaeology) — proposal §2.1 was WRONG; rule §3.5 refined
+
+**§2.1 ("Panel-default authority conflict") is withdrawn as a false finding.** The Block-2 archaeology traced the full chain: `default_panel` has been the 3-model set since its introduction (`b513cad`, 2026-02-21, originally `["claude","gemini","deepseek"]`) and ADR-02's Revised (2026-05-11) **Implementation section explicitly documents the indirection** — "The 5-model effective default is achieved via `cli.py`: when `--lite` is not passed, `use_full_panel or not lite` evaluates to `True`, selecting `full_panel` … `default_panel` in config remains the 3-model lite set." Live code confirms: `cli.py:689` and `cli.py:812` compute `eff_full = (use_full_panel or not lite) or …`, so a bare invocation resolves to **`full_panel` (5-model)** on both the `--file` and inbox paths. Code, ADR-02, ARCHITECTURE ~189, and the GUIDE's 5-panel claims are **all mutually consistent**; this report (and the Lane A scan it verified) read `determine_panel()` + `settings.yaml` in isolation and never traced the flag. `--full` is a no-op except in the `--lite --full` combination, where it wins — consistent with "kept for backward compat."
+
+**Consequently §3 rule 5 (config-claim parity) is refined:** the checker must adjudicate doc claims against **effective flag-resolution behaviour**, never raw config key values alone — a raw-key comparison would mechanically reproduce this exact false positive. This is the batch's **fourth** scanner-class false positive, strengthening rule 12.
+
+**What genuinely remains in this area:** #4's ADR-02 amendment (overlap policy; its condition fired 2026-07-21) and ADR-02's `No open remainder` stamp — already filed. The confusing name `default_panel` (it is the *lite* set) is a naming nit, not a defect. _(Amendment is additive; §2.1 above is preserved unedited as the record of what the batch believed.)_
