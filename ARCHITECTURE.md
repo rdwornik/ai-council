@@ -7,7 +7,7 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-23` (`pre-handoff claim-vs-reality reconciliation: codemap + responsibilities + layer tables gain boost/crux_check; config path corrected to repo-root config/; pre-commit roster reconciled to the live 12 hook ids; research model names reconciled to settings.yaml; invariants 1/5 reworded to match code (data shapes incl. enum/protocol; synthesizer fallback documented); local ADR span 01…14`)
+> Last updated: `2026-07-23` (`pre-handoff claim-vs-reality reconciliation: codemap + responsibilities + layer tables gain boost/crux_check; config path corrected to repo-root config/; pre-commit roster reconciled to the live 12 hook ids; research model names reconciled to settings.yaml; invariants 1/5 reworded to match code (data shapes incl. enum/protocol; synthesizer fallback documented); local ADR span 01…14 — same-day architect repair pass: layer-edge set completed + the cli->boost interface->core edge named as an OPEN CASE (unruled, belongs with the #69/P2 wiring arc); invariants 2/3 marked target-vs-state (#92) / known-exception (#99); boost input stage added to Data Flow (separate invocation, P2 wiring pinned by the T8 strict xfail) and its council-brief-*.md landing recorded in Folder Governance; ADR-13 restored to the Governing-ADRs roster (the CLAUDE.md sibling was repaired a day earlier — live #97 rule-4 instance); stale 'pending #2' clause resolved (amendment verified landed, e3bdcc8/a854bd3)`)
 
 ## Purpose [CORE]
 
@@ -131,15 +131,41 @@ Layers (dependency order; `output` is cross-cutting, written by `core`):
 | foundation | models, metrics, healthcheck, policy, config |
 | output (cross-cutting) | output, routing |
 
-Layer edges (`from -> to`):
+Layer edges (`from -> to`) — the **complete** allowed set, enumerated against the codemap above.
+An incomplete set cannot serve as a gate, so every edge that exists in the codemap is listed here
+or is named as an open case below.
+
 - interface -> orchestration
+- orchestration -> orchestration (same-layer: `orchestrator -> runner`)
 - orchestration -> core
+- orchestration -> foundation (`doctor -> healthcheck`, `runner -> healthcheck`, `runner -> config`)
+- core -> core (same-layer)
 - core -> foundation
 - core -> output (writes via)
+- output -> output (same-layer: `output -> routing`)
 
-**Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).  
-**Config file:** N/A  
-**Where enforced:** Code review; `scripts/check.ps1` (pytest + mypy + ruff)
+**OPEN CASE — `interface -> core`, one instance: `cli -> boost`.** Introduced 2026-07-22 with the
+`council boost` input stage. It is the only edge in the codemap that skips a layer, and it is not
+in the allowed set above. Two candidate resolutions, unruled:
+
+  (a) `boost` is misclassified. Its work — selecting a cheapest provider, coordinating
+      classify → decompose → reformulate → emit — is the same shape as `runner` (panel selection,
+      provider init, mode resolution), which is **orchestration**. Reclassifying `boost` to
+      orchestration dissolves the violation with no code change.
+  (b) `interface -> core` is legitimate for single-stage commands that have no lifecycle to
+      orchestrate, and should be added to the allowed set with that scope stated.
+
+Do not resolve this by silently adding the edge. The ruling belongs with the P2 wiring arc
+(BACKLOG #69), because that arc is what decides whether boost gains an orchestration entry point.
+
+**Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).
+This is the known weak point: the codemap and this layer map are both hand-maintained, `codemap check`
+always reports a diff here and is wired to no gate (#262 gap-note), and `check.ps1` (pytest + mypy +
+ruff) does not inspect imports. Layer conformance is therefore **unverified by construction** —
+mechanisation is BACKLOG #97 rule 14 (every codemap edge must fall inside the allowed set above),
+which is why that set had to be completed first.
+**Config file:** N/A
+**Where enforced:** Code review only, pending #97.
 
 ### Module-to-layer assignment
 
@@ -157,7 +183,17 @@ Utility-exemption modules (importable from any layer): none.
 
 1. `models.py` contains no behaviour — pure data shapes only (dataclasses, the `CruxStatus` enum, the `CruxChecker` protocol, status-string constants); the sole source of shared data shapes across all layers.
 2. `cli.py` performs no business logic — it translates CLI arguments into a `RunRequest` and immediately delegates to `CouncilRunner`.
+   **STATUS: TARGET, not current state (BACKLOG #92).** `cli.run()` is currently ~196 statements
+   (cyclomatic complexity ~50) and performs provider loading, the health-check gate, mode resolution
+   and research dispatch; the module-responsibility table above records three of these deliberately.
+   The invariant is retained as the goal rather than reworded to match the code — #92 is the refactor
+   that makes it true. Do not cite this invariant as a description of today's `cli.py`.
 3. Config strings (model names, prompts, personas, cost rates) are defined solely in `config/settings.yaml` — none hard-coded in Python source.
+   **Known exception, unresolved:** two research providers carry constructor fallback defaults
+   (`research/providers/openai_deep_research.py` and `openai_mini_research.py`). Either the fallbacks
+   are stripped, or this invariant is scoped to runtime-selected values; the choice is un-made and
+   sits in the un-triaged proposal set (BACKLOG #99). Until then this invariant is true of
+   runtime selection and false of constructor defaults.
 4. `_anonymize_responses()` in `debate.py` is the sole implementation of blind voting (ADR-03); its shuffle order is part of the contract and must not be altered without an ADR.
 5. The synthesizer is a non-participating observer — it receives the full transcript but does not vote in debate rounds, and must not be a member of the debating panel, except the documented last-resort fallback: when no non-panel provider is available, `pick_synthesizer()` returns a panel member flagged `is_participant=True` (see Key Design Decisions).
 6. The research subsystem (`research/`) is an isolated code path — features added to interactive debate mode are not automatically available to research mode; they must be explicitly mirrored.
@@ -168,6 +204,33 @@ Utility-exemption modules (importable from any layer): none.
 ---
 
 ## Data Flow
+
+**Input stage (separate invocation, ADR-11 amendment 2026-07-22).** `council boost` is a
+distinct subcommand that runs *before* and *outside* the pipeline below:
+
+```
+raw methodology-naive question (arg or --file)
+       |
+boost.py: classify (decision / research / hybrid) via one cheap LLM call
+       |
+       +-- hybrid: decompose into <=3 linked sub-briefs (research leg may feed a decision leg);
+       |           split points must be a contiguous span of the caller's own text, else the
+       |           legs fall back to full text and the run exits 3 (degraded)
+       |
+reformulate: brief body = caller text + fixed template constants ONLY; information gaps become
+             advisory `[BOOST-GAP]` annotations; no option or constraint the caller did not
+             supply is ever introduced (ADR-11 amendment (e) / hub ADR-95 boundary)
+       |
+emit `council-brief-*.md` with frontmatter written via `frontmatter.dumps()`
+       |
+   >>> the CALLER then invokes `council --file <brief>` itself <<<
+```
+
+**Not yet wired in.** Phase P1 shipped `boost` as a standalone subcommand only. Wiring it into
+`run --file` / `--inbox` is Phase P2 and is deliberately deferred so that the inbox/CLI parity
+defect (BACKLOG #69) is closed as one atomic unit rather than inherited by a new surface. The
+constraint is pinned mechanically by a strict `xfail` in `tests/test_boost.py` (T8), which will
+error the suite the moment wiring lands without parity.
 
 End-to-end debate pipeline:
 
@@ -202,7 +265,7 @@ Research mode branches at step 2: `research/runner.py` → cache check → paral
 
 - **Panel system**: `determine_panel()` in `runner.py`; `--models` wins over `--full`/`--lite` wins over default. Full 5-model panel is the default; `--lite` uses 3-model panel; `--full` is a no-op kept for backward compat.
 - **Blind voting**: `_anonymize_responses()` shuffles + labels as "Proposal A/B/C"; provider names hidden during critique rounds (ADR-03).
-- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default `openai` (ratified 2026-07-18; was `gemini` — ADR-01 amendment text pending #2); falls back with `is_participant=True` if none available. Always API-lane (synthesizer-never-CLI guard).
+- **Non-participating synthesizer**: `pick_synthesizer()` picks a model outside the panel; default `openai` (ratified 2026-07-18; was `gemini`, ADR-01 amended); falls back with `is_participant=True` if none available. Always API-lane (synthesizer-never-CLI guard).
 - **Config source of truth**: All model strings, timeouts, max_tokens, prompts, personas in `config/settings.yaml` — none hard-coded.
 - **Graceful degradation**: Round 2+ all-fail → `DebateOutcome(degraded=True)` with partial rounds; round 1 all-fail → `RuntimeError`.
 - **Research mode**: Separate code path — bypasses debate pipeline entirely; runs parallel providers via `asyncio.wait()` + progressive display; merges results; summarizes via LLM; file cache under `~/.ai-council/research_cache/` with 7-day TTL.
@@ -269,7 +332,7 @@ Missing API keys are silently skipped — remaining providers still run.
 | `scripts/` | `check.ps1` and utility scripts |
 | `protocols/` | Outward-facing invocation specs (SCREAMING_SNAKE): `COUNCIL_QUESTION_GUIDE.md`, `SYNTHESIS_QUALITY_RUBRIC.md` — ai-council's delegation surface, mirroring the hub's `protocols/` (ADR-09, local) |
 | `docs/` | `decisions/` (ADRs + `transcripts/`), `audits/` (reports; pre-ADR-34 in `audits/archive/legacy/`), `archive/` — ADR-60 child-repo taxonomy (no `handoffs/`; those centralize in `.dev-knowledge`). Invocation specs live in `protocols/`, not here (ADR-09) |
-| `output/` | Gitignored; debate transcripts, `council-verdict-*.json` verdict packages (#26), `*_metrics.json` sidecars (`seats[]`/`synthesis`), research reports, `council-minority-*` dissent artifacts (#15), and `output/health/doctor-*.json` records (#25). Canonical write; `--return-dir` additionally routes a copy (ADR-10, #13) |
+| `output/` | Gitignored; debate transcripts, `council-verdict-*.json` verdict packages (#26), `*_metrics.json` sidecars (`seats[]`/`synthesis`), research reports, `council-minority-*` dissent artifacts (#15), `output/health/doctor-*.json` records (#25), and `council-brief-*.md` boosted briefs from `council boost` (overridable per-invocation with `--out-dir`; sub-brief legs are suffixed `-1-research` / `-2-decision`, collisions with `-v2`/`-v3`). Canonical write; `--return-dir` additionally routes a copy (ADR-10, #13) |
 | `council_inbox/` | Gitignored; drop `.md` files for batch processing |
 | `LESSONS.md` | Repo-local lessons (append-only; at repo root) |
 
@@ -302,7 +365,7 @@ Do not create files outside these directories without updating this section.
 - **Append-only files.** `LESSONS.md` — never edit old entries (ADR-29). `JOURNAL.md` — newest-first prepend.
 - **Immutable dated artifacts.** ADRs, transcripts, audits — supersede via a new file or in-file marker, never edit in place.
 - **Config as source of truth.** Model strings, prompts, personas, timeouts, cost rates live solely in `config/settings.yaml` — none hard-coded (Invariant 3).
-- **Layer discipline.** interface → orchestration → core → foundation; `output` is cross-cutting. `models.py` is logic-free; `cli.py` does no business logic.
+- **Layer discipline.** interface → orchestration → core → foundation; `output` is cross-cutting. `models.py` is logic-free; `cli.py` does no business logic *(target, not current state — see Invariant 2 / #92)*. Layer conformance is convention-enforced only; see § Layer model for the complete allowed edge set and the one open case.
 
 ---
 
@@ -327,7 +390,7 @@ Do not create files outside these directories without updating this section.
 
 ## Governing ADRs
 
-- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing · ADR-11 delegated invocation contract · ADR-12 provider backend engine · ADR-14 ADR lifecycle states.
+- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing · ADR-11 delegated invocation contract · ADR-12 provider backend engine · ADR-13 invocation-contract versioning · ADR-14 ADR lifecycle states.
 - **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only LESSONS) · ADR-34 (naming) · ADR-38 (namespace + A6 seven-file baseline) · ADR-42 (handoffs centralized) · ADR-43 (transcript routing) · ADR-51 (ARCHITECTURE convention) · ADR-53 (CLAUDE.md) · ADR-59 (visual pattern) · ADR-60 (docs taxonomy) · ADR-67 (Council process operationalization).
 
 ---
