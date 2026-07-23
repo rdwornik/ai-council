@@ -23,6 +23,7 @@ dev = [
     "pytest>=9.0",         # fleet floor == [tool.pytest] minversion (ARC-4 D2)
     "pytest-asyncio>=0.24",
     "pytest-cov>=5.0",
+    "pytest-xdist>=3.8",   # dep-parity: installed 3.8.0 was undeclared (checker rule 10; 2026-07-23 session-close) — declaring, not adding
     "ruff>=0.15.5",        # fleet floor == [tool.ruff] required-version (ARC-4 leg 1)
     "mypy>=1.10",
     "types-PyYAML>=6.0",   # PyYAML ships no py.typed -> import-untyped (NOT covered by ignore_missing_imports); stub package keeps `mypy src/` clean without a per-line ignore

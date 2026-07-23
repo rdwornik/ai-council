@@ -1,6 +1,7 @@
 # ADR-11: Delegated Invocation Contract — two lanes, one machine-readable surface
 
 > **Deployment-Status (2026-07-18 inventory):** DEPLOYED — CONTRACT v1.0 (`5dd4782`); `--file` #22 + research #23 parity; open: #34, #35. _(Additive inventory stamp; body below unchanged.)_
+> **Deployment-Status refresh (2026-07-23 amendment, additive):** #35 was struck 2026-07-19 (three-lane reintegration; discharged with checker-leg evidence) — the open remainder is **#34 only** (research-path verdict parity, the earmarked Contract-Version 1.1 bump alongside #76). The 2026-07-22 boost amendment below (§Amendment) post-dates the inventory stamp above; its caller-facing invocation note is tracked as #88. _(Marker only; the 2026-07-18 stamp and the body are unchanged per CLAUDE §5.3.)_
 
 **Date:** 2026-07-05
 **Status:** Accepted (ratified 2026-07-05 — operator ratification decision; drafted 2026-07-04 in the Fable architecture audit)
