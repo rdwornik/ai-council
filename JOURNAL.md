@@ -27,7 +27,9 @@
 
 **Changes:** `ARCHITECTURE.md` (+ this entry). Branch NOT merged per commit-and-STOP; operator authorizes.
 
-**Next:** operator merge decision; fold the #97 rule-13/14 extension into the next grooming pass; the `cli -> boost` ruling rides the #69/P2 arc.
+**Next:** operator merge decision; the `cli -> boost` ruling rides the #69/P2 arc.
+
+**Addendum (same branch, pre-merge defect-close, `b946ee5`):** operator ruled the rule-14 gap closed before the merge — #97 extended 12 → 14 rules (13: ticket-reference resolution, earned by #84/#85 + `refs #96` + "pending #2" + the "#97 rule 14" forward reference itself; 14: layer-edge conformance, earned by `cli -> boost` unnoticed a day) + rule 5 refined (read the audited doc's own explanatory sections first — the panel-default FP existed because Key Design Decisions explained the indirection in the audited file). ARCHITECTURE's "rule 14" citation now resolves. E4's exit-3 claim VERIFIED CORRECT against source (`boost.py:550-552` full-text legs + degraded=True; `cli.py` `sys.exit(3 if result.degraded else 0)`; tests `test_boost.py:275/329-337/359-372`) — no doc correction needed. Layer-edge render check: 8 separate list items on disk; the joining was a diff artifact. validate_backlog OK 7/15/59.
 
 ### 2026-07-23 — Merge + record fixes (operator-approved set; branch `chore/record-fixes`)
 
