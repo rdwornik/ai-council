@@ -503,6 +503,18 @@ def _sorted_findings(results: list[RuleResult]) -> list[Finding]:
 
 def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> str:
     lines: list[str] = []
+    # KNOWN LIMITATIONS -- the checker must not overclaim about itself.
+    lines.append("KNOWN LIMITATIONS (v1):")
+    lines.append("  - R2 is precision-over-recall: the repo-rooted guard suppresses some real")
+    lines.append("    missing-path claims to kill the ecosystem-path false-positive class")
+    lines.append("    (terra H3; accepted for v1, revisit at gating promotion).")
+    lines.append("  - Negation is not parsed: a doc that asserts a path is ABSENT is still")
+    lines.append("    reported as a missing path. Known instance: .claude/skills/ and")
+    lines.append("    .claude/skills/gotchas/ (CLAUDE.md section 8) -- named, not allowlisted:")
+    lines.append("    an allowlist would hide the whole negation class.")
+    lines.append("  - Rules 5/6/9/10/11/13/14 are Unit-2 stubs and report SKIP; a clean run is")
+    lines.append("    NOT a clean repo.")
+    lines.append("")
     for r in results:
         tag = {"pass": "PASS", "fail": "FAIL", "anchor-missing": "WARN", "skipped": "SKIP"}[r.status]
         note = f"  ({r.detail})" if r.detail and r.status in ("anchor-missing", "skipped") else ""

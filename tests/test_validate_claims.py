@@ -156,6 +156,16 @@ def test_exit_code_error_is_two_and_dominates_findings():
     assert vc.exit_code(results, [("rule_9", "RuntimeError: boom")]) == 2
 
 
+def test_report_header_names_known_limitations():
+    # The checker must not overclaim about itself: the report header states R2's precision
+    # tradeoff, the unparsed-negation class (named, not allowlisted), and the Unit-2 SKIP caveat.
+    out = vc.format_report([vc.RuleResult(2, "path-existence", status="pass")], [])
+    assert "KNOWN LIMITATIONS" in out
+    assert "precision-over-recall" in out
+    assert ".claude/skills/" in out
+    assert "Unit-2 stubs" in out or "Unit-2" in out
+
+
 def test_run_all_isolates_a_crashing_leg():
     def boom(ctx):
         raise RuntimeError("leg exploded")
