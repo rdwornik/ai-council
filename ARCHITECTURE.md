@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-23
+last_reviewed: 2026-07-24
 status: active
 owner: Rob
 ---
@@ -131,9 +131,12 @@ Layers (dependency order; `output` is cross-cutting, written by `core`):
 | foundation | models, metrics, healthcheck, policy, config |
 | output (cross-cutting) | output, routing |
 
-Layer edges (`from -> to`) — the **complete** allowed set, enumerated against the codemap above.
-An incomplete set cannot serve as a gate, so every edge that exists in the codemap is listed here
-or is named as an open case below.
+Layer edges (`from -> to`) — the allowed set (**TARGET, not current state** — see the dated
+current-state note below). Enumerated against the codemap above; an incomplete set cannot serve as
+a gate, so every edge that exists *in the codemap* is listed here or is named as an open case below.
+**The set is not widened to match reality** — rewording a boundary to match a defect launders the
+defect (R1, 2026-07-24). The gap between this set and `cli.py`'s real import surface is recorded in
+the current-state note, not legalised.
 
 - interface -> orchestration
 - orchestration -> orchestration (same-layer: `orchestrator -> runner`)
@@ -158,12 +161,41 @@ in the allowed set above. Two candidate resolutions, unruled:
 Do not resolve this by silently adding the edge. The ruling belongs with the P2 wiring arc
 (BACKLOG #69), because that arc is what decides whether boost gains an orchestration entry point.
 
+**STATUS: TARGET, not current state (R1 ruling, 2026-07-24; BACKLOG #92 is the refactor that
+closes the gap).** The allowed set above is the boundary `cli.py` is held *to*, not a description of
+what it does today. Re-derived live from source via AST on 2026-07-24 (TYPE_CHECKING-guarded imports
+excluded), `cli.py` has **14 real internal module edges**: **3 fall inside the allowed set**
+(`interface -> orchestration`: `cli -> orchestrator`, `cli -> runner`, `cli -> doctor`), **1 is the
+named open case** (`cli -> boost`, above), and **10 are unaccounted** — real edges outside the
+allowed set, not yet ruled:
+
+- `interface -> interface`: `cli -> inbox`
+- `interface -> core`: `cli -> mode_detector`, `cli -> providers`, `cli -> research`
+- `interface -> foundation`: `cli -> healthcheck`, `cli -> models`, `cli -> policy`, `cli -> config`
+- `interface -> output`: `cli -> output`, `cli -> routing`
+
+These 10 are the concrete shape of Invariant 2's target-vs-state gap (`cli.run()` still does provider
+loading, health checks, mode resolution and research dispatch — #92). They are **not** added to the
+allowed set: the set stays the target, and #92's decomposition is what shrinks `cli.py`'s real
+surface toward it. Do not cite the allowed set as a description of today's `cli.py`. **Re-derive this
+note after #92 lands.**
+
+**Codemap-completeness gap (distinct from allowed-set conformance).** The Codemap block above lists
+only 3 of these 14 `cli` edges (`orchestrator`, `doctor`, `boost`), so **11 real `cli` edges are
+absent from the hand-maintained codemap** (the 10 unaccounted above plus `cli -> runner`, which is
+allowed but unmapped). Validating the map against itself would pass an omitted illegal import;
+catching that is **BACKLOG #97 rule 14 leg (b)** — every real `src/` inter-module import must appear
+in the codemap (map completeness against source). The follow-up codemap edit rides the same
+#97/#92 arc; it is **not** applied here (this pass is allowed-set-honesty only, per R1).
+
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).
 This is the known weak point: the codemap and this layer map are both hand-maintained, `codemap check`
 always reports a diff here and is wired to no gate (#262 gap-note), and `check.ps1` (pytest + mypy +
 ruff) does not inspect imports. Layer conformance is therefore **unverified by construction** —
-mechanisation is BACKLOG #97 rule 14 (every codemap edge must fall inside the allowed set above),
-which is why that set had to be completed first.
+mechanisation is BACKLOG #97 rule 14, two legs: leg (a) every codemap edge falls inside the allowed
+set above; leg (b) every real `src/` inter-module import appears in the codemap (map-vs-source, which
+de-vacuates leg (a) — an illegal import the map omits would otherwise pass). The current-state note
+above is the hand-run of leg (b) against `cli.py`.
 **Config file:** N/A
 **Where enforced:** Code review only, pending #97.
 
@@ -177,7 +209,9 @@ which is why that set had to be completed first.
 | `foundation` | `models.py`, `metrics.py`, `healthcheck.py`, `policy.py`, `config/` |
 | `output` (cross-cutting) | `output.py`, `routing.py` |
 
-Utility-exemption modules (importable from any layer): none.
+Utility-exemption modules (importable from any layer): none *(TARGET — `cli.py` currently reaches
+`foundation` directly (`models`/`policy`/`healthcheck`/`config`), per the current-state note above;
+the goal is that no module is a universal utility)*.
 
 ### Invariants
 
