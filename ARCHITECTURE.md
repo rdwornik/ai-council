@@ -191,7 +191,7 @@ in the codemap (map completeness against source). The follow-up codemap edit rid
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).
 This is the known weak point: the codemap and this layer map are both hand-maintained, `codemap check`
 always reports a diff here and is wired to no gate (#262 gap-note), and `check.ps1` (pytest + mypy +
-ruff) does not inspect imports. Layer conformance is therefore **unverified by construction** —
+ruff, plus a non-blocking #97 claim-check) does not inspect imports. Layer conformance is therefore **unverified by construction** —
 mechanisation is BACKLOG #97 rule 14, two legs: leg (a) every codemap edge falls inside the allowed
 set above; leg (b) every real `src/` inter-module import appears in the codemap (map-vs-source, which
 de-vacuates leg (a) — an illegal import the map omits would otherwise pass). The current-state note
@@ -415,7 +415,7 @@ Do not create files outside these directories without updating this section.
 
 ## Validators and enforcement
 
-- **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit.
+- **`.\scripts\check.ps1`** — the pre-merge gate: `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5); not wired to pre-commit. A non-blocking #97 claim-vs-reality report (`scripts/validate_claims.py`) also runs as a section but does not gate.
 - **`tests/`** — pytest unit + integration suites. Unit suite (no API keys): `pytest tests/ -m "not integration and not envcheck"`.
 - **Pre-commit:** `normalize-headers` (dated-log header normalization in `LESSONS.md`/`JOURNAL.md`) · `floor-hash-verify` (`.claude/CLAUDE-FLOOR.md` vs its sha256 sidecar) · `canonical_freshness` (A2 `last_reviewed` gate; FAIL blocks the commit) · `validate-sealed-keys` (#67 — blocks a staged `SEALED-KEY*.json`; exact-path scoped override, never `--no-verify`) · `validate-docs-registry` (#68 — an unregistered new `docs/` directory blocks the commit; reads the registry from `docs/audits/README.md` at runtime and **fails CLOSED** as `GUARD MALFUNCTION`) · `validate-audit-casing` (ADR-101 R4 audit-filename casing) · `validate-backlog` (ADR-66 story-map structure) · `ruff` (consumer-owned lint gate, `astral-sh/ruff-pre-commit` mirror; re-activated 2026-07-12 by fleet ruling) · hub-sourced (`repo: ../.dev-knowledge`, pinned `rev`): `toc-freshness`/`toc-generate` (`protocols/COUNCIL_QUESTION_GUIDE.md`), `backlog-id-on-close` (requires `[#id]` in the commit message when a BACKLOG task is removed), and `block-ff-push` (pre-push; refuses a direct-to-main / FF push to `main`). Twelve hook ids total — this roster mirrors `.pre-commit-config.yaml`.
 - **External conformance (read-only):** `.dev-knowledge/scripts/audit.py` — seven-file canonical baseline + structural spine (ADR-38 A6); manual `run`, no commit gating here.
