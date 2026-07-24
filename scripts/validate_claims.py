@@ -70,8 +70,10 @@ class Finding:
     reproduces: str = "stdout-contains"   # how evidence reproduces reality (see _REPRODUCES)
 
     def __post_init__(self) -> None:
-        if not self.evidence:
-            raise ValueError("Finding.evidence must be a non-empty argv (rule 12)")
+        if len(self.evidence) < 2:
+            raise ValueError(
+                "Finding.evidence must be a runner PLUS at least one argument (rule 12): a bare "
+                f"runner like {self.evidence!r} is not a runnable command")
         arg0 = self.evidence[0]
         if arg0 not in _ALLOWED_RUNNERS:
             raise ValueError(
@@ -227,7 +229,6 @@ def rule_2(ctx: RepoContext) -> RuleResult:
 
 _PRECOMMIT_CFG = ".pre-commit-config.yaml"
 _VALIDATOR_SECTION = re.compile(r"(validators|hooks active)", re.IGNORECASE)
-_BULLET_TOKEN = re.compile(r"^\s*-\s+`?([\w.-]+)`?")
 
 
 def _hook_roster_docs(ctx: RepoContext) -> list[str]:
@@ -267,33 +268,16 @@ def _id_mentioned(hook_id: str, text: str) -> bool:
     return re.search(r"(?<![\w-])" + re.escape(hook_id) + r"(?![\w-])", text) is not None
 
 
-def _leading_bullet_ids(body: list[str]) -> set[str]:
-    """Leading bullet tokens under the pre-commit sub-list (window-bounded by a
-    `.pre-commit-config.yaml` marker line when present, borrowed from #89). A `- (...)` note
-    line is skipped, not treated as the sub-list's end (that early-break dropped real ids)."""
-    marker = next((k for k, tx in enumerate(body) if "pre-commit-config.yaml" in tx.lower()), None)
-    scan = body[marker + 1:] if marker is not None else body
-    ids: set[str] = set()
-    started = False
-    for tx in scan:
-        mb = _BULLET_TOKEN.match(tx)
-        if mb:
-            ids.add(mb.group(1))
-            started = True
-        elif started and tx.strip() and not tx.lstrip().startswith("-"):
-            break
-    return ids
-
-
 def rule_3(ctx: RepoContext) -> RuleResult:
-    """Hook ids in .pre-commit-config.yaml are all NAMED in a doc's Validators/Hooks-active
-    roster, and the roster names no id absent from config.
+    """Every hook id in .pre-commit-config.yaml is DOCUMENTED in a doc that carries a
+    Validators/Hooks-active roster.
 
-    Precision-over-recall: 'config-only' (a live hook missing from the doc) is detected by
-    whole-token MENTION anywhere in the roster section -- so a multi-id bullet
-    (`toc-freshness` / `toc-generate`) or a hook named in prose is not falsely reported missing.
-    'doc-only' is limited to leading bullet tokens, so a description backtick is not mistaken
-    for a claimed hook.
+    Precision-over-recall: a hook is "documented" if its id appears as a whole token anywhere in
+    the doc -- so a multi-id bullet (`toc-freshness` / `toc-generate`) or a hook named in prose
+    is never falsely reported missing (structural leading-bullet parsing false-positived `ruff`
+    and `toc-generate` on the live CLAUDE.md). Detection and the emitted evidence use the SAME
+    whole-doc word-boundary test, so the evidence always reproduces the finding (H4). The section
+    anchor is used only to require that a roster exists (else anchor-missing) and to locate it.
     """
     if not ctx.exists(_PRECOMMIT_CFG):
         return RuleResult(3, "hook-roster-parity", status="anchor-missing",
@@ -302,26 +286,25 @@ def rule_3(ctx: RepoContext) -> RuleResult:
     findings: list[Finding] = []
     anchored = False
     for rel in _hook_roster_docs(ctx):
-        body, hl = _section_body(ctx.read(rel), _VALIDATOR_SECTION)
-        if body is None:
+        _body, hl = _section_body(ctx.read(rel), _VALIDATOR_SECTION)
+        if _body is None:
             continue
         anchored = True
-        body_text = "\n".join(body)
-        config_only = {i for i in config_ids if not _id_mentioned(i, body_text)}
-        doc_only = _leading_bullet_ids(body) - config_ids
-        if config_only or doc_only:
+        doc_text = ctx.read(rel)                 # whole doc -- matches the evidence scope (H4)
+        config_only = sorted(i for i in config_ids if not _id_mentioned(i, doc_text))
+        if config_only:
             findings.append(Finding(
                 rule_id=3,
-                claim=f"hook roster in {rel} does not match {_PRECOMMIT_CFG}",
+                claim=f"{rel} does not document every hook in {_PRECOMMIT_CFG}",
                 location=f"{rel}:{hl}",
-                reality=(f"in config but not doc: {sorted(config_only)}; "
-                         f"in doc but not config: {sorted(doc_only)}"),
+                reality=f"declared in config but not documented: {config_only}",
                 evidence=("python", "-c",
                           f"import re,pathlib; "
                           f"ids=set(re.findall(r'id:\\s*([\\w.-]+)', "
                           f"pathlib.Path({_PRECOMMIT_CFG!r}).read_text(encoding='utf-8'))); "
                           f"doc=pathlib.Path({rel!r}).read_text(encoding='utf-8'); "
-                          f"print('config-not-in-doc:', sorted(i for i in ids if i not in doc))"),
+                          f"print('config-not-documented:', sorted(i for i in ids if not "
+                          f"re.search(r'(?<![\\w-])'+re.escape(i)+r'(?![\\w-])', doc)))"),
                 reproduces="stdout-contains",
             ))
     if not anchored:
@@ -356,24 +339,25 @@ def rule_4(ctx: RepoContext) -> RuleResult:
     findings: list[Finding] = []
     anchored = False
     for rel in _adr_roster_docs(ctx):
-        body, hl = _section_body(ctx.read(rel), _ADR_SECTION)
-        if body is None:
+        _body, hl = _section_body(ctx.read(rel), _ADR_SECTION)
+        if _body is None:
             continue
         anchored = True
-        text = "\n".join(body)
-        missing = [a for a in disk_ids if not _id_mentioned(a, text)]
+        doc_text = ctx.read(rel)                 # whole doc -- matches the evidence scope (H4)
+        missing = [a for a in disk_ids if not _id_mentioned(a, doc_text)]
         if missing:
             findings.append(Finding(
                 rule_id=4,
                 claim=f"ADR roster in {rel} omits an ADR that exists on disk",
                 location=f"{rel}:{hl}",
-                reality=f"on disk but not rostered: {missing}",
+                reality=f"on disk but not documented: {missing}",
                 evidence=("python", "-c",
                           f"import re,pathlib; "
                           f"disk=sorted(re.match(r'(ADR-\\d+)', p.name).group(1) "
                           f"for p in pathlib.Path('docs/decisions').glob('ADR-*.md')); "
                           f"doc=pathlib.Path({rel!r}).read_text(encoding='utf-8'); "
-                          f"print('on-disk-not-rostered:', [a for a in disk if a not in doc])"),
+                          f"print('on-disk-not-documented:', [a for a in disk if not "
+                          f"re.search(r'(?<![\\w-])'+re.escape(a)+r'(?![\\w-])', doc)])"),
                 reproduces="stdout-contains",
             ))
     if not anchored:
@@ -397,9 +381,15 @@ def _sha_citation_docs(ctx: RepoContext) -> list[str]:
 def _reachable_full_shas(ctx: RepoContext) -> set[str]:
     """Full SHAs of every commit reachable from ANY ref (branches + tags + HEAD), in one call.
     A commit not in this set is unreachable and gc-pruned on a fresh clone (A4). Computed once,
-    not per token -- `for-each-ref --contains` per SHA was ~90s on the live JOURNAL."""
+    not per token -- `for-each-ref --contains` per SHA was ~90s on the live JOURNAL.
+
+    Raises on a git failure rather than returning empty: an empty set would make every cited SHA
+    look unreachable (or, with cat-file also failing, produce a false clean pass) -- a broken
+    query is a CHECKER ERROR (exit >=2), never silent findings or a silent pass (H1)."""
     out = ctx.git("rev-list", "--all")
-    return set(out.stdout.split()) if out.returncode == 0 else set()
+    if out.returncode != 0:
+        raise RuntimeError(f"git rev-list --all failed: {out.stderr.strip() or out.returncode}")
+    return set(out.stdout.split())
 
 
 def rule_8(ctx: RepoContext) -> RuleResult:
@@ -425,6 +415,9 @@ def rule_8(ctx: RepoContext) -> RuleResult:
     if tokens:
         query = "".join(f"{t}^{{commit}}\n" for t in tokens)
         out = ctx.git("cat-file", "--batch-check=%(objectname) %(objecttype)", input_text=query)
+        if out.returncode != 0:                   # a broken query is a checker error (H1), not "no findings"
+            raise RuntimeError(
+                f"git cat-file --batch-check failed: {out.stderr.strip() or out.returncode}")
         for tok, line in zip(tokens, out.stdout.splitlines()):
             parts = line.split()
             resolved[tok] = parts[0] if len(parts) >= 2 and parts[1] == "commit" else None
@@ -445,7 +438,9 @@ def rule_8(ctx: RepoContext) -> RuleResult:
                     location=f"{rel}:{i}",
                     reality=(f"{sha} resolves as a commit object but no branch or tag contains "
                              f"it -- it is gc-pruned on a fresh clone"),
-                    evidence=("git", "merge-base", "--is-ancestor", sha, "HEAD"),
+                    # describe --all --contains fails (exit != 0) iff no ref reaches the commit --
+                    # faithful to the any-ref claim (merge-base ..HEAD tests only HEAD's line, H5).
+                    evidence=("git", "describe", "--all", "--contains", sha),
                     reproduces="exit-nonzero",
                 ))
     if findings:

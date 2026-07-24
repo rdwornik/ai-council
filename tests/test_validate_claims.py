@@ -98,6 +98,14 @@ def test_finding_rejects_empty_evidence():
         vc.Finding(2, "c", "D:1", "r", ())
 
 
+def test_finding_rejects_bare_runner_evidence():
+    # A runner with no argument is not a runnable command (H2): ("python",) / ("git",).
+    with pytest.raises(ValueError):
+        vc.Finding(2, "c", "D:1", "r", ("python",))
+    with pytest.raises(ValueError):
+        vc.Finding(2, "c", "D:1", "r", ("git",))
+
+
 def test_finding_evidence_executes_and_reproduces(tmp_path):
     # The teeth of rule 12: a Finding's printed command is parsed back and RUN, and it
     # reproduces the reality (here, prints a token) -- verified, not promised.
@@ -501,4 +509,24 @@ def test_r8_evidence_reproduces(tmp_path, monkeypatch):
     r = vc.rule_8(vc.RepoContext(repo))
     for f in r.findings:
         res = _run_evidence(f, repo)
-        assert res.returncode == 1, f"R8 evidence should exit 1 (unreachable): {f.printed()}"
+        # `git describe --all --contains <dangling>` fails (no ref reaches it) -> any-ref
+        # reachability, faithful to the finding's claim (H5). Non-zero exit, not specifically 1.
+        assert res.returncode != 0, f"R8 evidence should fail for a dangling SHA: {f.printed()}"
+
+
+def test_r8_git_failure_is_a_checker_error_not_a_pass(tmp_path, monkeypatch):
+    # H1: a broken git query must surface as a checker ERROR (exit >=2), never a silent pass.
+    monkeypatch.setattr(vc, "_sha_citation_docs", lambda ctx: ["JOURNAL.md"])
+    repo, _, _ = _r8_repo(tmp_path, drifted=True)
+    ctx = vc.RepoContext(repo)
+    orig_git = ctx.git
+
+    def _broken(*args, **kwargs):
+        if args[:1] == ("rev-list",):
+            return subprocess.CompletedProcess(args, 128, "", "fatal: broken")
+        return orig_git(*args, **kwargs)
+
+    ctx.git = _broken
+    results, errors = vc.run_all(ctx, legs=[vc.rule_8])
+    assert errors, "a failed git query must be recorded as a checker error"
+    assert vc.exit_code(results, errors) == 2
