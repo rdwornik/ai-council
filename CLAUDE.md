@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-23
+last_reviewed: 2026-07-24
 status: active
 owner: Rob
 ---
@@ -55,7 +55,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 <!-- methodology:end id=conventions-commit-branch -->
 <!-- methodology:start id=conventions-testing-local owner=repo -->
 - **Testing:** `pytest tests/ -m "not integration and not envcheck" -v` (unit suite, no API keys); `pytest -x --tb=short` (quick); `asyncio_mode = auto` in `pyproject.toml`
-- **Linting:** `ruff check src/ tests/ --fix`; pre-merge: `.\scripts\check.ps1` (pytest + mypy + ruff)
+- **Linting:** `ruff check src/ tests/ --fix`; pre-merge: `.\scripts\check.ps1` (pytest + mypy + ruff; plus a non-blocking #97 claim-vs-reality report, `scripts/validate_claims.py`)
 
 **Out of scope for this repo:**
 - Client/pre-sales data → Obsidian vault
@@ -82,7 +82,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 6. **Keep files consistent** — ESSENTIALS summarizes PLAYBOOK, not copies it; divergence causes drift
 <!-- methodology:end id=critical-rules-consistency -->
 <!-- methodology:start id=critical-rules-local-b owner=repo -->
-7. Run `.\scripts\check.ps1` (pytest + mypy + ruff) before every merge
+7. Run `.\scripts\check.ps1` (pytest + mypy + ruff; plus a non-blocking #97 claim-check) before every merge
 8. Config strings (models, prompts, personas, timeouts) live in `config/settings.yaml` — never hardcode
 <!-- methodology:end id=critical-rules-local-b -->
 <!-- methodology:start id=critical-rules-no-leftovers owner=hub -->
@@ -107,7 +107,7 @@ If any check fails → stop and ask Rob before proceeding.
 Verify after updates: ESSENTIALS ↔ PLAYBOOK alignment; ENVIRONMENT ↔ `~/.claude/` state; SESSION_SETUP ↔ PLAYBOOK process changes; JOURNAL reflects last session.
 <!-- methodology:end id=session-start-protocol -->
 <!-- methodology:start id=session-start-protocol-local owner=repo -->
-> **Repo note (ai-council):** the collect-only sanity check (step 5) is `pytest --collect-only -q`; handoffs are read from `../.dev-knowledge/docs/handoffs/` (ADR-42). Run the full pre-merge gate `.\scripts\check.ps1` (pytest + mypy + ruff) when ready to merge (§5 item 7).
+> **Repo note (ai-council):** the collect-only sanity check (step 5) is `pytest --collect-only -q`; handoffs are read from `../.dev-knowledge/docs/handoffs/` (ADR-42). Run the full pre-merge gate `.\scripts\check.ps1` (pytest + mypy + ruff; plus a non-blocking #97 claim-check) when ready to merge (§5 item 7).
 <!-- methodology:end id=session-start-protocol-local -->
 
 ## 7. Slash commands available
@@ -156,7 +156,7 @@ Pre-commit (`.pre-commit-config.yaml`) — hub hook-source pinned `rev: v1.3.1` 
 - `backlog-id-on-close` (hub-sourced, commit-msg) — requires `[#id]` in the commit message when a `BACKLOG.md` task line is removed
 - `block-ff-push` (hub-sourced, pre-push) — refuses a direct-to-main / FF push to `main` (core-invariant #5 prevent organ, #302); a `--no-ff` merge passes. Added at the v1.3.1 carrier bump
 - (`codemap-freshness` from the hub set is intentionally NOT consumed — ai-council's codemap is hand-authored, so `codemap check` always diffs; sanctioned in `.methodology.yaml`, `hub-codemap-hooks` is waivable per manifest-v1.3.x; same exclusion as corp-monorepo)
-- `ruff` (consumer-owned, `astral-sh/ruff-pre-commit` mirror pinned `v0.15.5`, gate mode `args: []`; NOT from the hub hook-source above) — blocks a commit on any E/F/I/W lint violation (config in `pyproject.toml`). Deliberate bare `id: ruff` (no `name:`) for prune-safety, so a future hub remove-leg targeting the canonical-named stanza cannot silently delete this consumer gate. Pruned 2026-07-04 ([#244] deploy `31e785d`), then **RE-ACTIVATED 2026-07-12** by fleet ruling overriding that prune; declared in `.methodology.yaml` (`ruff-gate`). Authority = the fleet ruling; the prompt's cited "divergence-register item 9" pointer was hub-side (the hub's divergence register), mis-addressed as local. `.\scripts\check.ps1` still runs the full pytest+mypy+ruff trio pre-merge
+- `ruff` (consumer-owned, `astral-sh/ruff-pre-commit` mirror pinned `v0.15.5`, gate mode `args: []`; NOT from the hub hook-source above) — blocks a commit on any E/F/I/W lint violation (config in `pyproject.toml`). Deliberate bare `id: ruff` (no `name:`) for prune-safety, so a future hub remove-leg targeting the canonical-named stanza cannot silently delete this consumer gate. Pruned 2026-07-04 ([#244] deploy `31e785d`), then **RE-ACTIVATED 2026-07-12** by fleet ruling overriding that prune; declared in `.methodology.yaml` (`ruff-gate`). Authority = the fleet ruling; the prompt's cited "divergence-register item 9" pointer was hub-side (the hub's divergence register), mis-addressed as local. `.\scripts\check.ps1` still runs the full pytest+mypy+ruff trio pre-merge, plus a non-blocking #97 claim-vs-reality report (`scripts/validate_claims.py`) that does not gate
 
 Session hooks (`.claude/settings.json`):
 - SessionStart: `check_floor_hash.py --require-present` (floor guard) + `python -m pre_commit install` (arms the commit hooks)
@@ -164,7 +164,7 @@ Session hooks (`.claude/settings.json`):
 - The enabled `tier1-lifecycle` plugin also fires a Stop (`propose_closures`) + a SessionStart surface hook
 
 Manual pre-merge gate:
-- `.\scripts\check.ps1` — pytest + mypy + ruff (run before every merge; not wired to pre-commit)
+- `.\scripts\check.ps1` — pytest + mypy + ruff (run before every merge; not wired to pre-commit) + a non-blocking #97 claim-vs-reality report (`scripts/validate_claims.py`), which does not gate
 <!-- methodology:end id=hooks-repo-roster -->
 
 ## 10. Anti-patterns specific to Claude Code in this repo
@@ -245,9 +245,10 @@ Do NOT:
 - v2.11 (2026-07-19) — night-consolidation currency pass: §11's ADR-01 roster line corrected from "default gemini (Revised 2026-04-30)" to "default openai (Revised 2026-07-18)" — the synthesizer default flipped gemini→openai on 2026-07-18 (operator ruling, `docs/audits/2026-07-17-synthesizer-ruling-gemini-to-openai.md`) and ADR-01 was amended in-body, but the §11 summary still named gemini (the exact A2 staleness `canonical_freshness` guards). Verified §1–§10 unchanged against live state; only §11's ADR-01 summary was stale. `last_reviewed` re-stamped 2026-07-19. Full witness: `docs/audits/2026-07-19-night-consolidation-verification.md`.
 - v2.12 (2026-07-20) — three-lane reintegration close-out: §9's pre-commit roster gains the **two consumer-local guards Lane C shipped** — `validate-sealed-keys` (#67, with its exact-path scoped override and the explicit "not `--no-verify`" note) and `validate-docs-registry` (#68, runtime registry read from `docs/audits/README.md`, **fails CLOSED**, no scoped override, with both malfunction-recovery paths recorded). The roster had listed `validate-audit-casing`/`validate-backlog` but not these, so §9 understated the live commit-gating surface by two organs — the exact A2 staleness `canonical_freshness` guards. §1–§8 and §10–§11 re-read against live state and unchanged: no new commands, skills, or ADRs this session (the arc produced BACKLOG items and audits, deliberately no intake and no ADR — the moratorium held). `last_reviewed` re-stamped 2026-07-20. Witness: `docs/audits/2026-07-19-codex-a1-failloud-adversarial.md`, JOURNAL 2026-07-19/2026-07-20.
 - v2.13 (2026-07-23) — pre-handoff cleanup currency pass (unattended batch, Lane A): §11's local ADR roster gains the missing **ADR-13** line — invocation-contract versioning was ratified 2026-07-18 and ADR-12/ADR-14 were rostered while ADR-13 never was (the exact A2 staleness `canonical_freshness` guards; surfaced by the claim-vs-reality sweep). §1–§10 re-read against live state and unchanged: §7 commands (`session-summary`/`codex-review` user-level, `/override` repo-level, two plugin commands), §8 skills/rules, §9's 12-id pre-commit roster verified against `.pre-commit-config.yaml`, and §10's code anchors (`make_cache_key` at `merger.py:201`, `{previous_responses_anonymized}` at `settings.yaml:324`, `_anonymize_responses` at `debate.py:59`) all verified live. `last_reviewed` re-stamped 2026-07-23. Witness: `docs/audits/2026-07-22-pre-handoff-cleanup.md`.
+- v2.14 (2026-07-24) — #97 Unit 1 landing (claim-vs-reality checker): `scripts/validate_claims.py` (harness + rules 2/3/4/8) is surfaced as a **non-blocking** section of `.\scripts\check.ps1`. C13 same-commit reconciliation of the eight "pre-merge gate = pytest+mypy+ruff / trio" enumerations that a 4th section would leave stale (§4 Linting, §5 item 7, §6 repo-note, §9's `ruff` bullet + manual-gate line here; ARCHITECTURE §Validators + the layer-model note; CONTRIBUTING pre-merge gate) — each now names the added non-blocking claim-check, so the checker does not ship by creating the drift class it exists to catch. The gate itself is unchanged (still the trio; the claim-check never gates). `last_reviewed` re-stamped 2026-07-24.
 <!-- methodology:end id=section-history -->
 
 ---
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-07-24
 **Maintained by:** Rob

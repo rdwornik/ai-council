@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-20
+last_reviewed: 2026-07-24
 reconciled_with: handoff-process@5.7
 status: active
 owner: Rob
@@ -120,7 +120,7 @@ Pre-commit hooks (`.pre-commit-config.yaml`) — the roster is repo-local; hub-o
 | `backlog-id-on-close` | commit-msg | Requires `[#id]` / `closes [#id]` when a commit removes a `- [#id]` task (hub-sourced). |
 | `block-ff-push` | pre-push | Refuses a direct-to-`main` / true-FF push; a `--no-ff` merge passes (hub-sourced). Activate once: `pre-commit install --hook-type pre-push`. |
 
-**Pre-merge gate (manual, not wired to pre-commit):** `.\scripts\check.ps1` — `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5). Unit suite without API keys: `pytest tests/ -m "not integration and not envcheck" -v`.
+**Pre-merge gate (manual, not wired to pre-commit):** `.\scripts\check.ps1` — `pytest` + `mypy` + `ruff`. Run before every merge (CLAUDE §5). A non-blocking #97 claim-vs-reality report (`scripts/validate_claims.py`) also runs as a section but does not gate. Unit suite without API keys: `pytest tests/ -m "not integration and not envcheck" -v`.
 
 **Conformance (read-only, external):** `.dev-knowledge/scripts/audit.py` audits this repo against the canonical standard (ADR-38 A6) out-of-band; it never writes here (Layer-2 invariant, ADR-28).
 
