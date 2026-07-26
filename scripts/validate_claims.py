@@ -185,6 +185,72 @@ _R2_ALLOWLIST = (
 )
 
 
+# --- shared context predicate (#108) --------------------------------------------------------
+# ONE pure function, two consumers. Rules 2 and 8 both had the same blind spot -- they tested a
+# token and never read the sentence holding it -- so they get one shared answer rather than two
+# drifting copies of the same judgement.
+_MD_NOISE = re.compile(r"[*_`]")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.;])\s+")
+
+# Each class is deliberately TIGHT. A context predicate trades a false POSITIVE for a false
+# NEGATIVE, and here the false negative is the worse trade: an over-broad marker silently
+# suppresses real drift, which is the failure this checker exists to prevent. Widen only on a
+# witnessed instance, never speculatively -- and prefer a new narrow alternative to loosening
+# an existing one.
+_CTX_NEGATED = re.compile(
+    r"\b(?:has|have|carries|contains|holds|is|are|was|were)\s+no\b"
+    r"|\bno\s+(?:repo-level|local|such)\b"
+    r"|\b(?:absent from|does not exist|do not exist|never had|never existed|not present)\b",
+    re.IGNORECASE)
+_CTX_EXTERNAL = re.compile(
+    r"\bhub(?:'s)?\b|\.dev-knowledge\b|\bsibling repo\b|\bupstream repo\b", re.IGNORECASE)
+_CTX_HYPOTHETICAL = re.compile(
+    r"\bif added\b|\bif it existed\b|\bif ever added\b"
+    r"|\bwould\s+(?:go|live|sit|be placed|be added)\b", re.IGNORECASE)
+
+_CTX_CLASSES = (
+    ("negated", _CTX_NEGATED),
+    ("externally-attributed", _CTX_EXTERNAL),
+    ("hypothetical", _CTX_HYPOTHETICAL),
+)
+
+
+def context_withdraws_claim(line: str, span: tuple[int, int]) -> str | None:
+    """Does the prose AROUND a token withdraw the claim that it exists here, now?
+
+    PURE -- no filesystem, no git, no module state. The same (line, span) always yields the same
+    verdict. That purity is load-bearing twice: it is what makes the predicate testable in
+    isolation, and it is why two rules can share it without becoming coupled to each other.
+
+    Adjudication is scoped to the token's own SENTENCE, not its line: a line routinely holds one
+    clause that withdraws a claim and another that makes one, and line-scoping would let the
+    first silence the second.
+
+    Two consumers, same answer used differently:
+      * rule 2 -- SUPPRESSION: a path the sentence says is absent, attributes to another repo, or
+        describes hypothetically is not a false existence claim about this tree.
+      * rule 8 -- CLASSIFICATION: a SHA in a hub-attributed sentence cites another repo's
+        history, so it is not a dangling LOCAL citation. R8 acts on that class alone -- a
+        "negated" or "hypothetical" SHA is not a coherent notion, so it must not silence one.
+
+    Returns the withdrawal reason, or None when the claim stands and the rule should check it.
+    """
+    start, _ = span
+    bounds = [0] + [m.end() for m in _SENTENCE_SPLIT.finditer(line)] + [len(line)]
+    sentence = line
+    for lo, hi in zip(bounds, bounds[1:]):
+        if lo <= start < hi:
+            sentence = line[lo:hi]
+            break
+    # Emphasis and backticks are stripped before matching so `**no**` reads as `no`; the token
+    # itself is located on the RAW line, so stripping cannot shift the span.
+    probe = _MD_NOISE.sub("", sentence)
+    for name, pattern in _CTX_CLASSES:
+        if pattern.search(probe):
+            return name
+    return None
+
+
 def _canonical_docs(ctx: RepoContext) -> list[str]:
     docs = [d for d in _CANONICAL_DOCS if ctx.exists(d)]
     docs += [str(p.relative_to(ctx.root)).replace("\\", "/") for p in ctx.glob("protocols/*.md")]
@@ -217,6 +283,11 @@ def rule_2(ctx: RepoContext) -> RuleResult:
                 if _PLACEHOLDER.search(tok):         # reason: naming-convention template, not a real path
                     continue
                 if any(tok.startswith(p) for p in _R2_ALLOWLIST):
+                    continue
+                # #108: adjudicate the claim in its sentence before testing the disk. Deliberately
+                # NOT an allowlist entry -- an allowlist hides one path, this reads the prose and
+                # so handles the whole class, including instances nobody has hit yet.
+                if context_withdraws_claim(line, m.span(1)) is not None:
                     continue
                 # reason: only a REPO-ROOTED path is a claim about this tree. A token whose first
                 # segment is not an existing top-level dir (`Dev/`, `ai-council/output/`) is an
@@ -445,6 +516,13 @@ def rule_8(ctx: RepoContext) -> RuleResult:
                     continue
                 if full in reachable:       # reachable from some ref
                     continue
+                # #108, classification half: a SHA the sentence attributes to the hub cites
+                # ANOTHER repo's history, so its unreachability here is expected, not drift.
+                # Only this class counts -- a "negated" or "hypothetical" SHA is not a coherent
+                # notion, and letting those classes silence R8 would widen the predicate past
+                # what it was witnessed to need.
+                if context_withdraws_claim(line, m.span()) == "externally-attributed":
+                    continue
                 findings.append(Finding(
                     rule_id=8,
                     claim=f"SHA `{sha}` cited in {rel} is unreachable from any ref (dangling)",
@@ -528,10 +606,14 @@ def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> s
     lines.append("  - R2 is precision-over-recall: the repo-rooted guard suppresses some real")
     lines.append("    missing-path claims to kill the ecosystem-path false-positive class")
     lines.append("    (terra H3; accepted for v1, revisit at gating promotion).")
-    lines.append("  - Negation is not parsed: a doc that asserts a path is ABSENT is still")
-    lines.append("    reported as a missing path. Known instance: .claude/skills/ and")
-    lines.append("    .claude/skills/gotchas/ (CLAUDE.md section 8) -- named, not allowlisted:")
-    lines.append("    an allowlist would hide the whole negation class.")
+    lines.append("  - Context IS adjudicated (#108), in the token's own sentence, in three tight")
+    lines.append("    classes: negated ('this repo has no X'), externally-attributed ('the hub's")
+    lines.append("    X'), and hypothetical ('if added, would go under X'). R2 uses this to")
+    lines.append("    SUPPRESS, R8 to CLASSIFY hub-cited SHAs -- one shared pure predicate, so the")
+    lines.append("    two rules cannot drift apart. No path was allowlisted to achieve this.")
+    lines.append("    The classes are deliberately narrow: over-broad markers would silently")
+    lines.append("    suppress real drift, so a suppression you did not expect is a BUG, not a")
+    lines.append("    tuning opportunity. Suppressions are not currently counted in the report.")
     # Coverage denominator -- COUNTED FROM THIS RUN, never hardcoded. A hardcoded roster
     # would go stale the first time a stub is implemented, which is the exact drift class
     # this checker exists to catch. Computed, `absent` is a live number.

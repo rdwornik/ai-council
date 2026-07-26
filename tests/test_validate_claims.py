@@ -158,11 +158,16 @@ def test_exit_code_error_is_two_and_dominates_findings():
 
 def test_report_header_names_known_limitations():
     # The checker must not overclaim about itself: the report header states R2's precision
-    # tradeoff, the unparsed-negation class (named, not allowlisted), and the Unit-2 SKIP caveat.
+    # tradeoff, what context adjudication does and does not do (#108), and the coverage
+    # denominator. The old "negation is not parsed" bullet was retired when #108 landed --
+    # leaving it would have been the checker overclaiming a limitation it no longer has.
     out = vc.format_report([vc.RuleResult(2, "path-existence", status="pass")], [])
     assert "KNOWN LIMITATIONS" in out
     assert "precision-over-recall" in out
-    assert ".claude/skills/" in out
+    for cls in ("negated", "externally-attributed", "hypothetical"):
+        assert cls in out
+    # ...and it must say the suppression is not counted, so a silent suppression stays disclosed.
+    assert "Suppressions are not currently counted" in out
     # The coverage block replaced the old "Rules 5/6/... are Unit-2 stubs" line: it must
     # still carry the SKIP caveat, and now also a denominator against the 14-rule spec.
     assert "A clean run is NOT a clean repo." in out
@@ -283,6 +288,92 @@ def test_checker_mutates_nothing(tmp_path):
     vc.run_all(ctx)
     after = _manifest(repo)
     assert before == after, "checker mutated the working tree"
+
+
+# --- #108 shared context predicate -------------------------------------------
+# Fixtures are the REAL lines the two false positives came from, transcribed verbatim, so the
+# tests fail if the predicate stops handling the instances that motivated it.
+
+_CTX_NEGATED_LINE = (
+    "(`session-summary`/`codex-review` are **commands**, not skills — see §7. This repo has "
+    "**no** repo-level `.claude/skills/` directory; a repo-specific gotchas skill, if added, "
+    "would go under `.claude/skills/gotchas/`.)"
+)
+_CTX_EXTERNAL_LINE = "> Note: the hub's `protocols/AI_COUNCIL_PROCESS.md` is a **different** artifact —"
+_CTX_STANDING_LINE = (
+    "1. **`LESSONS.md` and `logs/TOKEN-LOG.md` are append-only** — never edit old entries; "
+    "only append (ADR-29, ADR-39)"
+)
+
+
+def _span_of(line: str, token: str) -> tuple[int, int]:
+    i = line.index(token)
+    return (i, i + len(token))
+
+
+def test_ctx_negation_withdraws_the_claim():
+    # "This repo has **no** repo-level `.claude/skills/` directory"
+    assert vc.context_withdraws_claim(
+        _CTX_NEGATED_LINE, _span_of(_CTX_NEGATED_LINE, ".claude/skills/`")) == "negated"
+
+
+def test_ctx_hypothetical_withdraws_the_claim():
+    # Same LINE, different SENTENCE: "if added, would go under `.claude/skills/gotchas/`".
+    # This is the case line-scoped adjudication would have gotten right by accident and
+    # sentence-scoping has to get right on purpose.
+    assert vc.context_withdraws_claim(
+        _CTX_NEGATED_LINE, _span_of(_CTX_NEGATED_LINE, ".claude/skills/gotchas/")) == "hypothetical"
+
+
+def test_ctx_external_attribution_withdraws_the_claim():
+    assert vc.context_withdraws_claim(
+        _CTX_EXTERNAL_LINE,
+        _span_of(_CTX_EXTERNAL_LINE, "protocols/AI_COUNCIL_PROCESS.md")) == "externally-attributed"
+
+
+def test_ctx_leaves_a_standing_claim_alone():
+    # The #111 line: a genuinely stale address with no withdrawal marker. The predicate must NOT
+    # swallow it -- that would convert a real finding into a silent false negative, which is the
+    # exact trade the narrow classes exist to refuse.
+    assert vc.context_withdraws_claim(
+        _CTX_STANDING_LINE, _span_of(_CTX_STANDING_LINE, "logs/TOKEN-LOG.md")) is None
+
+
+def test_ctx_is_sentence_scoped_not_line_scoped():
+    # One clause withdraws, the next asserts. Line-scoping would let the first silence the second.
+    line = "This repo has no `docs/absent/` directory. The CLI entry point is `src/x/cli.py`."
+    assert vc.context_withdraws_claim(line, _span_of(line, "docs/absent/")) == "negated"
+    assert vc.context_withdraws_claim(line, _span_of(line, "src/x/cli.py")) is None
+
+
+def test_ctx_is_pure():
+    # Same inputs, same verdict, no I/O -- purity is why two rules can share it without coupling.
+    line = _CTX_NEGATED_LINE
+    span = _span_of(line, ".claude/skills/`")
+    assert vc.context_withdraws_claim(line, span) == vc.context_withdraws_claim(line, span)
+
+
+def test_ctx_suppression_added_no_allowlist_entries():
+    # #108's done-when: both instances go silent with NO path added to the allowlist. If a future
+    # change "fixes" a context case by widening the allowlist, this fails.
+    assert vc._R2_ALLOWLIST == (
+        ".dev-knowledge/", "docs/handoffs/", "docs/decisions/transcripts/")
+
+
+def test_r2_suppresses_negated_and_hypothetical_paths(tmp_path, monkeypatch):
+    monkeypatch.setattr(vc, "_canonical_docs", lambda ctx: ["DOC.md"])
+    doc = "# DOC.md\n\n## 8. Skills\n" + _CTX_NEGATED_LINE + "\n"
+    ctx = vc.RepoContext(_r2_tree(tmp_path, doc))
+    assert vc.rule_2(ctx).status == "pass"
+
+
+def test_r8_classifies_only_on_external_attribution(tmp_path, monkeypatch):
+    # R8 must act on "externally-attributed" ALONE. A negated sentence is not a coherent way to
+    # cite a SHA, and letting it silence R8 would widen the predicate past its witnessed need.
+    hub = "the hub's commit deadbee is upstream"          # externally-attributed -> classified
+    neg = "this repo has no commit deadbee to speak of"   # negated -> must NOT silence R8
+    assert vc.context_withdraws_claim(hub, _span_of(hub, "deadbee")) == "externally-attributed"
+    assert vc.context_withdraws_claim(neg, _span_of(neg, "deadbee")) == "negated"
 
 
 # =============================================================================
