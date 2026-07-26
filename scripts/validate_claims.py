@@ -207,6 +207,99 @@ _R2_ALLOWLIST = (
     "docs/decisions/transcripts/",  # ADR-43: Council transcripts routed to the hub
 )
 
+# R2 resolution model (#116), replacing the first-segment-is-a-top-level-dir heuristic.
+#
+# Declared bases, in order. Canonical docs routinely write a path relative to a base rather than
+# to the repo root -- `research/merger.py` means src/ai_council/research/merger.py, `decisions/`
+# means docs/decisions/. The old guard read those as "first segment is not a top-level dir" and
+# skipped them, which silently suppressed 16 legitimate claims while excluding ecosystem paths
+# only as a side effect. Bases are declared, and a test asserts each one exists in the tracked
+# tree, so the base list validates itself instead of being folklore.
+_R2_BASES = (
+    "",                   # repo root
+    "src/ai_council/",    # ARCHITECTURE writes module paths relative to the package
+    "docs/",              # the docs taxonomy is written base-relative (ADR-60)
+    "docs/decisions/",    # reaches docs/decisions/transcripts/, which is hub-routed (ADR-43)
+)
+
+# Declared external prefixes -- first segments naming something OUTSIDE this repo. An EXPLICIT
+# exclusion, not an accident of a heuristic: these must be excluded because they are not claims
+# about this tree, and saying so by name is what lets the resolution model be strict everywhere
+# else.
+_R2_EXTERNAL_PREFIXES = (
+    "Dev/",           # the ecosystem root, one level ABOVE this repo
+    "ai-council/",    # this repo named from outside itself (VISION's ecosystem view)
+    "astral-sh/",     # a GitHub org/repo slug (ruff-pre-commit) -- not a filesystem path at all
+)
+
+# Declared RUNTIME paths: gitignored by design, so correctly absent from the tracked tree while
+# the docs that name them are telling the truth. Surfaced by the resolution model itself -- these
+# never reached the old guard, because they exist on disk and the old disk check passed them, so
+# no drop-set measurement could have predicted them.
+#
+# Declared rather than derived: `git check-ignore` also consults .git/info/exclude and the user's
+# global excludesfile, both untracked, which would reintroduce exactly the checkout-dependence
+# #116 exists to remove. A test asserts each entry really is gitignored AND untracked, so this
+# list self-validates the same way the base list does.
+_R2_RUNTIME_PATHS = (
+    "output/",                 # .gitignore:38 -- council run artifacts
+    "council_inbox/archive/",  # .gitignore:41 -- processed-brief archive
+)
+
+
+def _committed_paths(ctx: RepoContext) -> tuple[set[str], set[str]]:
+    """The paths in HEAD's TREE as (files, dirs). Never the disk, and never the index.
+
+    This is the whole point of #116: `Path.exists()` answers a question about the working
+    directory, so a gitignored path present as untracked debris flipped R2's verdict between
+    checkouts of the identical commit.
+
+    Reads HEAD's tree, NOT `git ls-files` (terra 2026-07-26): ls-files reports the INDEX, so a
+    staged-but-uncommitted path would satisfy a claim, and R2's verdict would still depend on
+    working state. The two agree on a clean tree -- which is exactly why the first fresh-clone
+    acceptance run passed while this was still wrong -- so the verdict is now a function of the
+    COMMIT, as claimed.
+
+    A repo with no commits yet has a genuinely empty tree; that is not a failure. Any OTHER git
+    failure raises rather than returning empty, since an empty set would make every cited path
+    look broken (H1 discipline, same as rule 8).
+    """
+    if ctx.git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        return set(), set()
+    out = ctx.git("ls-tree", "-r", "--name-only", "HEAD")
+    if out.returncode != 0:
+        raise RuntimeError(f"git ls-tree HEAD failed: {out.stderr.strip() or out.returncode}")
+    files = {line.strip() for line in out.stdout.splitlines() if line.strip()}
+    dirs: set[str] = set()
+    for f in files:
+        parts = f.split("/")
+        for k in range(1, len(parts)):
+            dirs.add("/".join(parts[:k]) + "/")
+    return files, dirs
+
+
+def _resolves_under_a_base(tok: str, files: set[str], dirs: set[str]) -> bool:
+    """Does `tok` name a tracked path under ANY declared base? A finding fires only if none do."""
+    for base in _R2_BASES:
+        cand = base + tok
+        if cand in files or cand.rstrip("/") + "/" in dirs:
+            return True
+    return False
+
+
+def _externally_routed(tok: str) -> bool:
+    """Allowlisted subtree, checked against every base expansion as well as the raw token.
+
+    ARCHITECTURE writes `handoffs/` and `transcripts/` base-relative; both name subtrees an ADR
+    routes to the hub, so they are legitimately absent here. Matching the allowlist only against
+    the root-relative form would report them as drift.
+    """
+    for base in ("", *_R2_BASES):
+        cand = base + tok
+        if any(cand.startswith(p) for p in _R2_ALLOWLIST):
+            return True
+    return False
+
 
 # --- shared context predicate (#108) --------------------------------------------------------
 # ONE pure function, two consumers. Rules 2 and 8 both had the same blind spot -- they tested a
@@ -288,6 +381,7 @@ def rule_2(ctx: RepoContext) -> RuleResult:
       * a `## ... Section history` section -- records superseded paths by design.
     """
     findings: list[Finding] = []
+    files, dirs = _committed_paths(ctx)
     for rel in _canonical_docs(ctx):
         in_historical = False
         for i, line in enumerate(ctx.read(rel).splitlines(), start=1):
@@ -305,28 +399,37 @@ def rule_2(ctx: RepoContext) -> RuleResult:
                     continue
                 if _PLACEHOLDER.search(tok):         # reason: naming-convention template, not a real path
                     continue
-                if any(tok.startswith(p) for p in _R2_ALLOWLIST):
+                # `./x` and `x` are the same claim; resolve on the normalized form but keep the
+                # token as WRITTEN for the report, so file:line and text match the doc.
+                norm = tok.removeprefix("./")
+                if _externally_routed(norm):       # hub-routed subtree (ADR-42/43), any base
                     continue
-                # #108: adjudicate the claim in its sentence before testing the disk. Deliberately
-                # NOT an allowlist entry -- an allowlist hides one path, this reads the prose and
-                # so handles the whole class, including instances nobody has hit yet.
+                if any(norm.startswith(p) for p in _R2_EXTERNAL_PREFIXES):
+                    continue                       # declared external: not a claim about this tree
+                if any(norm.startswith(p) for p in _R2_RUNTIME_PATHS):
+                    continue                       # declared runtime path: gitignored by design
+                # #108: adjudicate the claim in its sentence before resolving it. Deliberately NOT
+                # an allowlist entry -- an allowlist hides one path, this reads the prose and so
+                # handles the whole class, including instances nobody has hit yet.
                 if context_withdraws_claim(line, m.span(1)) is not None:
                     continue
-                # reason: only a REPO-ROOTED path is a claim about this tree. A token whose first
-                # segment is not an existing top-level dir (`Dev/`, `ai-council/output/`) is an
-                # ecosystem/illustrative path, not a local-existence claim -- out of scope.
-                if not (ctx.root / tok.split("/", 1)[0]).is_dir():
+                # #116: resolve against the TRACKED TREE under the declared bases. Not the disk --
+                # a disk check made the verdict depend on untracked debris, so the same commit
+                # reported differently on different checkouts.
+                if _resolves_under_a_base(norm, files, dirs):
                     continue
-                if ctx.exists(tok):
-                    continue
+                bases = ", ".join(b or "<repo root>" for b in _R2_BASES)
                 findings.append(Finding(
                     rule_id=2,
-                    claim=f"path `{tok}` does not resolve on disk",
+                    claim=f"path `{tok}` does not resolve under any declared base",
                     location=f"{rel}:{i}",
-                    reality=f"{tok} is absent from the repo tree",
-                    evidence=("python", "-c",
-                              f"import pathlib,sys; sys.exit(0 if pathlib.Path({tok!r}).exists() "
-                              f"else 1)"),
+                    reality=f"{tok} is not in HEAD's tree under any of: {bases}",
+                    # A COMMIT-tree probe, matching what the rule now tests. `ls-files
+                    # --error-unmatch` would consult the INDEX and so carry the same staged-path
+                    # dependence the rule just removed; `cat-file -e HEAD:<p>` reads the commit
+                    # and works for files and directories alike. Shown root-relative; `reality`
+                    # carries the base list, since no single probe asserts "no base matched".
+                    evidence=("git", "cat-file", "-e", f"HEAD:{norm}"),
                     reproduces="exit-nonzero",
                 ))
     if findings:

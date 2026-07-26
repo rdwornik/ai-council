@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-24
+last_reviewed: 2026-07-26
 status: active
 owner: Rob
 ---
@@ -70,7 +70,7 @@ See `ARCHITECTURE.md` for the structural model; read it before structural change
 ## 5. Critical rules
 
 <!-- methodology:start id=critical-rules-records owner=hub -->
-1. **`LESSONS.md` and `logs/TOKEN-LOG.md` are append-only** — never edit old entries; only append (ADR-29, ADR-39)
+1. **`LESSONS.md` and `.dev-knowledge/logs/TOKEN-LOG.md` are append-only** — never edit old entries; only append (ADR-29, ADR-39)
 2. **`JOURNAL.md` is append-only newest-first** — prepend at session wrap or workday close
 3. **ADRs, transcripts, handoffs, and audits are immutable** — supersede with a new file or an in-file amendment marker; never edit in place. **ADR ratification exception (ADR-94):** an ADR's *status line* MAY be edited in place on ratification (e.g. Proposed → Accepted) — the status line is metadata, not decision content. This exception is ADR-specific and covers the status line only; ADR decision content, and transcripts / handoffs / audits in full, remain immutable.
 <!-- methodology:end id=critical-rules-records -->
@@ -170,7 +170,7 @@ Manual pre-merge gate:
 ## 10. Anti-patterns specific to Claude Code in this repo
 <!-- methodology:start id=antipatterns-universal owner=hub -->
 
-- **Editing old LESSONS.md or logs/TOKEN-LOG.md entries** — append-only; editing corrupts the institutional record
+- **Editing old LESSONS.md or `.dev-knowledge/logs/TOKEN-LOG.md` entries** — append-only; editing corrupts the institutional record
 - **Adding orchestration scripts** — Layer 2 invariant: validators only, no scripts that drive state in child repos
 - **Narrating or managing AGENTS.md** — AGENTS.md is retired (ADR-53); CLAUDE.md is the single instruction file
 - **Duplicating content between files** — ESSENTIALS summarizes PLAYBOOK, not copies; drift is the failure mode
@@ -246,6 +246,7 @@ Do NOT:
 - v2.12 (2026-07-20) — three-lane reintegration close-out: §9's pre-commit roster gains the **two consumer-local guards Lane C shipped** — `validate-sealed-keys` (#67, with its exact-path scoped override and the explicit "not `--no-verify`" note) and `validate-docs-registry` (#68, runtime registry read from `docs/audits/README.md`, **fails CLOSED**, no scoped override, with both malfunction-recovery paths recorded). The roster had listed `validate-audit-casing`/`validate-backlog` but not these, so §9 understated the live commit-gating surface by two organs — the exact A2 staleness `canonical_freshness` guards. §1–§8 and §10–§11 re-read against live state and unchanged: no new commands, skills, or ADRs this session (the arc produced BACKLOG items and audits, deliberately no intake and no ADR — the moratorium held). `last_reviewed` re-stamped 2026-07-20. Witness: `docs/audits/2026-07-19-codex-a1-failloud-adversarial.md`, JOURNAL 2026-07-19/2026-07-20.
 - v2.13 (2026-07-23) — pre-handoff cleanup currency pass (unattended batch, Lane A): §11's local ADR roster gains the missing **ADR-13** line — invocation-contract versioning was ratified 2026-07-18 and ADR-12/ADR-14 were rostered while ADR-13 never was (the exact A2 staleness `canonical_freshness` guards; surfaced by the claim-vs-reality sweep). §1–§10 re-read against live state and unchanged: §7 commands (`session-summary`/`codex-review` user-level, `/override` repo-level, two plugin commands), §8 skills/rules, §9's 12-id pre-commit roster verified against `.pre-commit-config.yaml`, and §10's code anchors (`make_cache_key` at `merger.py:201`, `{previous_responses_anonymized}` at `settings.yaml:324`, `_anonymize_responses` at `debate.py:59`) all verified live. `last_reviewed` re-stamped 2026-07-23. Witness: `docs/audits/2026-07-22-pre-handoff-cleanup.md`.
 - v2.14 (2026-07-24) — #97 Unit 1 landing (claim-vs-reality checker): `scripts/validate_claims.py` (harness + rules 2/3/4/8) is surfaced as a **non-blocking** section of `.\scripts\check.ps1`. C13 same-commit reconciliation of the eight "pre-merge gate = pytest+mypy+ruff / trio" enumerations that a 4th section would leave stale (§4 Linting, §5 item 7, §6 repo-note, §9's `ruff` bullet + manual-gate line here; ARCHITECTURE §Validators + the layer-model note; CONTRIBUTING pre-merge gate) — each now names the added non-blocking claim-check, so the checker does not ship by creating the drift class it exists to catch. The gate itself is unchanged (still the trio; the claim-check never gates). `last_reviewed` re-stamped 2026-07-24.
+- v2.15 (2026-07-26) — #111 close-out: sections 5 item 1 and 10 now name the token log as `.dev-knowledge/logs/TOKEN-LOG.md`. Both citations sat in **owner=hub** regions (`critical-rules-records`, `antipatterns-universal`) carried byte-verbatim with the bare `logs/TOKEN-LOG.md` — correct at the hub, false here: this repo has never had a local `logs/TOKEN-LOG.md` (`git log --all` on the path is empty) and the #97 checker reported it as a non-resolving claim. The value is repo-**position-dependent**, so no byte-verbatim template is correct in both places; declared as the `claude-md-token-log-address` divergence in `.methodology.yaml` with **hub #427 as its explicit retirement trigger** (filed upstream the same pass, hub main `863cb804`), so the divergence expires by reference rather than lingering. An R2 allowlist entry was refused — it would hide the class instead of adjudicating it. `last_reviewed` re-stamped 2026-07-26.
 <!-- methodology:end id=section-history -->
 
 ---

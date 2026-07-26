@@ -337,6 +337,137 @@ def test_checker_mutates_nothing(tmp_path):
     assert before == after, "checker mutated the working tree"
 
 
+# --- #116 R2 resolution model (tracked tree, declared bases) -----------------
+
+_REPO = Path(__file__).resolve().parent.parent
+
+
+def _r2_tracked(tmp_path: Path, doc_text: str, tracked: tuple[str, ...]) -> Path:
+    """A git repo whose listed files are actually COMMITTED, so ls-files sees them."""
+    repo = _init_repo(tmp_path)
+    for rel in tracked:
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n", encoding="utf-8")
+    (repo / "DOC.md").write_text(doc_text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
+    return repo
+
+
+def test_declared_bases_exist_in_the_tracked_tree():
+    # The base list validates ITSELF: a base that does not exist is a base that silently
+    # suppresses every token written relative to it -- the failure #116 is repairing, one
+    # level up. Run against the real repo, because it is a claim about THIS repo.
+    ctx = vc.RepoContext(_REPO)
+    files, dirs = vc._committed_paths(ctx)
+    for base in vc._R2_BASES:
+        if base == "":
+            continue                      # the repo root needs no proof
+        assert base in dirs, f"declared R2 base {base!r} is not in the tracked tree"
+
+
+def test_declared_runtime_paths_really_are_gitignored_and_untracked():
+    # Same self-validation for the runtime list: each entry must be genuinely gitignored AND
+    # genuinely untracked, or it is an excuse rather than a declaration.
+    ctx = vc.RepoContext(_REPO)
+    files, dirs = vc._committed_paths(ctx)
+    # Validated against the TRACKED .gitignore, not `git check-ignore` (terra 2026-07-26):
+    # check-ignore also consults .git/info/exclude and the user's global excludesfile, both
+    # untracked, so a green result could come from local config -- the same checkout-dependence
+    # the checker itself refuses. .gitignore is tracked, so reading it is commit-deterministic.
+    ignore_lines = {ln.strip() for ln in (_REPO / ".gitignore").read_text(
+        encoding="utf-8").splitlines() if ln.strip() and not ln.strip().startswith("#")}
+    for p in vc._R2_RUNTIME_PATHS:
+        assert p.rstrip("/") + "/" not in dirs, f"{p} is committed -- it does not belong here"
+        assert p in ignore_lines or p.rstrip("/") in ignore_lines, (
+            f"{p} is not an entry in the tracked .gitignore -- the declaration is false")
+
+
+def test_r2_verdict_is_identical_with_and_without_untracked_debris(tmp_path):
+    # THE #116 PROPERTY. logs/ is gitignored; on the primary checkout it existed as untracked
+    # debris and on a fresh clone it did not, so the old disk-based guard reported the SAME
+    # COMMIT two different ways. Resolving against the tracked tree makes that impossible.
+    doc = "# DOC.md\n\n- The log is `logs/TOKEN-LOG.md`, append-only.\n"
+    repo = _r2_tracked(tmp_path, doc, ("src/ai_council/cli.py",))
+    (repo / ".gitignore").write_text("logs/\n", encoding="utf-8")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-qm", "ignore logs")
+
+    def verdict():
+        import importlib
+        m = importlib.import_module("validate_claims")
+        m._canonical_docs = lambda ctx: ["DOC.md"]
+        return m.rule_2(m.RepoContext(repo))
+
+    without = verdict()
+    (repo / "logs").mkdir()                                  # untracked, gitignored debris
+    (repo / "logs" / "TOKEN-LOG.md").write_text("x\n", encoding="utf-8")
+    with_debris = verdict()
+
+    assert without.status == "fail" and with_debris.status == "fail"
+    assert [f.location for f in without.findings] == [f.location for f in with_debris.findings]
+    assert [f.claim for f in without.findings] == [f.claim for f in with_debris.findings]
+
+
+def test_r2_ignores_a_staged_but_uncommitted_path(tmp_path, monkeypatch):
+    # terra 2026-07-26: `git ls-files` reports the INDEX, so a staged-but-uncommitted path would
+    # satisfy a claim and the verdict would still depend on working state. The two agree on a
+    # clean tree -- which is exactly why the first fresh-clone acceptance run passed while this
+    # was still wrong -- so this pins the difference directly.
+    monkeypatch.setattr(vc, "_canonical_docs", lambda ctx: ["DOC.md"])
+    repo = _r2_tracked(tmp_path, "# DOC.md\n\n- `docs/later.md`\n", ("src/ai_council/cli.py",))
+    assert vc.rule_2(vc.RepoContext(repo)).status == "fail"
+
+    (repo / "docs").mkdir(exist_ok=True)
+    (repo / "docs" / "later.md").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "docs/later.md")          # staged, deliberately NOT committed
+    assert vc.rule_2(vc.RepoContext(repo)).status == "fail", (
+        "a staged-but-uncommitted path must not satisfy a claim -- that is index state, "
+        "not commit state")
+
+    _git(repo, "commit", "-qm", "commit it")
+    assert vc.rule_2(vc.RepoContext(repo)).status == "pass"
+
+
+def test_r2_resolves_base_relative_and_excludes_external(tmp_path, monkeypatch):
+    # Frozen acceptance, in shape: base-relative paths resolve; ecosystem paths and org/repo
+    # slugs are excluded by DECLARATION; an unresolvable path still fires.
+    monkeypatch.setattr(vc, "_canonical_docs", lambda ctx: ["DOC.md"])
+    doc = (
+        "# DOC.md\n\n"
+        "- package-relative: `research/merger.py` and `providers/`\n"
+        "- docs-relative: `decisions/` and `audits/`\n"
+        "- hub-routed, base-relative: `handoffs/` and `transcripts/`\n"
+        "- ecosystem: `Dev/` and `ai-council/output/`\n"
+        "- slug: `astral-sh/ruff-pre-commit`\n"
+        "- dot-prefixed: `./src/ai_council/cli.py`\n"
+        "- genuinely missing: `logs/TOKEN-LOG.md`\n"
+    )
+    repo = _r2_tracked(tmp_path, doc, (
+        "src/ai_council/cli.py", "src/ai_council/research/merger.py",
+        "src/ai_council/providers/openai.py",
+        "docs/decisions/ADR-01-x.md", "docs/audits/a.md",
+    ))
+    r = vc.rule_2(vc.RepoContext(repo))
+    assert r.status == "fail"
+    claims = [f.claim for f in r.findings]
+    assert len(claims) == 1, f"expected only the missing path to fire, got {claims}"
+    assert "logs/TOKEN-LOG.md" in claims[0]
+
+
+def test_r2_evidence_probes_the_commit_tree_not_the_disk(tmp_path, monkeypatch):
+    # The evidence must test what the RULE tests. A Path.exists() probe would contradict the
+    # rule and reproduce the #116 nondeterminism inside the evidence itself; `ls-files
+    # --error-unmatch` would consult the INDEX and carry a staged-path dependence instead.
+    monkeypatch.setattr(vc, "_canonical_docs", lambda ctx: ["DOC.md"])
+    repo = _r2_tracked(tmp_path, "# DOC.md\n\n- `logs/TOKEN-LOG.md`\n", ("src/ai_council/cli.py",))
+    f = vc.rule_2(vc.RepoContext(repo)).findings[0]
+    assert f.evidence[:3] == ("git", "cat-file", "-e")
+    assert f.evidence[3].startswith("HEAD:"), "the probe must read the COMMIT, not the index"
+    assert _run_evidence(f, repo).returncode != 0
+
+
 # --- #108 shared context predicate -------------------------------------------
 # Fixtures are the REAL lines the two false positives came from, transcribed verbatim, so the
 # tests fail if the predicate stops handling the instances that motivated it.
@@ -455,7 +586,9 @@ _R2_DOC_CLEAN = """\
 
 
 def _r2_tree(tmp_path: Path, doc_text: str) -> Path:
-    repo = tmp_path / "repo"
+    # Files must be COMMITTED, not merely written: since #116 rule 2 resolves against git's
+    # tracked tree rather than the disk, an uncommitted fixture would resolve nothing.
+    repo = _init_repo(tmp_path)
     (repo / "src" / "ai_council").mkdir(parents=True)
     (repo / "src" / "ai_council" / "cli.py").write_text("x = 1\n", encoding="utf-8")
     (repo / "config").mkdir()
@@ -463,6 +596,8 @@ def _r2_tree(tmp_path: Path, doc_text: str) -> Path:
     (repo / "protocols").mkdir()
     (repo / "protocols" / "COUNCIL_QUESTION_GUIDE.md").write_text("# g\n", encoding="utf-8")
     (repo / "DOC.md").write_text(doc_text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
     return repo
 
 
@@ -507,7 +642,9 @@ def test_r2_evidence_reproduces(tmp_path, monkeypatch):
     r = vc.rule_2(ctx)
     for f in r.findings:
         res = _run_evidence(f, repo)
-        assert res.returncode == 1, f"R2 evidence did not reproduce the miss: {f.printed()}"
+        # reproduces="exit-nonzero" is the declared contract -- pinning ==1 over-specified an
+        # incidental code (git cat-file exits 128), which is not what the Finding promises.
+        assert res.returncode != 0, f"R2 evidence did not reproduce the miss: {f.printed()}"
 
 
 # --- R3: hook-roster parity --------------------------------------------------
