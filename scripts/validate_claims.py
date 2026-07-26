@@ -47,12 +47,35 @@ _REPO_ROOT = _SCRIPTS_DIR.parent
 # interpreter; that is documented, not engineered around.
 _ALLOWED_RUNNERS = frozenset({"python", "git", "pytest"})
 
-# Cross-shell contract (A3): evidence is emitted with shlex/POSIX quoting -- natively valid in
-# git-bash. arg0 is a BARE runner (never sys.executable's absolute path), so it resolves on PATH
-# in PowerShell too; the common `python -c '<script>'` / `git <args>` shapes carry POSIX
-# single-quoting that PowerShell also reads as a literal string. We do NOT constrain argument
-# tokens to be quote-free -- that would reject legitimate `-c` scripts. The enforced guarantees
-# are: arg0 is a bare runner, and the printed string round-trips through shlex back to the argv.
+# Cross-shell contract (A3, corrected by #106): evidence must paste into BOTH git-bash and
+# PowerShell. The earlier claim -- "POSIX single-quoting that PowerShell also reads as a literal
+# string" -- was false for the shape R2 actually emits: `shlex.join` on an argument that itself
+# contains single quotes produces the '"'"' splice, which PowerShell does not parse at all. Since
+# this repo's default shell is PowerShell (CLAUDE section 4), that made rule 12's "re-runnable by
+# a human" claim weaker than it read -- and rule 12's exemption from registration rests on that
+# claim, so the gap undercut the exemption, not just the ergonomics.
+#
+# The fix is quoting STYLE, not payload restriction: an argument holding single quotes but no
+# character either shell would interpolate is emitted DOUBLE-quoted, which both shells read
+# identically. Arguments containing " $ ` or \ fall back to shlex.quote (POSIX-correct, possibly
+# PowerShell-hostile) rather than silently emitting something wrong in both.
+# The enforced guarantees remain: arg0 is a bare runner, and the printed string round-trips
+# through shlex back to the exact argv.
+_SHELL_SAFE_BARE = re.compile(r"^[\w@%+=:,./-]+$")
+# Unsafe INSIDE double quotes in at least one target shell: `"` ends the string; `$` interpolates
+# in both; a backtick escapes in PowerShell and substitutes in POSIX; `\` escapes in POSIX.
+_DOUBLE_UNSAFE = re.compile(r'["$`\\]')
+
+
+def _shell_quote(arg: str) -> str:
+    """Quote one argv element so the printed command pastes into PowerShell AND git-bash."""
+    if not arg:
+        return "''"
+    if _SHELL_SAFE_BARE.match(arg):
+        return arg
+    if "'" in arg and not _DOUBLE_UNSAFE.search(arg):
+        return f'"{arg}"'
+    return shlex.quote(arg)
 
 _REPRODUCES = frozenset({"exit-0", "exit-nonzero", "stdout-contains"})
 _STATUSES = frozenset({"pass", "fail", "anchor-missing", "skipped"})
@@ -102,8 +125,8 @@ class Finding:
             raise ValueError("Finding.evidence does not round-trip through shlex")
 
     def printed(self) -> str:
-        """The human-copyable command string (POSIX/shlex quoting)."""
-        return shlex.join(self.evidence)
+        """The human-copyable command string, quoted to paste into PowerShell AND git-bash."""
+        return " ".join(_shell_quote(a) for a in self.evidence)
 
 
 @dataclass(frozen=True)
@@ -632,6 +655,10 @@ def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> s
     lines.append("        carries a re-runnable command by construction; no leg to register")
     lines.append(f"      absent      ({len(absent)}): {_ids(absent)}")
     lines.append(f"      TOTAL {total} of {spec_n} accounted for. A clean run is NOT a clean repo.")
+    lines.append("  - Evidence commands paste into BOTH PowerShell and git-bash (#106). One")
+    lines.append("    residual: arg0 is a BARE runner, so on Windows `python` may resolve to a")
+    lines.append("    Store stub or a non-venv interpreter. That is documented, not engineered")
+    lines.append("    around -- an absolute interpreter path would not be portable either.")
     lines.append("  - The spec id set is maintained BY HAND against BACKLOG #97: a change to the")
     lines.append("    SPEC itself (say a fifteenth rule) leaves this literal and the test's")
     lines.append("    literal both at fourteen, and every test green. The doc-side check that")

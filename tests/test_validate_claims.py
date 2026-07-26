@@ -119,6 +119,53 @@ def test_finding_evidence_executes_and_reproduces(tmp_path):
 
 # --- RuleResult status derivation --------------------------------------------
 
+# --- #106: evidence must paste into PowerShell as well as git-bash -----------
+
+_POSIX_SPLICE = "'\"'\"'"   # what shlex.join emits for an inner single quote
+
+
+def _r2_shaped_finding(tok="logs/TOKEN-LOG.md"):
+    return vc.Finding(
+        rule_id=2, claim="c", location="DOC.md:1", reality="r",
+        evidence=("python", "-c",
+                  f"import pathlib,sys; sys.exit(0 if pathlib.Path({tok!r}).exists() else 1)"),
+        reproduces="exit-nonzero")
+
+
+def test_r2_evidence_carries_no_posix_only_splice():
+    # #106's named acceptance test. The '"'"' idiom is valid POSIX and unparseable in
+    # PowerShell, which is this repo's default shell -- so its presence made rule 12's
+    # "re-runnable by a human" claim false for the most common finding shape.
+    printed = _r2_shaped_finding().printed()
+    assert _POSIX_SPLICE not in printed
+    assert printed == (
+        'python -c "import pathlib,sys; '
+        "sys.exit(0 if pathlib.Path('logs/TOKEN-LOG.md').exists() else 1)\"")
+
+
+def test_shell_quote_prefers_double_quotes_only_when_both_shells_agree():
+    # Single quotes inside, nothing interpolable -> double-quote: identical in both shells.
+    assert vc._shell_quote("say 'hi'") == "\"say 'hi'\""
+    # A safe bare token is left alone rather than gratuitously quoted.
+    assert vc._shell_quote("git") == "git"
+    assert vc._shell_quote("src/ai_council/cli.py") == "src/ai_council/cli.py"
+
+
+def test_shell_quote_falls_back_when_double_quoting_would_be_wrong():
+    # $ interpolates in BOTH shells; a backtick escapes in PowerShell; \ escapes in POSIX; a
+    # double quote would terminate the string. Emitting a confidently-wrong double-quoted form
+    # is worse than falling back to POSIX-correct quoting, so these degrade rather than guess.
+    for hostile in ("cost is $5", "tick ` here", "back\\slash", 'has "quotes"'):
+        assert vc._shell_quote(hostile) == __import__("shlex").quote(hostile)
+
+
+def test_printed_still_round_trips_after_the_quoting_change():
+    # The __post_init__ invariant #106 must not break: the printed string parses back to argv.
+    import shlex as _s
+    f = _r2_shaped_finding()
+    assert tuple(_s.split(f.printed())) == f.evidence
+
+
 def test_ruleresult_with_findings_is_fail():
     f = vc.Finding(2, "c", "D:1", "r", ("git", "status"), reproduces="exit-0")
     r = vc.RuleResult(2, "path-existence", findings=(f,))
