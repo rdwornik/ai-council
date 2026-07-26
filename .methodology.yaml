@@ -110,3 +110,24 @@ sanctioned_divergences:
       entry when the carrier ships and takes ownership of the file -- the review_date is
       the trigger so the interim cannot become silently permanent.
     review_date: 2026-10-22
+
+  - component: claude-md-token-log-address
+    reason: >-
+      CLAUDE.md sections 5 and 10 name the token log as
+      `.dev-knowledge/logs/TOKEN-LOG.md`, diverging from the byte-verbatim hub regions
+      `critical-rules-records` and `antipatterns-universal`, which both carry the bare
+      `logs/TOKEN-LOG.md`. The hub string is correct AT THE HUB and false here:
+      ai-council has never had a local logs/TOKEN-LOG.md (`git log --all` on the path
+      is empty), the log lives at the hub exactly as INSTALL.md:33 already states, and
+      the #97 claim-vs-reality checker reported the bare path as a non-resolving claim
+      in this tree. The two alternatives were both worse: an R2 allowlist entry would
+      hide the whole class rather than adjudicate it (explicitly refused in #111), and
+      leaving it uncorrected keeps a canonical file asserting something false about
+      this repo. NOT a hub-generic wording defect that a text fix repairs -- the value
+      is repo-POSITION-DEPENDENT (bare at the hub, `.dev-knowledge/`-prefixed
+      downstream), so no byte-verbatim template can be correct in both positions; it
+      needs a substitution mechanism. RETIREMENT TRIGGER: hub #427, which owns that
+      mechanism -- this entry expires BY REFERENCE when #427 lands and the corrected
+      regions are re-carried, so a temporary condition cannot become a permanent
+      record. Filed upstream 2026-07-26 (hub main 863cb804). Local closure: #111.
+    review_date: 2026-10-26
