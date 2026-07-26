@@ -163,7 +163,13 @@ def test_report_header_names_known_limitations():
     assert "KNOWN LIMITATIONS" in out
     assert "precision-over-recall" in out
     assert ".claude/skills/" in out
-    assert "Unit-2 stubs" in out or "Unit-2" in out
+    # The coverage block replaced the old "Rules 5/6/... are Unit-2 stubs" line: it must
+    # still carry the SKIP caveat, and now also a denominator against the 14-rule spec.
+    assert "A clean run is NOT a clean repo." in out
+    assert "of 14 accounted for" in out
+    # ...and it must disclose that the spec set is hand-maintained, so the report does not
+    # overclaim: a change to the SPEC itself is not detected by anything here.
+    assert "maintained BY HAND against BACKLOG #97" in out
 
 
 def test_run_all_isolates_a_crashing_leg():
@@ -218,6 +224,32 @@ def test_registry_covers_the_full_spec_id_set(tmp_path):
         f"missing {sorted(expected - registered)}, "
         f"unexpected {sorted(registered - expected)}"
     )
+
+
+def test_spec_constants_match_the_checkers_own():
+    # Two literals exist on purpose (the test's is the external denominator), so they need a
+    # binding or they can drift apart silently -- one updated, the other not, both green.
+    assert vc._SPEC_RULE_IDS == SPEC_RULE_IDS
+    assert vc._STRUCTURAL_EXEMPTIONS == STRUCTURAL_EXEMPTIONS
+
+
+def test_report_discloses_the_structural_exemption():
+    # Rule 12's exemption must be visible in the report with its reason, not just asserted in
+    # a constant -- otherwise the exemption set could be widened and no run would say so.
+    # Asserting STRUCTURAL_EXEMPTIONS == {12} against itself would be tautological (#94).
+    out = vc.format_report([vc.RuleResult(2, "path-existence", status="pass")], [])
+    assert "structural  (1): 12" in out
+    assert "shlex round-trip" in out
+
+
+def test_report_absent_count_is_live_not_hardcoded():
+    # The whole point of computing the denominator: drop a leg and the report SAYS so.
+    # Here rule 7 is simply not among the results, and `absent` must name it.
+    partial = [vc.RuleResult(rid, f"r{rid}", status="skipped", detail="Unit 2")
+               for rid in sorted(SPEC_RULE_IDS - STRUCTURAL_EXEMPTIONS - {7})]
+    out = vc.format_report(partial, [])
+    assert "absent      (1): 7" in out
+    assert "TOTAL 14 of 14 accounted for" in out
 
 
 # --- read-only proof: the checker mutates nothing under the repo root ---------
