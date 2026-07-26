@@ -57,6 +57,19 @@ _ALLOWED_RUNNERS = frozenset({"python", "git", "pytest"})
 _REPRODUCES = frozenset({"exit-0", "exit-nonzero", "stdout-contains"})
 _STATUSES = frozenset({"pass", "fail", "anchor-missing", "skipped"})
 
+# The #97 fourteen-rule spec, enumerated literally rather than as range(1, 15) -- in the one
+# file whose job is catching comment-vs-code mismatch, the ids should be readable as ids.
+# `format_report` uses this as the DENOMINATOR so no run can understate the checker's own
+# coverage: `absent` is computed against it, not hardcoded, and goes non-zero the moment a
+# leg is dropped. Maintained BY HAND against BACKLOG #97 -- see the KNOWN LIMITATIONS note
+# on that blind spot, and #114 for the doc-side check that would close it.
+_SPEC_RULE_IDS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14})
+
+# Rule 12 is the ONE sanctioned exemption from registration: realized structurally in the
+# Finding model (evidence argv + shlex round-trip), so every finding carries a re-runnable
+# command by construction and there is no leg to register. BACKLOG #97 gate (i).
+_STRUCTURAL_EXEMPTIONS = frozenset({12})
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -458,8 +471,10 @@ def _unit2_stub(rule_id: int, name: str) -> RuleLeg:
 # Registry -- a new leg is one appended row (the parametrized registry test auto-covers it).
 RULES: list[RuleLeg] = [
     rule_2, rule_3, rule_4, rule_8,
+    _unit2_stub(1, "module-table-completeness"),
     _unit2_stub(5, "config-parity"),
     _unit2_stub(6, "cli-surface-parity"),
+    _unit2_stub(7, "stamp-honesty"),
     _unit2_stub(9, "durations-regression"),
     _unit2_stub(10, "dep-parity"),
     _unit2_stub(11, "invariant-spot-checks"),
@@ -501,6 +516,11 @@ def _sorted_findings(results: list[RuleResult]) -> list[Finding]:
     return sorted(fs, key=lambda f: (f.rule_id, f.location))
 
 
+def _ids(ids: list[int]) -> str:
+    """Render an id list for the coverage block; 'none' beats an empty string for a zero row."""
+    return ", ".join(str(i) for i in ids) if ids else "none"
+
+
 def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> str:
     lines: list[str] = []
     # KNOWN LIMITATIONS -- the checker must not overclaim about itself.
@@ -512,8 +532,29 @@ def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> s
     lines.append("    reported as a missing path. Known instance: .claude/skills/ and")
     lines.append("    .claude/skills/gotchas/ (CLAUDE.md section 8) -- named, not allowlisted:")
     lines.append("    an allowlist would hide the whole negation class.")
-    lines.append("  - Rules 5/6/9/10/11/13/14 are Unit-2 stubs and report SKIP; a clean run is")
-    lines.append("    NOT a clean repo.")
+    # Coverage denominator -- COUNTED FROM THIS RUN, never hardcoded. A hardcoded roster
+    # would go stale the first time a stub is implemented, which is the exact drift class
+    # this checker exists to catch. Computed, `absent` is a live number.
+    implemented = sorted(r.rule_id for r in results if r.status != "skipped")
+    stubbed = sorted(r.rule_id for r in results if r.status == "skipped")
+    structural = sorted(_STRUCTURAL_EXEMPTIONS)
+    absent = sorted(_SPEC_RULE_IDS - {r.rule_id for r in results} - _STRUCTURAL_EXEMPTIONS)
+    spec_n = len(_SPEC_RULE_IDS)
+    total = len(implemented) + len(stubbed) + len(structural) + len(absent)
+    lines.append(f"  - Rule coverage of the #97 {spec_n}-rule spec (counted from this run):")
+    lines.append(f"      implemented ({len(implemented)}): {_ids(implemented)}")
+    lines.append(f"      stubbed     ({len(stubbed)}): {_ids(stubbed)} -- registered, report SKIP,")
+    lines.append("        check nothing")
+    lines.append(f"      structural  ({len(structural)}): {_ids(structural)} -- realized in the Finding")
+    lines.append("        model (evidence argv + shlex round-trip), so every finding")
+    lines.append("        carries a re-runnable command by construction; no leg to register")
+    lines.append(f"      absent      ({len(absent)}): {_ids(absent)}")
+    lines.append(f"      TOTAL {total} of {spec_n} accounted for. A clean run is NOT a clean repo.")
+    lines.append("  - The spec id set is maintained BY HAND against BACKLOG #97: a change to the")
+    lines.append("    SPEC itself (say a fifteenth rule) leaves this literal and the test's")
+    lines.append("    literal both at fourteen, and every test green. The doc-side check that")
+    lines.append("    would close it -- parse #97's rule list, compare to _SPEC_RULE_IDS -- is")
+    lines.append("    NOT built; tracked as BACKLOG #114.")
     lines.append("")
     for r in results:
         tag = {"pass": "PASS", "fail": "FAIL", "anchor-missing": "WARN", "skipped": "SKIP"}[r.status]

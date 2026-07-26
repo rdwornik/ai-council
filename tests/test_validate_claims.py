@@ -163,7 +163,13 @@ def test_report_header_names_known_limitations():
     assert "KNOWN LIMITATIONS" in out
     assert "precision-over-recall" in out
     assert ".claude/skills/" in out
-    assert "Unit-2 stubs" in out or "Unit-2" in out
+    # The coverage block replaced the old "Rules 5/6/... are Unit-2 stubs" line: it must
+    # still carry the SKIP caveat, and now also a denominator against the 14-rule spec.
+    assert "A clean run is NOT a clean repo." in out
+    assert "of 14 accounted for" in out
+    # ...and it must disclose that the spec set is hand-maintained, so the report does not
+    # overclaim: a change to the SPEC itself is not detected by anything here.
+    assert "maintained BY HAND against BACKLOG #97" in out
 
 
 def test_run_all_isolates_a_crashing_leg():
@@ -189,6 +195,61 @@ def test_every_registered_leg_returns_a_ruleresult(leg, tmp_path):
 def test_registry_ids_are_unique_and_sorted_on_output():
     ctx_results = [leg.__name__ for leg in vc.RULES]
     assert len(ctx_results) == len(set(ctx_results))
+
+
+# --- registry completeness vs the #97 spec (EXTERNAL denominator) ------------
+
+# Written out literally and deliberately NOT derived from vc.*: this is the external
+# denominator #97 gate (ii) requires. A test that iterates vc.RULES covers whatever is
+# present and structurally cannot detect an omission -- which is how rules 1 and 7 sat
+# absent from the registry while 41 registry-parametrized tests passed green.
+# Independently derived from BACKLOG #97's inline spec by sol (gpt-5.6-sol, 2026-07-26)
+# with no sight of this file or scripts/validate_claims.py: {1..14}, contiguous, no gaps.
+SPEC_RULE_IDS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14})
+
+# Rule 12 is the ONE sanctioned exemption from registration: realized structurally in the
+# Finding model (evidence argv + shlex round-trip), so every finding carries a re-runnable
+# command by construction and there is no leg to register. #97: "rule 12 is structural
+# rather than a leg" / "the one sanctioned exemption".
+STRUCTURAL_EXEMPTIONS = frozenset({12})
+
+
+def test_registry_covers_the_full_spec_id_set(tmp_path):
+    assert len(SPEC_RULE_IDS) == 14, "the #97 spec defines fourteen rules"
+    ctx = vc.RepoContext(_init_repo(tmp_path))
+    registered = {leg(ctx).rule_id for leg in vc.RULES}
+    expected = SPEC_RULE_IDS - STRUCTURAL_EXEMPTIONS
+    assert registered == expected, (
+        "RULES drifted from the #97 spec: "
+        f"missing {sorted(expected - registered)}, "
+        f"unexpected {sorted(registered - expected)}"
+    )
+
+
+def test_spec_constants_match_the_checkers_own():
+    # Two literals exist on purpose (the test's is the external denominator), so they need a
+    # binding or they can drift apart silently -- one updated, the other not, both green.
+    assert vc._SPEC_RULE_IDS == SPEC_RULE_IDS
+    assert vc._STRUCTURAL_EXEMPTIONS == STRUCTURAL_EXEMPTIONS
+
+
+def test_report_discloses_the_structural_exemption():
+    # Rule 12's exemption must be visible in the report with its reason, not just asserted in
+    # a constant -- otherwise the exemption set could be widened and no run would say so.
+    # Asserting STRUCTURAL_EXEMPTIONS == {12} against itself would be tautological (#94).
+    out = vc.format_report([vc.RuleResult(2, "path-existence", status="pass")], [])
+    assert "structural  (1): 12" in out
+    assert "shlex round-trip" in out
+
+
+def test_report_absent_count_is_live_not_hardcoded():
+    # The whole point of computing the denominator: drop a leg and the report SAYS so.
+    # Here rule 7 is simply not among the results, and `absent` must name it.
+    partial = [vc.RuleResult(rid, f"r{rid}", status="skipped", detail="Unit 2")
+               for rid in sorted(SPEC_RULE_IDS - STRUCTURAL_EXEMPTIONS - {7})]
+    out = vc.format_report(partial, [])
+    assert "absent      (1): 7" in out
+    assert "TOTAL 14 of 14 accounted for" in out
 
 
 # --- read-only proof: the checker mutates nothing under the repo root ---------
