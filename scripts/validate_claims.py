@@ -28,6 +28,7 @@ Authority: BACKLOG #97 / [S18]; docs/audits/2026-07-22-pre-handoff-cleanup.md Se
 
 from __future__ import annotations
 
+import fnmatch
 import re
 import shlex
 import subprocess
@@ -154,29 +155,104 @@ RuleLeg = Callable[["RepoContext"], RuleResult]
 
 
 class RepoContext:
-    """Read-only access to the repo under `root`. Treat as immutable. Shared by every leg so
-    no leg re-implements file/glob/yaml/git access."""
+    """Read-only access to the repo under `root`, AS OF HEAD'S COMMIT. Treat as immutable.
+    Shared by every leg so no leg re-implements file/glob/yaml/git access.
+
+    DETERMINISM BY CONSTRUCTION (2026-07-26 ruling). `exists`/`read`/`glob` answer questions
+    about **HEAD's tree**, never the working directory. This is #116's fix moved one layer up:
+    rule 2 was repaired individually, but `ctx.read` still returned the working copy and
+    `ctx.glob` still hit the disk, so the same defect was live in rules 3 and 4 and would have
+    been inherited by all nine stubs. Fixing the harness makes every leg -- implemented,
+    stubbed, and future -- deterministic without each one having to remember.
+
+    Both failure modes were witnessed, not hypothesised: a dirty uncommitted
+    `.pre-commit-config.yaml` flipped rule 3 PASS->FAIL, and one *untracked*
+    `docs/decisions/ADR-99-scratch.md` flipped rule 4 PASS->FAIL, while a fresh clone at the
+    identical commit passed both.
+
+    Disk access survives as `disk_exists` / `disk_read` / `disk_glob`: explicit, documented,
+    and used by NO rule leg (asserted by test). A harness may legitimately need the working
+    tree; a rule never does, and making that opt-in rather than the default is what stops
+    determinism from being a convention someone has to remember.
+
+    A repo with no commits has a genuinely empty tree -- not an error. Any other git failure
+    raises, so a broken query can never masquerade as "nothing found" (H1 discipline).
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = root
         self._text: dict[str, str] = {}
         self._yaml: dict[str, Any] = {}
+        self._tree: set[str] | None = None
+        self._dirs: set[str] | None = None
+
+    # --- committed-tree view (the default; what every rule leg uses) --------------------
+
+    def _load_tree(self) -> None:
+        if self._tree is not None:
+            return
+        if self.git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+            self._tree, self._dirs = set(), set()
+            return
+        out = self.git("ls-tree", "-r", "--name-only", "HEAD")
+        if out.returncode != 0:
+            raise RuntimeError(f"git ls-tree HEAD failed: {out.stderr.strip() or out.returncode}")
+        files = {ln.strip() for ln in out.stdout.splitlines() if ln.strip()}
+        dirs: set[str] = set()
+        for f in files:
+            parts = f.split("/")
+            for k in range(1, len(parts)):
+                dirs.add("/".join(parts[:k]))
+        self._tree, self._dirs = files, dirs
 
     def exists(self, rel: str) -> bool:
-        return (self.root / rel).exists()
+        """Is `rel` a file or directory in HEAD's tree? (Not: is it on disk.)"""
+        self._load_tree()
+        key = rel.rstrip("/")
+        assert self._tree is not None and self._dirs is not None
+        return key in self._tree or key in self._dirs
 
     def read(self, rel: str) -> str:
+        """The COMMITTED content of `rel`. A dirty working copy cannot change a verdict."""
         if rel not in self._text:
-            self._text[rel] = (self.root / rel).read_text(encoding="utf-8")
+            out = self.git("show", f"HEAD:{rel}")
+            if out.returncode != 0:
+                raise FileNotFoundError(f"{rel} is not in HEAD's tree")
+            self._text[rel] = out.stdout
         return self._text[rel]
 
     def glob(self, pat: str) -> list[Path]:
-        return sorted(self.root.glob(pat))
+        """Committed paths matching `pat`. Returns Paths for caller convenience (`.name`),
+        built from the tree -- nothing is stat'd, so an untracked file cannot appear."""
+        self._load_tree()
+        assert self._tree is not None
+        return [self.root / r for r in sorted(fnmatch.filter(sorted(self._tree), pat))]
+
+    def committed_paths(self) -> tuple[set[str], set[str]]:
+        """HEAD's tree as (files, dirs-with-trailing-slash). One source of truth: rule 2's
+        resolution model and every other leg read the same set, so the two cannot drift."""
+        self._load_tree()
+        assert self._tree is not None and self._dirs is not None
+        return set(self._tree), {d + "/" for d in self._dirs}
 
     def load_yaml(self, rel: str) -> Any:
         if rel not in self._yaml:
             self._yaml[rel] = yaml.safe_load(self.read(rel))
         return self._yaml[rel]
+
+    # --- disk view: EXPLICIT opt-in, used by no rule leg --------------------------------
+
+    def disk_exists(self, rel: str) -> bool:
+        """Working-directory check. NOT for rule legs -- a verdict must not depend on it."""
+        return (self.root / rel).exists()
+
+    def disk_read(self, rel: str) -> str:
+        """Working-directory read. NOT for rule legs."""
+        return (self.root / rel).read_text(encoding="utf-8")
+
+    def disk_glob(self, pat: str) -> list[Path]:
+        """Working-directory glob. NOT for rule legs."""
+        return sorted(self.root.glob(pat))
 
     def git(self, *args: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
         """A read-only git query, `git -C root <args>`. `input_text` is fed on stdin (used to
@@ -245,37 +321,6 @@ _R2_RUNTIME_PATHS = (
     "output/",                 # .gitignore:38 -- council run artifacts
     "council_inbox/archive/",  # .gitignore:41 -- processed-brief archive
 )
-
-
-def _committed_paths(ctx: RepoContext) -> tuple[set[str], set[str]]:
-    """The paths in HEAD's TREE as (files, dirs). Never the disk, and never the index.
-
-    This is the whole point of #116: `Path.exists()` answers a question about the working
-    directory, so a gitignored path present as untracked debris flipped R2's verdict between
-    checkouts of the identical commit.
-
-    Reads HEAD's tree, NOT `git ls-files` (terra 2026-07-26): ls-files reports the INDEX, so a
-    staged-but-uncommitted path would satisfy a claim, and R2's verdict would still depend on
-    working state. The two agree on a clean tree -- which is exactly why the first fresh-clone
-    acceptance run passed while this was still wrong -- so the verdict is now a function of the
-    COMMIT, as claimed.
-
-    A repo with no commits yet has a genuinely empty tree; that is not a failure. Any OTHER git
-    failure raises rather than returning empty, since an empty set would make every cited path
-    look broken (H1 discipline, same as rule 8).
-    """
-    if ctx.git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
-        return set(), set()
-    out = ctx.git("ls-tree", "-r", "--name-only", "HEAD")
-    if out.returncode != 0:
-        raise RuntimeError(f"git ls-tree HEAD failed: {out.stderr.strip() or out.returncode}")
-    files = {line.strip() for line in out.stdout.splitlines() if line.strip()}
-    dirs: set[str] = set()
-    for f in files:
-        parts = f.split("/")
-        for k in range(1, len(parts)):
-            dirs.add("/".join(parts[:k]) + "/")
-    return files, dirs
 
 
 def _resolves_under_a_base(tok: str, files: set[str], dirs: set[str]) -> bool:
@@ -381,7 +426,7 @@ def rule_2(ctx: RepoContext) -> RuleResult:
       * a `## ... Section history` section -- records superseded paths by design.
     """
     findings: list[Finding] = []
-    files, dirs = _committed_paths(ctx)
+    files, dirs = ctx.committed_paths()
     for rel in _canonical_docs(ctx):
         in_historical = False
         for i, line in enumerate(ctx.read(rel).splitlines(), start=1):

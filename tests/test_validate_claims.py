@@ -337,6 +337,111 @@ def test_checker_mutates_nothing(tmp_path):
     assert before == after, "checker mutated the working tree"
 
 
+# --- harness determinism: RepoContext reads the COMMIT TREE, not the disk ----
+# Frozen acceptance for the 2026-07-26 ruling. These are written against the HARNESS, not any
+# one rule: the point is that every leg -- the four implemented, the nine stubs, and every
+# future one -- becomes deterministic by construction rather than one rule at a time.
+
+
+def _seeded_repo(tmp_path: Path) -> Path:
+    """A committed repo shaped like the real one, for harness-level determinism tests."""
+    repo = _init_repo(tmp_path)
+    (repo / "src" / "ai_council").mkdir(parents=True)
+    (repo / "src" / "ai_council" / "cli.py").write_text("x = 1\n", encoding="utf-8")
+    (repo / "docs" / "decisions").mkdir(parents=True)
+    (repo / "docs" / "decisions" / "ADR-01-first.md").write_text("# ADR-01\n", encoding="utf-8")
+    (repo / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: alpha\n      - id: beta\n",
+        encoding="utf-8")
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE\n\n## 9. Hooks active\n- `alpha`\n- `beta`\n\n"
+        "## 11. Recent ADRs\n- ADR-01: first\n", encoding="utf-8")
+    (repo / "ARCHITECTURE.md").write_text("# ARCH\n\n## Validators\n- `alpha`\n- `beta`\n",
+                                          encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
+    return repo
+
+
+def test_ctx_read_returns_committed_content_not_the_working_copy(tmp_path):
+    repo = _seeded_repo(tmp_path)
+    ctx = vc.RepoContext(repo)
+    (repo / "CLAUDE.md").write_text("# CLAUDE\n\nDIRTIED, uncommitted\n", encoding="utf-8")
+    assert "DIRTIED" not in vc.RepoContext(repo).read("CLAUDE.md"), (
+        "ctx.read must return HEAD's content; reading the working copy is rule 2's defect "
+        "one layer up")
+    assert "Hooks active" in ctx.read("CLAUDE.md")
+
+
+def test_ctx_exists_and_glob_ignore_untracked_files(tmp_path):
+    repo = _seeded_repo(tmp_path)
+    (repo / "docs" / "decisions" / "ADR-99-scratch.md").write_text("# scratch\n", encoding="utf-8")
+    ctx = vc.RepoContext(repo)
+    assert not ctx.exists("docs/decisions/ADR-99-scratch.md"), "untracked file must not exist to ctx"
+    names = [p.name for p in ctx.glob("docs/decisions/ADR-*.md")]
+    assert names == ["ADR-01-first.md"], f"glob must not see untracked files, got {names}"
+
+
+def test_disk_access_is_opt_in_and_no_rule_uses_it(tmp_path):
+    # The opt-in exists (a harness may still need the disk) but must be unused by rule legs --
+    # otherwise determinism is a convention rather than a property.
+    repo = _seeded_repo(tmp_path)
+    ctx = vc.RepoContext(repo)
+    (repo / "docs" / "decisions" / "ADR-99-scratch.md").write_text("# s\n", encoding="utf-8")
+    assert ctx.disk_exists("docs/decisions/ADR-99-scratch.md"), "opt-in disk access must work"
+    assert not ctx.exists("docs/decisions/ADR-99-scratch.md")
+
+    src = _P.read_text(encoding="utf-8")
+    body = src[src.index("# --- rule legs"):]
+    for name in ("disk_exists", "disk_read", "disk_glob"):
+        assert name not in body, f"a rule leg calls ctx.{name}() -- determinism must not be optional"
+
+
+# --- FROZEN ACCEPTANCE (2026-07-26 ruling) -----------------------------------
+
+def test_acceptance_rule3_passes_with_a_dirty_uncommitted_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(vc, "_hook_roster_docs", lambda ctx: ["CLAUDE.md", "ARCHITECTURE.md"])
+    repo = _seeded_repo(tmp_path)
+    assert vc.rule_3(vc.RepoContext(repo)).status == "pass"
+    (repo / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: alpha\n      - id: GAMMA-DIRTY\n",
+        encoding="utf-8")
+    assert vc.rule_3(vc.RepoContext(repo)).status == "pass", (
+        "a dirty uncommitted config must not change rule 3's verdict")
+
+
+def test_acceptance_rule4_passes_with_an_untracked_adr_present(tmp_path, monkeypatch):
+    monkeypatch.setattr(vc, "_adr_roster_docs", lambda ctx: ["CLAUDE.md"])
+    repo = _seeded_repo(tmp_path)
+    assert vc.rule_4(vc.RepoContext(repo)).status == "pass"
+    (repo / "docs" / "decisions" / "ADR-99-scratch.md").write_text("# s\n", encoding="utf-8")
+    assert vc.rule_4(vc.RepoContext(repo)).status == "pass", (
+        "an untracked scratch ADR must not change rule 4's verdict")
+
+
+def test_acceptance_dirty_primary_agrees_with_a_clean_clone(tmp_path, monkeypatch):
+    # The clause that matters: the earlier determinism run compared two CLEAN checkouts, which is
+    # the same blind spot as the ls-files acceptance. This compares a DIRTY tree to a clean clone.
+    monkeypatch.setattr(vc, "_hook_roster_docs", lambda ctx: ["CLAUDE.md", "ARCHITECTURE.md"])
+    monkeypatch.setattr(vc, "_adr_roster_docs", lambda ctx: ["CLAUDE.md"])
+    repo = _seeded_repo(tmp_path)
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", str(repo), str(clone)], check=True,
+                   capture_output=True, text=True)
+
+    # dirty the primary in every way the harness could notice
+    (repo / "CLAUDE.md").write_text("# CLAUDE\n\nDIRTIED\n", encoding="utf-8")
+    (repo / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
+    (repo / "docs" / "decisions" / "ADR-99-scratch.md").write_text("# s\n", encoding="utf-8")
+
+    def verdicts(root):
+        c = vc.RepoContext(root)
+        return {r.rule_id: r.status for r in (vc.rule_3(c), vc.rule_4(c))}
+
+    assert verdicts(repo) == verdicts(clone), (
+        "a DIRTY primary and a clean clone at the same commit must agree")
+
+
 # --- #116 R2 resolution model (tracked tree, declared bases) -----------------
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -360,7 +465,7 @@ def test_declared_bases_exist_in_the_tracked_tree():
     # suppresses every token written relative to it -- the failure #116 is repairing, one
     # level up. Run against the real repo, because it is a claim about THIS repo.
     ctx = vc.RepoContext(_REPO)
-    files, dirs = vc._committed_paths(ctx)
+    files, dirs = ctx.committed_paths()
     for base in vc._R2_BASES:
         if base == "":
             continue                      # the repo root needs no proof
@@ -371,7 +476,7 @@ def test_declared_runtime_paths_really_are_gitignored_and_untracked():
     # Same self-validation for the runtime list: each entry must be genuinely gitignored AND
     # genuinely untracked, or it is an excuse rather than a declaration.
     ctx = vc.RepoContext(_REPO)
-    files, dirs = vc._committed_paths(ctx)
+    files, dirs = ctx.committed_paths()
     # Validated against the TRACKED .gitignore, not `git check-ignore` (terra 2026-07-26):
     # check-ignore also consults .git/info/exclude and the user's global excludesfile, both
     # untracked, so a green result could come from local config -- the same checkout-dependence
@@ -682,10 +787,13 @@ repos:
 
 
 def _r3_tree(tmp_path: Path, arch_text: str) -> Path:
-    repo = tmp_path / "repo"
-    repo.mkdir()
+    repo = _init_repo(tmp_path)
     (repo / "ARCH.md").write_text(arch_text, encoding="utf-8")
     (repo / ".pre-commit-config.yaml").write_text(_R3_PRECOMMIT, encoding="utf-8")
+    # Committed, not merely written: RepoContext reads HEAD's tree, so an uncommitted
+    # fixture is invisible to every leg (2026-07-26 harness determinism ruling).
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
     return repo
 
 
@@ -750,11 +858,15 @@ _R4_ADR_FILES = [
 
 
 def _r4_tree(tmp_path: Path, doc_text: str) -> Path:
-    repo = tmp_path / "repo"
+    repo = _init_repo(tmp_path)
     (repo / "docs" / "decisions").mkdir(parents=True)
     for name in _R4_ADR_FILES:
         (repo / "docs" / "decisions" / name).write_text(f"# {name}\n", encoding="utf-8")
     (repo / "DOC.md").write_text(doc_text, encoding="utf-8")
+    # Committed, not merely written: RepoContext reads HEAD's tree, so an uncommitted
+    # fixture is invisible to every leg (2026-07-26 harness determinism ruling).
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
     return repo
 
 
@@ -819,6 +931,11 @@ def _r8_repo(tmp_path: Path, drifted: bool):
             "Incorporated edit-distance feedback from the reviewer; ADR-11 verdict pending.\n"
         )
     (repo / "JOURNAL.md").write_text(doc, encoding="utf-8")
+    # Committed: RepoContext reads HEAD's tree, so an uncommitted fixture doc is invisible
+    # to the leg (2026-07-26 harness determinism ruling). The DANGLING sha stays dangling --
+    # committing the doc that CITES it does not make the cited commit reachable.
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "fixture doc")
     return repo, sha_a, sha_b
 
 
