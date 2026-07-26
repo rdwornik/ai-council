@@ -19,6 +19,33 @@
 
 ---
 
+### 2026-07-26 (7) — WINDOW CLOSE: much landed, and all three standing axes moved ZERO
+
+**Read this before the backlog.** A reader arriving at this repo will find a great many closed tickets, a checker at FINDINGS 0, and a clean tree, and could reasonably conclude the window went to plan. **It did not.** Everything that landed is **record and quality-control scaffolding**. The mission axes did not move at all. That gap is the single most important fact about this window, and it is recorded here because the BACKLOG cannot show it — a backlog shows what closed, never what should have.
+
+**LANDED.** The #97 claim-vs-reality checker went from **17 findings to 0 with no suppression** — no path allowlisted, no rule silenced, every zero earned by repairing the thing or adjudicating it in prose. Along the way: the **rule-2 resolution model** and **ADR-15** (commit tree, declared bases, self-validating declarations); the **RepoContext harness fix**, moving determinism from one rule to every leg including the nine stubs; **#112 rescued** — four dangling commits made reachable from pushed `archive/cited-*` tags and `gc.auto` restored, replacing an uncommitted local config value with real refs; the **renumber arc closed** (#110→#84, #128→#85) with every live `refs #96` hub-qualified and **#96 freed**; the **F2 ruling batch** — nine rulings and four forks converted from chat into repo records; the **conftest wrong-tree guard**, RED-proven in a worktree; **#106, #108, #111 closed** and **#83 discharged** (through its "or its findings are filed" clause, not because the surface was clean — terra pass 3 returned 2 High). Eleven tickets filed, **#114–#126**.
+
+**NOT LANDED — and this is the point. All three standing axes moved ZERO.**
+- **#27 CLI parity — not run. Seventh window.** Operator-gated, instrument ready and verified untouched this window. Nothing blocks it but the decision to sit down with it.
+- **Boost / protocol — nothing built.** #117 gave the ADR-11 decision-1 interactivity ruling an *owner*, which is not the same as making it; ADR-11's amendment still defers interactivity as "a separable rider requiring its own ADR", so **#113 remains unresolvable** until someone rules. The **Contract-Version 1.1 arc — #34 + #76 + #100, versioned together, never alone — is untouched.**
+- **Non-cognitive debate — #55 untouched; #103 architect-owed and not started. Sixth window on paper.**
+
+**The uncomfortable finding.** **Rule 4 reads ONE doc surface where its spec claims FOUR** (`_adr_roster_docs` is `("CLAUDE.md",)`), and **FINDINGS 0 did not move before or after the repair**. A genuinely stale canonical surface — ARCHITECTURE missing ADR-15 — sat under a clean report the entire time. A defective gate under a green light is worse than no gate, because it converts "unchecked" into "checked and fine". Filed as **#125**; its sibling **#126** records that four armed validators emit no output at all, so their exit 0 is silence rather than a verdict. Both are the LESSONS 2026-07-26 class — a green published without the predicate that produced it — which this window found **five separate times**, twice inside the checker built to find exactly that.
+
+**What that pattern means, stated plainly:** the tooling got better at telling the truth about itself, and the mission did not advance. Those are not in tension — the first was necessary — but a window of pure scaffolding is a window, and this is the seventh for #27.
+
+**Also recorded this window:** a **fleet-methodology intake commissioned to `.dev-knowledge`**, assembling this window's fleet-level defects into ten commissions (A–J: environment/test isolation; session attribution and the multi-writer primary; the external-denominator principle; position-dependent template content; gate reproducibility; the parallel-work protocol; review routing; id-space and decision-record hygiene; handoff tooling defects; operational gotchas). **The hub owns those rulings**; ai-council supplies evidence — #121, #122, #123, #124, #125, #73, #97, #116, #118, ADR-15, LESSONS 2026-07-26.
+
+**NEXT SESSION — ordering, stated so it is not re-derived. The axes first; hygiene behind them.**
+1. **Owner-gated:** **#27** (sit down with the parity instrument) and the **#117 ADR-11 decision-1 ruling** (either way — it resolves #113 in both directions).
+2. **Architect-owed:** **#103**, browser-architect design work, not CC's to build.
+3. **Build lane:** the **Contract-Version 1.1 arc — #34 + #76 + #100, together**.
+4. **Behind them, in order:** **#124 → #123** (serial, and the order is a correctness constraint), then **#105**, then **#119/#120**, then **unit (b) + #125 + #118**.
+
+**Hygiene does not preempt items 1–3.** Record repair, checker work and teardown are the background lane. They are how this window filled, and that is the mistake not to repeat.
+
+**Changes:** `BACKLOG.md` (#105's #112 citation given a historical marker; **#126** filed under [S18]; **#121** evidence upgrade — the config sweep found `branch.main.vscode-merge-base` as the ONE local-only value with an external writer, narrowing #121's three candidates to one with demonstrated write access, **not** proving the checkout event; **#103** dated not-started note; fleet-intake commission recorded — count 77 → 78), `JOURNAL.md` (this).
+
 ### 2026-07-26 (6) — Record repair: #97's held set was wrong in both directions; ARCHITECTURE reconciled to ADR-15; #125 filed (`ed10b57`, `087f052`)
 
 **Did:** Record repair only — no units, no code. Deleted the merged `worktree-stream-b` branch with `-d` (the safe form; its success is itself the proof the work was merged), leaving `main` as the only local branch and the primary as the only worktree.
