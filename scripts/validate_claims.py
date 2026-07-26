@@ -458,8 +458,10 @@ def _unit2_stub(rule_id: int, name: str) -> RuleLeg:
 # Registry -- a new leg is one appended row (the parametrized registry test auto-covers it).
 RULES: list[RuleLeg] = [
     rule_2, rule_3, rule_4, rule_8,
+    _unit2_stub(1, "module-table-completeness"),
     _unit2_stub(5, "config-parity"),
     _unit2_stub(6, "cli-surface-parity"),
+    _unit2_stub(7, "stamp-honesty"),
     _unit2_stub(9, "durations-regression"),
     _unit2_stub(10, "dep-parity"),
     _unit2_stub(11, "invariant-spot-checks"),
