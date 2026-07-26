@@ -19,6 +19,24 @@
 
 ---
 
+### 2026-07-26 (6) — Record repair: #97's held set was wrong in both directions; ARCHITECTURE reconciled to ADR-15; #125 filed (`ed10b57`, `087f052`)
+
+**Did:** Record repair only — no units, no code. Deleted the merged `worktree-stream-b` branch with `-d` (the safe form; its success is itself the proof the work was merged), leaving `main` as the only local branch and the primary as the only worktree.
+
+**#97's held set was wrong in BOTH directions, and arithmetic — not a gate — caught it.** The line read `5/6/9/10/11/13/14`: it **omitted rule 7** and **wrongly held rule 14**, while the JOURNAL recorded the next unit as "rule 1 + rule 14 leg (b)". Rule 14 cannot be both held and next. Corrected to **5/6/7/9/10/11/13**, with the **scheduled** unit and its **pinned predicate** recorded in the same edit (module = an entry in ARCHITECTURE's Modules table, name from column 1 / path from column 3; edge = any import whose target is an enumerated module **regardless of location**; `config` the forcing case, enumerated at repo root). The arithmetic now closes — **7 held + 2 scheduled + 4 implemented + 1 structural = 14** — which the old list did not, and that failure to sum is exactly what would have surfaced it earlier. Worth keeping: no gate checks this. It is a set-partition invariant stated in prose, and prose does not add up on its own.
+
+**ARCHITECTURE was the one stale surface of three, and the checker could not see it.** ADR-15 landed 2026-07-26 in CLAUDE §11 and the `docs/decisions/README.md` index but **not** in ARCHITECTURE's Governing-ADRs roster or its `ADR-01…14` header span — and `validate_claims` reported `pass 4 | FINDINGS 0` throughout. Reconciled here (roster + span → `ADR-01…15`, `last_reviewed` re-stamped).
+
+**#125 files the defect that hid it.** #97 specifies rule 4 as set-equality across **four** surfaces (ADR files on disk == CLAUDE §11 == ARCHITECTURE Governing-ADRs == README index). The implementation's `_adr_roster_docs` returns **`("CLAUDE.md",)` alone** (`scripts/validate_claims.py:577-578`), so `ARCHITECTURE.md` and the README are **never read by rule 4** — two surfaces, not four, one direction only. Rule 3 already reads two docs (`:489-490`), so the narrowness is rule 4's, not a harness limit. **This is LESSONS 2026-07-26 turned on the checker itself:** "rule 4 passes" is a value published without its predicate — the predicate is *"CLAUDE.md agrees"*, not *"the four surfaces agree"*, and nothing in the report says so. The ticket states explicitly that the SPEC must not be narrowed to match the code: the four-surface claim is the requirement, the code is the thing that is wrong.
+
+**Recorded, because it is the honest reading:** `FINDINGS 0` did not move before or after this repair. A genuinely stale canonical surface sat under a clean report the entire time and still would — the repair fixed the surface, the filing addresses why nothing saw it.
+
+**Also:** the next-session queue went into the grooming log as a **note**, not a section (#102 remains a scheduled build), with the five owner-gated items in order, the axes behind them (#124 → #123, then #105, then #119/#120), and **hygiene explicitly not preempting items 1–5** — record repair and checker work are the background lane and do not outrank an operator- or architect-owed decision.
+
+**Changes:** `ARCHITECTURE.md` (Governing-ADRs roster, `ADR-01…15` header span, `last_reviewed` 2026-07-26), `BACKLOG.md` (#97 held-set correction + scheduled unit + predicate, #125 filed, queue note — count 76 → 77), `JOURNAL.md` (this). Commit `ed10b57`, merge `087f052`.
+
+**Next:** unit (b) — rule 1 + rule 14 leg (b) as ONE unit on the pinned predicate — remains unstarted. **#124 must land before #123.** The five queued items are operator- or architect-owed and outrank the background lane.
+
 ### 2026-07-26 (5) — Serial integration of Stream B unit (a); #124 filed; Unit-2 stubs HELD; teardown (`cd54d9a`, `6bfb2a1`, `e57a9d9`, `3753798`)
 
 **Did:** Acted as the serial integration gate on the primary, then tore the parallel lane down. **Integrated Stream B unit (a)** — `worktree-stream-b` (4 ahead) merged as **`cd54d9a`** under the **corrected two-condition bracket**: HEAD changed AND first-parent equalled the recorded value. Both conditions, because the single-condition form had already produced one false positive. `check.ps1` green (**891 passed**, up 6 with the new harness tests) and `SUMMARY: pass 4 | FINDINGS 0 across 0 rules | anchor-missing 0 | skipped(Unit2) 9 | errors 0` survived the merge. Then **`6bfb2a1`/`e57a9d9`**: filed **#124** and recorded the **#97** held-stubs ruling. Finally removed the worktree (`3753798` is its tip, merged in via `cd54d9a`).
