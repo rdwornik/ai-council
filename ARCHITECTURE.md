@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-24
+last_reviewed: 2026-07-26
 status: active
 owner: Rob
 ---
@@ -405,7 +405,7 @@ Do not create files outside these directories without updating this section.
 
 ## Authority and governance
 
-`ai-council` is a **tool repo** governed by `.dev-knowledge` (Layer-2 binding authority, ADR-31). It owns its local tool-design ADRs (`docs/decisions/ADR-01…14`) and conforms to ecosystem ADRs (naming, file lifecycle, the seven-file canonical baseline ADR-38 A6).
+`ai-council` is a **tool repo** governed by `.dev-knowledge` (Layer-2 binding authority, ADR-31). It owns its local tool-design ADRs (`docs/decisions/ADR-01…15`) and conforms to ecosystem ADRs (naming, file lifecycle, the seven-file canonical baseline ADR-38 A6).
 
 - **Conformance:** verified out-of-band, read-only, by `.dev-knowledge/scripts/audit.py` against the canonical standard. `.dev-knowledge` never writes here (Layer-2 invariant, ADR-28).
 - **Decision flow:** Council debate (this tool) → verdict → ADR authored + ratified by `.dev-knowledge` → distributed to downstream repos. Local ADRs cover only this tool's internal design.
@@ -424,7 +424,7 @@ Do not create files outside these directories without updating this section.
 
 ## Governing ADRs
 
-- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing · ADR-11 delegated invocation contract · ADR-12 provider backend engine · ADR-13 invocation-contract versioning · ADR-14 ADR lifecycle states.
+- **Local** (`docs/decisions/`): ADR-01 synthesizer selection · ADR-02 panel composition · ADR-03 blind voting · ADR-04 mode system · ADR-05 research integration · ADR-06 cost optimization · ADR-07 dual output paths (superseded by ADR-43) · ADR-08 research degradation alarm · ADR-09 protocols/ invocation surface · ADR-10 output routing · ADR-11 delegated invocation contract · ADR-12 provider backend engine · ADR-13 invocation-contract versioning · ADR-14 ADR lifecycle states · ADR-15 path-claim resolution model (commit tree, declared bases).
 - **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only LESSONS) · ADR-34 (naming) · ADR-38 (namespace + A6 seven-file baseline) · ADR-42 (handoffs centralized) · ADR-43 (transcript routing) · ADR-51 (ARCHITECTURE convention) · ADR-53 (CLAUDE.md) · ADR-59 (visual pattern) · ADR-60 (docs taxonomy) · ADR-67 (Council process operationalization).
 
 ---
