@@ -247,20 +247,28 @@ _R2_RUNTIME_PATHS = (
 )
 
 
-def _tracked_paths(ctx: RepoContext) -> tuple[set[str], set[str]]:
-    """The git-TRACKED tree as (files, dirs). Never the disk.
+def _committed_paths(ctx: RepoContext) -> tuple[set[str], set[str]]:
+    """The paths in HEAD's TREE as (files, dirs). Never the disk, and never the index.
 
     This is the whole point of #116: `Path.exists()` answers a question about the working
     directory, so a gitignored path present as untracked debris flipped R2's verdict between
-    checkouts of the identical commit. Tracked state is a function of the commit alone, so the
-    same commit now yields the same findings everywhere.
+    checkouts of the identical commit.
 
-    Raises on git failure rather than returning empty -- an empty tracked set would make every
-    cited path look broken (H1 discipline, same as rule 8).
+    Reads HEAD's tree, NOT `git ls-files` (terra 2026-07-26): ls-files reports the INDEX, so a
+    staged-but-uncommitted path would satisfy a claim, and R2's verdict would still depend on
+    working state. The two agree on a clean tree -- which is exactly why the first fresh-clone
+    acceptance run passed while this was still wrong -- so the verdict is now a function of the
+    COMMIT, as claimed.
+
+    A repo with no commits yet has a genuinely empty tree; that is not a failure. Any OTHER git
+    failure raises rather than returning empty, since an empty set would make every cited path
+    look broken (H1 discipline, same as rule 8).
     """
-    out = ctx.git("ls-files")
+    if ctx.git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        return set(), set()
+    out = ctx.git("ls-tree", "-r", "--name-only", "HEAD")
     if out.returncode != 0:
-        raise RuntimeError(f"git ls-files failed: {out.stderr.strip() or out.returncode}")
+        raise RuntimeError(f"git ls-tree HEAD failed: {out.stderr.strip() or out.returncode}")
     files = {line.strip() for line in out.stdout.splitlines() if line.strip()}
     dirs: set[str] = set()
     for f in files:
@@ -373,7 +381,7 @@ def rule_2(ctx: RepoContext) -> RuleResult:
       * a `## ... Section history` section -- records superseded paths by design.
     """
     findings: list[Finding] = []
-    files, dirs = _tracked_paths(ctx)
+    files, dirs = _committed_paths(ctx)
     for rel in _canonical_docs(ctx):
         in_historical = False
         for i, line in enumerate(ctx.read(rel).splitlines(), start=1):
@@ -415,12 +423,13 @@ def rule_2(ctx: RepoContext) -> RuleResult:
                     rule_id=2,
                     claim=f"path `{tok}` does not resolve under any declared base",
                     location=f"{rel}:{i}",
-                    reality=f"{tok} is not in the git-tracked tree under any of: {bases}",
-                    # A TRACKED-tree probe, matching what the rule now tests -- a Path.exists()
-                    # probe would contradict the rule and reproduce the #116 nondeterminism in
-                    # the evidence itself. Shown root-relative; `reality` carries the full base
-                    # list, since no single ls-files call can assert "none of N bases matched".
-                    evidence=("git", "ls-files", "--error-unmatch", tok),
+                    reality=f"{tok} is not in HEAD's tree under any of: {bases}",
+                    # A COMMIT-tree probe, matching what the rule now tests. `ls-files
+                    # --error-unmatch` would consult the INDEX and so carry the same staged-path
+                    # dependence the rule just removed; `cat-file -e HEAD:<p>` reads the commit
+                    # and works for files and directories alike. Shown root-relative; `reality`
+                    # carries the base list, since no single probe asserts "no base matched".
+                    evidence=("git", "cat-file", "-e", f"HEAD:{norm}"),
                     reproduces="exit-nonzero",
                 ))
     if findings:
