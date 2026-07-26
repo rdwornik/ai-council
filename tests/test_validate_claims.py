@@ -191,6 +191,35 @@ def test_registry_ids_are_unique_and_sorted_on_output():
     assert len(ctx_results) == len(set(ctx_results))
 
 
+# --- registry completeness vs the #97 spec (EXTERNAL denominator) ------------
+
+# Written out literally and deliberately NOT derived from vc.*: this is the external
+# denominator #97 gate (ii) requires. A test that iterates vc.RULES covers whatever is
+# present and structurally cannot detect an omission -- which is how rules 1 and 7 sat
+# absent from the registry while 41 registry-parametrized tests passed green.
+# Independently derived from BACKLOG #97's inline spec by sol (gpt-5.6-sol, 2026-07-26)
+# with no sight of this file or scripts/validate_claims.py: {1..14}, contiguous, no gaps.
+SPEC_RULE_IDS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14})
+
+# Rule 12 is the ONE sanctioned exemption from registration: realized structurally in the
+# Finding model (evidence argv + shlex round-trip), so every finding carries a re-runnable
+# command by construction and there is no leg to register. #97: "rule 12 is structural
+# rather than a leg" / "the one sanctioned exemption".
+STRUCTURAL_EXEMPTIONS = frozenset({12})
+
+
+def test_registry_covers_the_full_spec_id_set(tmp_path):
+    assert len(SPEC_RULE_IDS) == 14, "the #97 spec defines fourteen rules"
+    ctx = vc.RepoContext(_init_repo(tmp_path))
+    registered = {leg(ctx).rule_id for leg in vc.RULES}
+    expected = SPEC_RULE_IDS - STRUCTURAL_EXEMPTIONS
+    assert registered == expected, (
+        "RULES drifted from the #97 spec: "
+        f"missing {sorted(expected - registered)}, "
+        f"unexpected {sorted(registered - expected)}"
+    )
+
+
 # --- read-only proof: the checker mutates nothing under the repo root ---------
 
 def _manifest(root: Path) -> dict[str, tuple[int, str]]:
