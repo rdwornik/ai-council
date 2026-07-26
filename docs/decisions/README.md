@@ -22,6 +22,7 @@ Cross-repo ADRs affecting routing semantics live in `.dev-knowledge/docs/decisio
 | [ADR-12](ADR-12-provider-backend-engine-and-cost-lanes.md) | Provider Backend Engine — CLI-subscription seats and two-lane cost policy | Accepted (2026-07-05; §5 default-flip evidence-gated) |
 | [ADR-13](ADR-13-invocation-contract-versioning.md) | Invocation-contract versioning (ratifies DRAFT-INT-2) | Accepted (2026-07-18) |
 | [ADR-14](ADR-14-adr-lifecycle-states.md) | ADR lifecycle states (ratifies DRAFT-GOV-1) | Accepted (2026-07-17) |
+| [ADR-15](ADR-15-path-claim-resolution-model.md) | Path-claim resolution model for the claim-vs-reality checker (commit tree, declared bases) | Accepted (2026-07-26) |
 
 ## Cross-repo references
 

@@ -216,6 +216,7 @@ Do NOT:
 - ADR-12: Provider Backend Engine — CLI-subscription seats (v1 = claude+codex) + two-lane cost policy; §5 default-flip evidence-gated (Accepted 2026-07-05)
 - ADR-13: Invocation-contract versioning — `Contract-Version: MAJOR.MINOR` on the CONTRACT; additive bumps MINOR by doc revision, breaking bumps MAJOR + requires an ADR; ratifies DRAFT-INT-2 (Accepted 2026-07-18)
 - ADR-14: ADR lifecycle states — Proposed/Accepted/Revised(dated)/Superseded + header↔index sync; ratifies DRAFT-GOV-1 (Accepted 2026-07-17)
+- ADR-15: Path-claim resolution model — rule 2 resolves against the **commit tree** (`git ls-tree -r HEAD`, never the index or the disk) under four declared bases; exclusions are declarations with self-validating tests (Accepted 2026-07-26)
 
 **Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**
 - ADR-29: append-only LESSONS; ADR-34: filename conventions; ADR-38: `src/ai_council/` namespace
