@@ -33,7 +33,7 @@ import re
 import shlex
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -139,6 +139,11 @@ class RuleResult:
     findings: tuple[Finding, ...] = ()
     status: str = "pass"          # pass | fail | anchor-missing | skipped
     detail: str = ""              # reason for anchor-missing / skipped
+    # The surfaces this rule actually read, filled in BY THE HARNESS (run_all) from the
+    # observed read-set -- never by the leg itself. A verdict published without the surface
+    # set it rests on is a value published without its predicate (LESSONS 2026-07-26); rule 4
+    # spent its whole life reporting `pass` while reading one of the four docs it claimed.
+    surfaces: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.findings and self.status == "pass":
@@ -185,6 +190,31 @@ class RepoContext:
         self._yaml: dict[str, Any] = {}
         self._tree: set[str] | None = None
         self._dirs: set[str] | None = None
+        # Observed read-set (#125 leg 2). Every content read is appended here, so the harness can
+        # report, per rule, the surface set that rule ACTUALLY read -- see `run_all`. Observed,
+        # never declared: a hand-written per-rule surface string would go stale exactly the way
+        # rule 4's four-surface spec did, which is the defect this disclosure answers.
+        self._reads: list[str] = []
+
+    # --- observed read-set (harness-generic disclosure) ---------------------------------
+
+    def _record(self, surface: str) -> None:
+        """Note that `surface`'s CONTENT was consulted. Recorded on every call, including a
+        cache hit: recording only on a miss would make disclosure depend on which leg happened
+        to read a doc first, so a later leg would silently under-report its own basis."""
+        self._reads.append(surface)
+
+    def reads_mark(self) -> int:
+        """An opaque cursor into the read log, for measuring one leg's reads (see run_all)."""
+        return len(self._reads)
+
+    def surfaces_read(self) -> tuple[str, ...]:
+        """Every surface read so far, deduplicated, in first-read order."""
+        return tuple(dict.fromkeys(self._reads))
+
+    def surfaces_since(self, mark: int) -> tuple[str, ...]:
+        """The surfaces read since `mark` -- one leg's own basis when bracketed around it."""
+        return tuple(dict.fromkeys(self._reads[mark:]))
 
     # --- committed-tree view (the default; what every rule leg uses) --------------------
 
@@ -214,6 +244,7 @@ class RepoContext:
 
     def read(self, rel: str) -> str:
         """The COMMITTED content of `rel`. A dirty working copy cannot change a verdict."""
+        self._record(rel)
         if rel not in self._text:
             out = self.git("show", f"HEAD:{rel}")
             if out.returncode != 0:
@@ -224,6 +255,7 @@ class RepoContext:
     def glob(self, pat: str) -> list[Path]:
         """Committed paths matching `pat`. Returns Paths for caller convenience (`.name`),
         built from the tree -- nothing is stat'd, so an untracked file cannot appear."""
+        self._record(pat)
         self._load_tree()
         assert self._tree is not None
         return [self.root / r for r in sorted(fnmatch.filter(sorted(self._tree), pat))]
@@ -231,6 +263,7 @@ class RepoContext:
     def committed_paths(self) -> tuple[set[str], set[str]]:
         """HEAD's tree as (files, dirs-with-trailing-slash). One source of truth: rule 2's
         resolution model and every other leg read the same set, so the two cannot drift."""
+        self._record("HEAD:<tracked tree>")
         self._load_tree()
         assert self._tree is not None and self._dirs is not None
         return set(self._tree), {d + "/" for d in self._dirs}
@@ -573,18 +606,107 @@ def rule_3(ctx: RepoContext) -> RuleResult:
 _ADR_SECTION = re.compile(r"recent adrs|adrs? binding", re.IGNORECASE)
 _ADR_ID = re.compile(r"(ADR-\d+)")
 
+# The FOUR surfaces #97 rule 4 specifies, quoted from the spec line: "ADR files on disk ==
+# CLAUDE section 11 == ARCHITECTURE Governing-ADRs == `docs/decisions/README.md` index".
+# The implementation read ONE of them (`("CLAUDE.md",)`) in ONE direction, so ADR-15 could sit
+# absent from ARCHITECTURE's roster under a `pass 4 | FINDINGS 0` report -- witnessed
+# 2026-07-26, filed as #125. Each surface carries its own heading anchor because the three
+# rosters are named differently; a doc absent from the tree is simply not compared, but a doc
+# that is PRESENT and cannot be anchored is a finding, not a silent omission.
+_ADR_SURFACES: tuple[tuple[str, re.Pattern[str], str], ...] = (
+    ("CLAUDE.md", _ADR_SECTION, "adrs"),
+    ("ARCHITECTURE.md", re.compile(r"governing adrs", re.IGNORECASE), "governing adrs"),
+    ("docs/decisions/README.md", re.compile(r"^\s*index\s*$", re.IGNORECASE), "index"),
+)
+
+# Within a roster section, the LOCAL sub-block. All three surfaces separate local from
+# hub-owned ADRs with an explicit marker; the README's `## Index` has no marker because its
+# whole table is local (its cross-repo refs live in a sibling section). So: narrow to the
+# Local block when the body declares one, else the body IS the local block.
+_ADR_LOCAL_MARKER = re.compile(r"\*\*Local\*\*|\*\*Local\s*\(", re.IGNORECASE)
+_ADR_ECOSYSTEM_MARKER = re.compile(r"\*\*Ecosystem", re.IGNORECASE)
+# Entries are one-per-line, `·`-packed on one bullet (ARCHITECTURE), or `;`-packed (the
+# ecosystem block's style). Splitting on all three keeps one entry == one declaration.
+_ADR_ENTRY_SPLIT = re.compile(r"[\n·;]")
+
 
 def _adr_roster_docs(ctx: RepoContext) -> list[str]:
-    return [d for d in ("CLAUDE.md",) if ctx.exists(d)]
+    """The roster surfaces to compare -- every one the spec names that exists in HEAD's tree."""
+    return [rel for rel, _sec, _w in _ADR_SURFACES if ctx.exists(rel)]
+
+
+def _adr_surface_spec(rel: str) -> tuple[re.Pattern[str], str]:
+    """(heading anchor, lowercase heading keyword) for `rel`; the CLAUDE-style roster is the
+    default so a caller naming a doc outside the declared set still gets a sane anchor."""
+    for name, sec, word in _ADR_SURFACES:
+        if name == rel:
+            return sec, word
+    return _ADR_SECTION, "adrs"
+
+
+def _declared_local_adrs(body: list[str]) -> set[str]:
+    """The ADR ids a roster section DECLARES as local.
+
+    A declaration is the id an entry IS ABOUT -- its first id -- not every id it mentions.
+    This is measured, not stylistic: all three live surfaces name ADR-43 (hub-owned) inside
+    ADR-07's own entry, so treating any mention as a declaration would report three false
+    "rostered but not on disk" findings. Precision boundary, stated: two local ADRs packed
+    into ONE entry would declare only the first -- every surface here writes one entry per
+    ADR, and the fix if that changes is to split the entry, not to widen this rule.
+    """
+    has_marker = any(_ADR_LOCAL_MARKER.search(ln) for ln in body)
+    keeping = not has_marker
+    block: list[str] = []
+    for line in body:
+        if _ADR_ECOSYSTEM_MARKER.search(line):
+            keeping = False
+        if _ADR_LOCAL_MARKER.search(line):
+            keeping = True
+        if keeping:
+            block.append(line)
+    declared: set[str] = set()
+    for entry in _ADR_ENTRY_SPLIT.split("\n".join(block)):
+        m = _ADR_ID.search(entry)
+        if m:
+            declared.add(m.group(1))
+    return declared
+
+
+def _adr_evidence(rel: str, word: str, ids: list[str], label: str) -> tuple[str, ...]:
+    """A re-runnable command that recomputes THIS surface's declared set the same way the rule
+    did, then reports the delta. Deliberately backslash-free so it double-quotes cleanly into
+    both PowerShell and git-bash (#106), and deliberately not an import of this checker: the
+    evidence must run from a bare repo checkout with no scripts/ on the path."""
+    payload = (
+        "import re,pathlib; "
+        f"ls=pathlib.Path({rel!r}).read_text(encoding='utf-8').split(chr(10)); "
+        f"h=[k for k,l in enumerate(ls) if l.startswith('#') and {word!r} in l.lower()]; "
+        "i=h[0] if h else -1; "
+        "nx=[k for k in range(i+1,len(ls)) if ls[k].startswith('#')] if i>=0 else []; "
+        "body=ls[i+1:(nx[0] if nx else len(ls))] if i>=0 else []; "
+        "lm=[k for k,l in enumerate(body) if '**Local' in l]; "
+        "em=[k for k,l in enumerate(body) if '**Ecosystem' in l]; "
+        "blk=body[(lm[0] if lm else 0):(em[0] if em else len(body))]; "
+        "txt=chr(10).join(blk).replace(chr(183),chr(10)).replace(';',chr(10)); "
+        "decl={m.group(1) for e in txt.split(chr(10)) if (m:=re.search('(ADR-[0-9]+)',e))}; "
+        f"print({label!r}, sorted(x for x in {ids!r} if (x not in decl) == {(label != 'rostered-but-not-on-disk')!r}))"
+    )
+    return ("python", "-c", payload)
 
 
 def rule_4(ctx: RepoContext) -> RuleResult:
-    """Every local ADR file (docs/decisions/ADR-*.md) is NAMED in the doc's ADR roster.
+    """SET-EQUALITY between the ADR files on disk and every roster surface the spec names.
 
-    One direction only (disk -> roster), by whole-token mention: an ADR file that exists but is
-    unrostered is real drift (ADR-13 was). The reverse (rostered id absent on disk) is NOT
-    checked -- the roster legitimately also names ecosystem ADRs that live in the sibling hub,
-    so flagging them would be a false positive.
+    Four surfaces, both directions (#125). `docs/decisions/ADR-*.md` in HEAD's tree is the
+    ground truth; CLAUDE section 11, ARCHITECTURE's Governing-ADRs and the
+    `docs/decisions/README.md` index must each declare exactly that set:
+
+      * on disk, not declared  -> the roster is stale (ADR-13 was; ADR-15 was, invisibly);
+      * declared, not on disk  -> the roster claims an ADR that does not exist.
+
+    The reverse direction is scoped to each section's LOCAL block and to entry-head ids, which
+    is what makes it safe: the rosters legitimately name hub-owned ecosystem ADRs, and
+    comparing against every mention would flag those (measured: ADR-43, on all three surfaces).
     """
     disk_ids = sorted({m.group(1) for p in ctx.glob("docs/decisions/ADR-*.md")
                        if (m := _ADR_ID.match(p.name))})
@@ -594,28 +716,49 @@ def rule_4(ctx: RepoContext) -> RuleResult:
     findings: list[Finding] = []
     anchored = False
     for rel in _adr_roster_docs(ctx):
-        _body, hl = _section_body(ctx.read(rel), _ADR_SECTION)
-        if _body is None:
+        section_re, word = _adr_surface_spec(rel)
+        body, hl = _section_body(ctx.read(rel), section_re)
+        if body is None:
+            # Present but unanchorable: the surface drops out of the comparison and nothing
+            # would say so -- the #104 criterion-(iv) hazard (a doc silently un-gating its own
+            # check) one level down. Reported, never skipped.
+            findings.append(Finding(
+                rule_id=4,
+                claim=f"{rel} is a declared ADR-roster surface but its roster section could "
+                      f"not be located, so it silently drops out of the comparison",
+                location=f"{rel}:1",
+                reality=f"no heading matching /{section_re.pattern}/ found in {rel}",
+                evidence=("python", "-c",
+                          f"import pathlib; "
+                          f"ls=pathlib.Path({rel!r}).read_text(encoding='utf-8').split(chr(10)); "
+                          f"print('roster-headings:', [l for l in ls if l.startswith('#') "
+                          f"and {word!r} in l.lower()])"),
+                reproduces="stdout-contains",
+            ))
             continue
         anchored = True
-        doc_text = ctx.read(rel)                 # whole doc -- matches the evidence scope (H4)
-        missing = [a for a in disk_ids if not _id_mentioned(a, doc_text)]
+        declared = _declared_local_adrs(body)
+        missing = [a for a in disk_ids if a not in declared]
+        extra = sorted(declared - set(disk_ids), key=lambda a: (len(a), a))
         if missing:
             findings.append(Finding(
                 rule_id=4,
                 claim=f"ADR roster in {rel} omits an ADR that exists on disk",
                 location=f"{rel}:{hl}",
-                reality=f"on disk but not documented: {missing}",
-                evidence=("python", "-c",
-                          f"import re,pathlib; "
-                          f"disk=sorted(re.match(r'(ADR-\\d+)', p.name).group(1) "
-                          f"for p in pathlib.Path('docs/decisions').glob('ADR-*.md')); "
-                          f"doc=pathlib.Path({rel!r}).read_text(encoding='utf-8'); "
-                          f"print('on-disk-not-documented:', [a for a in disk if not "
-                          f"re.search(r'(?<![\\w-])'+re.escape(a)+r'(?![\\w-])', doc)])"),
+                reality=f"on disk but not declared in {rel}: {missing}",
+                evidence=_adr_evidence(rel, word, missing, "missing-from-roster"),
                 reproduces="stdout-contains",
             ))
-    if not anchored:
+        if extra:
+            findings.append(Finding(
+                rule_id=4,
+                claim=f"ADR roster in {rel} declares a local ADR with no file on disk",
+                location=f"{rel}:{hl}",
+                reality=f"declared in {rel} but absent from docs/decisions/: {extra}",
+                evidence=_adr_evidence(rel, word, extra, "rostered-but-not-on-disk"),
+                reproduces="stdout-contains",
+            ))
+    if not anchored and not findings:
         return RuleResult(4, "adr-roster-parity", status="anchor-missing",
                           detail="no ADR roster section located")
     if findings:
@@ -737,13 +880,19 @@ RULES: list[RuleLeg] = [
 def run_all(ctx: RepoContext,
             legs: list[RuleLeg] | None = None) -> tuple[list[RuleResult], list[tuple[str, str]]]:
     """Run every leg. A leg raising is a CHECKER ERROR (not a finding) -- collected separately
-    so a crash forces exit >=2 and cannot masquerade as a pass."""
+    so a crash forces exit >=2 and cannot masquerade as a pass.
+
+    Each leg is bracketed by a read-set mark so its RuleResult carries the surfaces it actually
+    read (#125 leg 2). Harness-generic by construction: a new leg discloses its basis without
+    writing a line of disclosure code, and no leg can claim a surface it never opened.
+    """
     results: list[RuleResult] = []
     errors: list[tuple[str, str]] = []
     for leg in (RULES if legs is None else legs):
         name = getattr(leg, "__name__", repr(leg))
+        mark = ctx.reads_mark()
         try:
-            results.append(leg(ctx))
+            results.append(replace(leg(ctx), surfaces=ctx.surfaces_since(mark)))
         except Exception as exc:  # noqa: BLE001 -- a leg must never take down the checker
             errors.append((name, f"{type(exc).__name__}: {exc}"))
     results.sort(key=lambda r: r.rule_id)
@@ -803,6 +952,12 @@ def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> s
     lines.append("        carries a re-runnable command by construction; no leg to register")
     lines.append(f"      absent      ({len(absent)}): {_ids(absent)}")
     lines.append(f"      TOTAL {total} of {spec_n} accounted for. A clean run is NOT a clean repo.")
+    lines.append("  - Each rule line ends with `reads:` -- the surface set that rule ACTUALLY")
+    lines.append("    read this run, observed by the harness, not declared by the rule. It is")
+    lines.append("    the predicate behind that rule's verdict: `pass` over a surface set that")
+    lines.append("    omits a doc the rule claims to compare is exactly how a stale ARCHITECTURE")
+    lines.append("    roster sat under FINDINGS 0 (#125). Scope: doc/tree surfaces whose CONTENT")
+    lines.append("    was consulted; git ref-graph queries (R8's reachability) are not listed.")
     lines.append("  - Evidence commands paste into BOTH PowerShell and git-bash (#106). One")
     lines.append("    residual: arg0 is a BARE runner, so on Windows `python` may resolve to a")
     lines.append("    Store stub or a non-venv interpreter. That is documented, not engineered")
@@ -816,7 +971,9 @@ def format_report(results: list[RuleResult], errors: list[tuple[str, str]]) -> s
     for r in results:
         tag = {"pass": "PASS", "fail": "FAIL", "anchor-missing": "WARN", "skipped": "SKIP"}[r.status]
         note = f"  ({r.detail})" if r.detail and r.status in ("anchor-missing", "skipped") else ""
-        lines.append(f"  [{tag}] rule {r.rule_id:>2} {r.rule_name}{note}")
+        # The predicate published beside the value: what this verdict actually rests on.
+        reads = ", ".join(r.surfaces) if r.surfaces else "none"
+        lines.append(f"  [{tag}] rule {r.rule_id:>2} {r.rule_name}{note}  reads: {reads}")
     for f in _sorted_findings(results):
         lines.append(f"    - rule {f.rule_id} @ {f.location}: {f.claim}")
         lines.append(f"      reality:  {f.reality}")

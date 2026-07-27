@@ -224,14 +224,29 @@ def test_report_header_names_known_limitations():
     assert "maintained BY HAND against BACKLOG #97" in out
 
 
-def test_run_all_isolates_a_crashing_leg():
+def test_run_all_isolates_a_crashing_leg(tmp_path):
+    # ctx is a REAL RepoContext (it was `None` before the #125 read-set bracketing, which was
+    # incidental convenience -- the property under test is leg isolation, not a null ctx). The
+    # real object additionally proves a crashing leg does not corrupt read-set accounting for
+    # the legs around it.
     def boom(ctx):
         raise RuntimeError("leg exploded")
-    good = lambda ctx: vc.RuleResult(2, "x", status="pass")  # noqa: E731
-    results, errors = vc.run_all(None, legs=[good, boom])
-    assert len(results) == 1 and results[0].status == "pass"
+
+    def good(ctx):
+        ctx.read("CLAUDE.md")
+        return vc.RuleResult(2, "x", status="pass")
+
+    def after(ctx):
+        return vc.RuleResult(3, "y", status="pass")
+
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    results, errors = vc.run_all(ctx, legs=[good, boom, after])
+    assert len(results) == 2 and all(r.status == "pass" for r in results)
     assert len(errors) == 1 and "leg exploded" in errors[0][1]
     assert vc.exit_code(results, errors) == 2
+    by_id = {r.rule_id: r for r in results}
+    assert by_id[2].surfaces == ("CLAUDE.md",)
+    assert by_id[3].surfaces == (), "the crashing leg must not leak reads into the next leg"
 
 
 # --- registry auto-test (a new leg is auto-covered) --------------------------
@@ -489,7 +504,7 @@ def test_declared_runtime_paths_really_are_gitignored_and_untracked():
             f"{p} is not an entry in the tracked .gitignore -- the declaration is false")
 
 
-def test_r2_verdict_is_identical_with_and_without_untracked_debris(tmp_path):
+def test_r2_verdict_is_identical_with_and_without_untracked_debris(tmp_path, monkeypatch):
     # THE #116 PROPERTY. logs/ is gitignored; on the primary checkout it existed as untracked
     # debris and on a fresh clone it did not, so the old disk-based guard reported the SAME
     # COMMIT two different ways. Resolving against the tracked tree makes that impossible.
@@ -499,11 +514,15 @@ def test_r2_verdict_is_identical_with_and_without_untracked_debris(tmp_path):
     _git(repo, "add", ".gitignore")
     _git(repo, "commit", "-qm", "ignore logs")
 
+    # monkeypatch, NOT a direct module assignment: this helper used to do
+    # `m._canonical_docs = ...` on the imported module, which is never unwound, so every test
+    # running after it in the same session saw _canonical_docs pinned to ["DOC.md"]. Harmless
+    # until a later test called run_all() on a real repo -- then rule 2 raised
+    # "DOC.md is not in HEAD's tree" and the failure surfaced in the innocent test.
+    monkeypatch.setattr(vc, "_canonical_docs", lambda ctx: ["DOC.md"])
+
     def verdict():
-        import importlib
-        m = importlib.import_module("validate_claims")
-        m._canonical_docs = lambda ctx: ["DOC.md"]
-        return m.rule_2(m.RepoContext(repo))
+        return vc.rule_2(vc.RepoContext(repo))
 
     without = verdict()
     (repo / "logs").mkdir()                                  # untracked, gitignored debris
@@ -895,6 +914,232 @@ def test_r4_evidence_reproduces(tmp_path, monkeypatch):
         res = _run_evidence(f, repo)
         assert res.returncode == 0
         assert "ADR-13" in res.stdout
+
+
+# --- R4 widened to the FOUR surfaces the #97 spec names (#125) ----------------
+# Spec, quoted live from BACKLOG #97 rule 4: "ADR files on disk == CLAUDE section 11 ==
+# ARCHITECTURE Governing-ADRs == `docs/decisions/README.md` index". The implementation read
+# ONE surface in ONE direction, so a stale ARCHITECTURE roster produced no finding while the
+# report said `pass` -- the LESSONS 2026-07-26 class inside the checker. The SPEC stands; the
+# code was wrong. Each surface below is seeded stale independently, because "covers four
+# surfaces" is only demonstrated if omitting an ADR from EACH one is separately caught.
+
+_R4_FOUR_FILES = ["ADR-01-a.md", "ADR-02-b.md", "ADR-15-c.md"]
+
+
+def _r4_claude(ids=("ADR-01", "ADR-02", "ADR-15")) -> str:
+    rows = "\n".join(f"- {a}: title for {a}" for a in ids)
+    return (
+        "# CLAUDE\n\n## 11. Recent ADRs binding here\n\n"
+        "**Local (`docs/decisions/`):**\n"
+        f"{rows}\n\n"
+        "**Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**\n"
+        "- ADR-29: append-only LESSONS; ADR-34: filename conventions\n"
+    )
+
+
+def _r4_arch(ids=("ADR-01", "ADR-02", "ADR-15")) -> str:
+    packed = " · ".join(f"{a} topic" for a in ids)
+    return (
+        "# ARCH\n\n## Governing ADRs\n\n"
+        f"- **Local** (`docs/decisions/`): {packed}\n"
+        "- **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only) · ADR-34 (naming)\n"
+    )
+
+
+def _r4_readme(ids=("ADR-01", "ADR-02", "ADR-15")) -> str:
+    rows = "\n".join(f"| [{a}]({a}-x.md) | title | Accepted |" for a in ids)
+    return (
+        "# ADRs\n\n## Index\n\n"
+        "| ADR | Title | Status |\n|-----|-------|--------|\n"
+        f"{rows}\n\n"
+        "## Cross-repo references\n\n- **ADR-43** lives in `.dev-knowledge/docs/decisions/`.\n"
+    )
+
+
+def _r4_four_tree(tmp_path: Path, *, claude=None, arch=None, readme=None,
+                  files=None) -> Path:
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "decisions").mkdir(parents=True)
+    for name in (_R4_FOUR_FILES if files is None else files):
+        (repo / "docs" / "decisions" / name).write_text(f"# {name}\n", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text(_r4_claude() if claude is None else claude, encoding="utf-8")
+    (repo / "ARCHITECTURE.md").write_text(_r4_arch() if arch is None else arch, encoding="utf-8")
+    (repo / "docs" / "decisions" / "README.md").write_text(
+        _r4_readme() if readme is None else readme, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed four surfaces")
+    return repo
+
+
+def test_r4_four_surfaces_all_agree_passes(tmp_path):
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path)))
+    assert r.status == "pass", f"expected pass, got {r.status}: {[f.reality for f in r.findings]}"
+
+
+def test_r4_catches_stale_architecture_roster(tmp_path):
+    """THE witnessed defect: ADR-15 landed in CLAUDE and the README index but NOT in
+    ARCHITECTURE's Governing-ADRs roster, and the checker reported pass 4 | FINDINGS 0."""
+    repo = _r4_four_tree(tmp_path, arch=_r4_arch(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail", "a stale ARCHITECTURE roster must be caught"
+    assert any("ARCHITECTURE.md" in f.location and "ADR-15" in f.reality for f in r.findings), \
+        f"expected an ARCHITECTURE/ADR-15 finding, got {[(f.location, f.reality) for f in r.findings]}"
+
+
+def test_r4_catches_stale_readme_index(tmp_path):
+    repo = _r4_four_tree(tmp_path, readme=_r4_readme(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail", "a stale README index must be caught"
+    assert any("README.md" in f.location and "ADR-15" in f.reality for f in r.findings)
+
+
+def test_r4_catches_stale_claude_roster(tmp_path):
+    repo = _r4_four_tree(tmp_path, claude=_r4_claude(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail"
+    assert any("CLAUDE.md" in f.location and "ADR-15" in f.reality for f in r.findings)
+
+
+def test_r4_is_bidirectional_roster_names_a_local_adr_not_on_disk(tmp_path):
+    """The other half of set-equality: a roster entry claiming a local ADR that does not
+    exist. One direction only meant a deleted or never-created ADR stayed rostered forever."""
+    repo = _r4_four_tree(tmp_path, claude=_r4_claude(ids=("ADR-01", "ADR-02", "ADR-15", "ADR-77")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail", "a rostered-but-absent local ADR must be caught"
+    assert any("ADR-77" in f.reality for f in r.findings), \
+        f"expected an ADR-77 finding, got {[f.reality for f in r.findings]}"
+
+
+def test_r4_cross_reference_inside_an_entry_is_not_a_declaration(tmp_path):
+    """MEASURED false-positive class, not hypothesised: all three live surfaces name ADR-43
+    (a hub-owned ADR) inside ADR-07's own entry prose. A naive reverse direction reports three
+    findings for it. A declaration is the id an ENTRY IS ABOUT -- its first id -- so a
+    cross-reference later in the same entry is not a local claim."""
+    claude = _r4_claude().replace(
+        "- ADR-02: title for ADR-02",
+        "- ADR-02: title for ADR-02 -- superseded by ADR-43 (opt-in routing)")
+    readme = _r4_readme().replace(
+        "| [ADR-02](ADR-02-x.md) | title | Accepted |",
+        "| [ADR-02](ADR-02-x.md) | title | Superseded by ADR-43 |")
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path, claude=claude, readme=readme)))
+    assert r.status == "pass", \
+        f"a hub cross-reference must not read as a local declaration: {[f.reality for f in r.findings]}"
+
+
+def test_r4_surface_present_but_section_renamed_is_a_finding(tmp_path):
+    """A surface that exists but whose roster heading is reworded drops silently out of the
+    comparison -- the #104 criterion-(iv) hazard (the audited doc un-gating its own check) at
+    the surface level. It must be a finding, not an invisible omission."""
+    repo = _r4_four_tree(tmp_path, arch="# ARCH\n\n## Layer model\n\n- nothing about ADRs here\n")
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail"
+    assert any("ARCHITECTURE.md" in f.location and "section" in f.claim.lower()
+               for f in r.findings), \
+        f"expected an un-anchored-surface finding, got {[(f.location, f.claim) for f in r.findings]}"
+
+
+def test_r4_reads_all_four_surfaces_on_the_live_repo():
+    """Measurement against the real tree: the widened rule must actually consult four surfaces.
+    Kept separate from the verdict so a live finding is reported as a measurement, never
+    silenced by a doc edit inside this lane."""
+    ctx = vc.RepoContext(_REPO)
+    assert vc._adr_roster_docs(ctx) == [
+        "CLAUDE.md", "ARCHITECTURE.md", "docs/decisions/README.md"], \
+        "the spec names four surfaces: ADR files on disk + these three rosters"
+
+
+def test_r4_evidence_reproduces_for_every_surface(tmp_path):
+    repo = _r4_four_tree(tmp_path, arch=_r4_arch(ids=("ADR-01", "ADR-02")),
+                         readme=_r4_readme(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "fail"
+    for f in r.findings:
+        res = _run_evidence(f, repo)
+        assert res.returncode == 0, f"evidence failed to run: {f.printed()}\n{res.stderr}"
+        assert "ADR-15" in res.stdout, f"evidence did not reproduce the finding: {f.printed()}"
+
+
+# --- harness-generic read-set disclosure (#125 leg 2) ------------------------
+# Every rule's report line carries the surface set it ACTUALLY read, emitted by the HARNESS
+# from the observed read-set -- never a hand-written string inside a rule. A hand-written
+# string goes stale exactly the way the four-surface spec did.
+
+
+def test_ctx_records_the_surfaces_it_reads(tmp_path):
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    assert ctx.surfaces_read() == ()
+    ctx.read("CLAUDE.md")
+    ctx.glob("docs/decisions/ADR-*.md")
+    assert "CLAUDE.md" in ctx.surfaces_read()
+    assert "docs/decisions/ADR-*.md" in ctx.surfaces_read()
+
+
+def test_ctx_records_a_cached_reread_so_disclosure_is_order_independent(tmp_path):
+    """read() caches, so a second leg reading the same doc returns early. If the surface were
+    recorded only on a cache MISS, whichever leg ran second would under-report -- disclosure
+    would depend on rule order. Recorded on every call instead."""
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    ctx.read("CLAUDE.md")
+    before = len(ctx.surfaces_read())
+    mark = ctx.reads_mark()
+    ctx.read("CLAUDE.md")                      # cached hit
+    assert ctx.surfaces_since(mark) == ("CLAUDE.md",), \
+        "a cached re-read must still be observed, or disclosure depends on leg order"
+    assert len(ctx.surfaces_read()) == before, "surfaces_read stays a deduplicated set"
+
+
+def test_run_all_attaches_the_observed_read_set_per_rule(tmp_path):
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    results, errors = vc.run_all(ctx)
+    assert errors == [], errors
+    by_id = {r.rule_id: r for r in results}
+    assert "CLAUDE.md" in by_id[3].surfaces, f"rule 3 read CLAUDE.md: {by_id[3].surfaces}"
+    assert ".pre-commit-config.yaml" in by_id[3].surfaces
+    assert by_id[1].surfaces == (), "a skipped stub reads nothing, and must disclose that"
+
+
+def test_run_all_read_sets_are_not_cross_contaminated(tmp_path):
+    # rule 3 reads .pre-commit-config.yaml; rule 4 must not claim to have read it.
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    results, _ = vc.run_all(ctx)
+    by_id = {r.rule_id: r for r in results}
+    assert ".pre-commit-config.yaml" not in by_id[4].surfaces, \
+        f"rule 4's read-set leaked rule 3's surfaces: {by_id[4].surfaces}"
+
+
+def test_report_discloses_each_rules_read_surfaces(tmp_path):
+    ctx = vc.RepoContext(_seeded_repo(tmp_path))
+    results, errors = vc.run_all(ctx)
+    report = vc.format_report(results, errors)
+    assert "reads:" in report, "the report must disclose what each rule read"
+    line = next(ln for ln in report.splitlines() if " rule  4 " in ln or " rule 4 " in ln)
+    assert "CLAUDE.md" in line, f"rule 4's line must name its surfaces: {line!r}"
+    skip_line = next(ln for ln in report.splitlines() if "rule  1 " in ln)
+    assert "reads: none" in skip_line, f"a SKIP must disclose reading nothing: {skip_line!r}"
+
+
+def test_disclosure_is_harness_generic_not_a_string_in_any_rule(tmp_path):
+    """The disposition that makes this durable: the covered-set disclosure is emitted by the
+    harness from the observed read-set. A hand-written per-rule string would go stale exactly
+    the way the four-surface spec did, so no rule leg may author one."""
+    src = _P.read_text(encoding="utf-8")
+    legs = src[src.index("# --- rule legs"):src.index("def _unit2_stub")]
+    assert "reads:" not in legs, "a rule leg hand-writes its own disclosure string"
+    assert "surfaces=" not in legs, "a rule leg hand-declares its surface set"
+
+
+def test_live_report_discloses_rule_4s_four_surfaces():
+    """End-to-end on the real repo: the run that reports rule 4 must also say which surfaces
+    that verdict rests on -- the predicate published alongside the value."""
+    ctx = vc.RepoContext(_REPO)
+    results, errors = vc.run_all(ctx)
+    by_id = {r.rule_id: r for r in results}
+    for surface in ("CLAUDE.md", "ARCHITECTURE.md", "docs/decisions/README.md"):
+        assert surface in by_id[4].surfaces, \
+            f"rule 4 did not read {surface} on the live repo: {by_id[4].surfaces}"
+    assert "docs/decisions/ADR-*.md" in by_id[4].surfaces
+    assert errors == [], errors
 
 
 # --- R8: SHA reachability ----------------------------------------------------
