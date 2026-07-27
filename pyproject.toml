@@ -14,7 +14,13 @@ dependencies = [
     "python-dotenv>=1.0",
     "anthropic>=0.40",
     "openai>=1.50",
-    "google-genai>=1.55.0",
+    # >=2.0,<3.0 — NOT a pin to what this machine happened to hold (it held 1.73.1). The old
+    # `>=1.55.0` spanned a BREAKING change in the Interactions API: 2.x types create() as
+    # `Interaction | AsyncStream[...]` and `Interaction.id` as Optional[str], so src/ cannot
+    # type-check against both shapes at once and the range could not reproduce a green gate.
+    # src/ is written against 2.x; the floor now says so. Upper bound by semver, so the next
+    # major cannot silently re-open the same class. (BACKLOG #124)
+    "google-genai>=2.0,<3.0",
     "python-frontmatter>=1.0",
 ]
 

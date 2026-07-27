@@ -7,7 +7,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import frontmatter
 
@@ -134,7 +134,13 @@ def parse_file(
         raw_target = metadata.get("target-project")
         if isinstance(raw_target, str):
             raw_target = [raw_target]
-        metadata["target_paths"] = resolver.resolve(raw_target)
+        # YAML frontmatter is untyped, so this value is `object` to a type checker. The cast
+        # asserts nothing about the shape: `TargetResolver.resolve` is itself the validator --
+        # its else-branch raises RoutingError naming the type it received, which is exactly the
+        # fail-loud path a malformed `target-project` should take. Casting here keeps the
+        # resolver's signature honest for the CLI call site, which really does pass a tuple.
+        metadata["target_paths"] = resolver.resolve(
+            cast("str | list[str] | tuple[str, ...] | None", raw_target))
 
     return content, metadata
 

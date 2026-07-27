@@ -12,6 +12,7 @@ import logging
 import re
 import time
 import warnings
+from typing import cast
 
 from google import genai
 
@@ -85,7 +86,20 @@ class GeminiResearchProvider(ResearchProvider):
                 background=True,
             )
 
-        interaction_id = interaction.id
+        # google-genai 2.x types create() as `Interaction | AsyncStream[...]` (streaming and
+        # non-streaming overloads) and `Interaction.id` as `Optional[str]`. This call passes
+        # `background=True` with no `stream`, so the runtime value is the non-streaming
+        # Interaction and its id is always populated.
+        #
+        # Narrowed with a targeted ignore rather than a cast to the response model, because
+        # that model is only nameable at a PRIVATE path (`google.genai._gaos.types...`) --
+        # the public `google.genai.interactions.Interaction` resolves, for a type checker, to
+        # the *input* union `CreateAgentInteraction | CreateModelInteraction`. Importing the
+        # private path would couple us to SDK internals that move between 2.x releases.
+        # `warn_unused_ignores = true` makes this self-retiring: the day the SDK types this
+        # properly, the ignore becomes an error and the workaround is removed by the gate
+        # rather than by memory. Same posture as the #20 openai-2.x stopgap. (BACKLOG #124)
+        interaction_id = cast(str, interaction.id)  # type: ignore[union-attr]
         logger.info("gemini: research started (interaction_id=%s, agent=%s)", interaction_id, self._agent)
 
         while True:
