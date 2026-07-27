@@ -1138,6 +1138,50 @@ def test_r4_ecosystem_marker_above_the_local_block_does_not_empty_it(tmp_path):
         f"an Ecosystem marker above the Local block emptied it: {[f.reality for f in r.findings]}"
 
 
+def test_r4_bold_prose_containing_local_is_not_a_block_marker(tmp_path):
+    """TERRA third pass, accepted -- a regression I introduced: collapsing the marker regex to
+    a bare `**local` substring made bold prose like `**local terminology note:**` a block
+    marker, so such a line BELOW real entries moved the block start past them and reported
+    every one of them missing."""
+    claude = (
+        "# CLAUDE\n\n## 11. Recent ADRs binding here\n\n"
+        "**Local (`docs/decisions/`):**\n"
+        "- ADR-01: title\n- ADR-02: title\n- ADR-15: title\n\n"
+        "**local terminology note:** 'binding' means binding on this repo.\n"
+    )
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path, claude=claude)))
+    assert r.status == "pass", \
+        f"bold prose was read as a Local marker: {[f.reality for f in r.findings]}"
+
+
+def test_r4_evidence_reads_the_roster_from_head_not_the_working_copy(tmp_path):
+    """TERRA third pass, accepted: the disk side had been moved to HEAD's tree while the
+    ROSTER side was still a working-copy read, so a dirty edit to a roster made the evidence
+    contradict the committed-tree verdict it was attached to."""
+    repo = _r4_four_tree(tmp_path, arch=_r4_arch(ids=("ADR-01", "ADR-02")))
+    ev = next(f for f in vc.rule_4(vc.RepoContext(repo)).findings
+              if "ARCHITECTURE.md" in f.location)
+    # Dirty the roster in the working copy so it LOOKS complete; HEAD still omits ADR-15.
+    (repo / "ARCHITECTURE.md").write_text(_r4_arch(), encoding="utf-8")
+    res = _run_evidence(ev, repo)
+    assert res.returncode == 0, res.stderr
+    assert "ADR-15" in res.stdout, (
+        "the evidence read the dirty working copy and stopped reproducing the committed-tree "
+        f"finding: {res.stdout}")
+
+
+def test_r4_id_pattern_is_ascii_only_in_rule_and_evidence(tmp_path):
+    """TERRA third pass, accepted: production matched `ADR-\\d+` (which accepts Unicode decimal
+    digits) while the evidence payload used `[0-9]+`, so a non-ASCII-digit ADR entered the
+    rule's set and not the evidence's. ADR-34 names are ASCII kebab-case, so both are ASCII."""
+    assert vc._ADR_ID.match("ADR-15") is not None
+    assert vc._ADR_ID.match("ADR-١٥") is None, "the id pattern must be ASCII-only"
+    repo = _r4_four_tree(tmp_path, files=[*_R4_FOUR_FILES, "ADR-١٥-unicode.md"])
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert r.status == "pass", \
+        f"a Unicode-digit ADR entered the rule's disk set: {[f.reality for f in r.findings]}"
+
+
 def test_r4_reads_all_four_surfaces_on_the_live_repo():
     """Measurement against the real tree: the widened rule must actually consult four surfaces.
     Kept separate from the verdict so a live finding is reported as a measurement, never

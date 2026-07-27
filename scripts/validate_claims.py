@@ -604,7 +604,11 @@ def rule_3(ctx: RepoContext) -> RuleResult:
 
 
 _ADR_SECTION = re.compile(r"recent adrs|adrs? binding", re.IGNORECASE)
-_ADR_ID = re.compile(r"(ADR-\d+)")
+# ASCII digits explicitly, not `\d`: `\d` also matches Unicode decimal digits, so an
+# `ADR-<arabic-indic>-x.md` would enter the rule's set while the evidence payload's `[0-9]+`
+# skipped it -- the two would disagree (terra third pass). ADR-34 names are ASCII kebab-case,
+# so narrowing here states the convention and removes the divergence at the root.
+_ADR_ID = re.compile(r"(ADR-[0-9]+)")
 
 # The FOUR surfaces #97 rule 4 specifies, quoted from the spec line: "ADR files on disk ==
 # CLAUDE section 11 == ARCHITECTURE Governing-ADRs == `docs/decisions/README.md` index".
@@ -630,8 +634,14 @@ _ADR_SURFACES: tuple[tuple[str, re.Pattern[str], str], ...] = (
 # checkout. Mirroring a multi-branch regex + stateful loop in that payload is where fidelity
 # silently rots -- so the PREDICATE was simplified to one both sides can express identically,
 # instead of inflating the payload to chase it. Converging the two beats asserting they agree.
-_ADR_LOCAL_TOKEN = "**local"
-_ADR_ECOSYSTEM_TOKEN = "**ecosystem"
+#
+# Two tokens per marker, not one bare prefix: terra third-pass finding, accepted -- a lone
+# `**local` substring also matches bold prose like `**local terminology note:**`, and a line
+# like that sitting BELOW real entries would move the block start past them and report them
+# all missing. That was a regression against the regex this replaced. Two exact substrings
+# restore the old precision and stay trivially mirrorable in the evidence payload.
+_ADR_LOCAL_TOKENS = ("**local**", "**local (")
+_ADR_ECOSYSTEM_TOKENS = ("**ecosystem**", "**ecosystem (")
 # The entry shapes that constitute a roster CLAIM (list item / table row), shared with evidence.
 _ADR_ENTRY_PREFIXES = ("-", "*", "|")
 # Entries are one-per-line, `·`-packed on one bullet (ARCHITECTURE), or `;`-packed (the
@@ -661,8 +671,8 @@ def _adr_local_block(body: list[str]) -> list[str]:
     not collapse the slice to empty, because an empty local block reports every ADR on disk as
     missing -- turning a layout quirk into a wall of false findings.
     """
-    lm = [k for k, ln in enumerate(body) if _ADR_LOCAL_TOKEN in ln.lower()]
-    em = [k for k, ln in enumerate(body) if _ADR_ECOSYSTEM_TOKEN in ln.lower()]
+    lm = [k for k, ln in enumerate(body) if any(t in ln.lower() for t in _ADR_LOCAL_TOKENS)]
+    em = [k for k, ln in enumerate(body) if any(t in ln.lower() for t in _ADR_ECOSYSTEM_TOKENS)]
     start = lm[0] if lm else 0
     after = [k for k in em if k > start]
     return body[start:(after[0] if after else len(body))]
@@ -715,10 +725,13 @@ def _adr_evidence(rel: str, word: str, strict: bool, label: str) -> tuple[str, .
     Terra pre-merge finding, accepted: an earlier form embedded the already-computed id list
     and only re-derived the roster side, so it could print ids the on-disk set no longer
     supports -- evidence that agrees with the finding by construction rather than by
-    recomputation. Both sides are now derived here, and the disk side comes from HEAD's TREE
-    (`git ls-tree`), not a disk glob, because the rule resolves against the committed tree
-    (#116/ADR-15) -- a `pathlib.glob` here would reintroduce the very tree-vs-disk divergence
-    that determinism fix closed, and the evidence would disagree with the rule on a dirty tree.
+    recomputation. Both sides are now derived here, and BOTH come from HEAD: the id set via
+    `git ls-tree`, the roster text via `git show HEAD:<path>`. Neither touches the working
+    copy, because the rule resolves against the committed tree (#116/ADR-15) -- reading the
+    disk here would reintroduce the very tree-vs-disk divergence that determinism fix closed,
+    and the evidence would contradict the rule on a dirty tree. The roster half of that was a
+    terra third-pass finding: the disk side had been moved to the tree while the roster side
+    was still a `pathlib.read_text`.
 
     Deliberately backslash-free so it double-quotes cleanly into both PowerShell and git-bash
     (#106), and deliberately not an import of this checker: evidence must run from a bare
@@ -729,14 +742,15 @@ def _adr_evidence(rel: str, word: str, strict: bool, label: str) -> tuple[str, .
     )
     delta = "sorted(decl-disk)" if strict else "sorted(disk-decl)"
     payload = (
-        "import re,subprocess,pathlib; "
-        f"ls=pathlib.Path({rel!r}).read_text(encoding='utf-8').split(chr(10)); "
+        "import re,subprocess; "
+        f"ls=subprocess.run(['git','show','HEAD:'+{rel!r}],capture_output=True,"
+        "text=True,encoding='utf-8').stdout.split(chr(10)); "
         f"h=[k for k,l in enumerate(ls) if l.startswith('#') and {word!r} in l.lower()]; "
         "i=h[0] if h else -1; "
         "nx=[k for k in range(i+1,len(ls)) if ls[k].startswith('#')] if i>=0 else []; "
         "body=ls[i+1:(nx[0] if nx else len(ls))] if i>=0 else []; "
-        f"lm=[k for k,l in enumerate(body) if {_ADR_LOCAL_TOKEN!r} in l.lower()]; "
-        f"em=[k for k,l in enumerate(body) if {_ADR_ECOSYSTEM_TOKEN!r} in l.lower()]; "
+        f"lm=[k for k,l in enumerate(body) if any(t in l.lower() for t in {_ADR_LOCAL_TOKENS!r})]; "
+        f"em=[k for k,l in enumerate(body) if any(t in l.lower() for t in {_ADR_ECOSYSTEM_TOKENS!r})]; "
         "st=lm[0] if lm else 0; af=[k for k in em if k>st]; "
         "blk=body[st:(af[0] if af else len(body))]; "
         f"{entry_filter}"
