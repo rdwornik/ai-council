@@ -9,6 +9,13 @@
 # ambiguity at the source instead of relying on an activated shell.
 
 $ErrorActionPreference = "Stop"
+# Native non-zero exits must set $LASTEXITCODE, NOT throw. With this preference enabled (it is
+# session-configurable, and the default has moved before) `ErrorActionPreference = "Stop"`
+# promotes any non-zero native exit to a terminating error -- which would abort the gate on the
+# claim checker's exit 1 and quietly break its non-blocking contract. Pinned here rather than
+# inherited, so the gate behaves the same in every operator's shell (terra pre-merge, #123).
+$PSNativeCommandUseErrorActionPreference = $false
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Py = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
@@ -25,6 +32,14 @@ if (-not (Test-Path $Py)) {
 }
 
 Write-Host "Interpreter: $Py" -ForegroundColor DarkGray
+Write-Host "Repo root  : $RepoRoot" -ForegroundColor DarkGray
+
+# Run from the repo root, not the caller's cwd. Pinning only the INTERPRETER was not enough:
+# `tests/`, `src/` and the checker path are relative, so invoking a worktree's check.ps1 from
+# another checkout would use the worktree's venv while testing the OTHER tree's files -- the
+# same false-green this ticket exists to close, just relocated (terra pre-merge, #123).
+Push-Location $RepoRoot
+try {
 
 Write-Host "Running pytest..." -ForegroundColor Cyan
 & $Py -m pytest tests/ -m "not integration and not envcheck" -v
@@ -53,3 +68,9 @@ Write-Host "All checks passed!" -ForegroundColor Green
 # checker's exit (1 = findings) does not leak into check.ps1's result. To PROMOTE the checker
 # to gating, replace this line with: if ($claimsExit -ge 1) { exit 1 } else { exit 0 }
 exit 0
+
+}
+finally {
+    # Always restore the caller's location, including on the `exit 1` paths above.
+    Pop-Location
+}
