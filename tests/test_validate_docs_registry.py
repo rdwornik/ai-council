@@ -347,3 +347,28 @@ def test_e2e_allows_corpus_exit_to_archive(tmp_path):
     _git(repo, "mv", str(src), str(dst))
     res = _run_hook(repo)
     assert res.returncode == 0, f"blocked the sanctioned exit move: {res.stderr}"
+
+
+# --- #126 output contract: success is a positive assertion --------------------
+
+def test_e2e_success_prints_positive_assertion(tmp_path):
+    repo = _init_repo(tmp_path)
+    note = repo / "docs" / "audits" / "2026-07-27-e2e-note.md"
+    note.write_text("# ok\n", encoding="utf-8")
+    _git(repo, "add", "docs/audits/2026-07-27-e2e-note.md")
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_docs_registry: OK" in res.stdout
+    assert "1 staged add(s)" in res.stdout
+    assert "0 new docs/ dir(s)" in res.stdout
+    assert "2 registered corpus row(s)" in res.stdout   # the registry it read, sized
+    assert "unregistered" in res.stdout                 # the predicate clause
+
+
+def test_e2e_zero_item_run_is_distinguishable(tmp_path):
+    # Nothing staged: the gate must SAY it checked zero adds, not stay silent.
+    repo = _init_repo(tmp_path)
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_docs_registry: OK" in res.stdout
+    assert "0 staged add(s)" in res.stdout

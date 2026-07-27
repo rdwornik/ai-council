@@ -199,3 +199,46 @@ def test_main_fail_open_on_git_error(monkeypatch, capsys):
     monkeypatch.setattr(vac, "staged_added_paths", _boom)
     assert vac.main() == 0                          # fail OPEN
     assert "skipped" in capsys.readouterr().err     # but LOUD
+
+
+# --- #126 output contract: success is a positive assertion --------------------
+
+def test_in_r4_scope_predicate():
+    assert vac.in_r4_scope("docs/audits/2026-07-12-technical-x.md")
+    assert not vac.in_r4_scope("docs/audits/README.md")          # index, never policed
+    assert not vac.in_r4_scope("src/ai_council/foo.py")
+    assert not vac.in_r4_scope("docs/audits/archive/legacy/2026-03-15_CODE_REVIEW_REPORT.md")
+
+
+def test_success_prints_positive_assertion(tmp_path):
+    repo = _init_repo(tmp_path)
+    good = repo / "docs" / "audits" / "2026-07-27-technical-ok.md"
+    good.write_text("# ok\n", encoding="utf-8")
+    _git(repo, "add", str(good))
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_audit_casing: OK" in res.stdout
+    assert "1 audit filename(s) in R4 scope" in res.stdout
+    assert "kebab-case" in res.stdout            # the predicate clause names the rule
+
+
+def test_zero_item_run_is_distinguishable(tmp_path):
+    # Nothing staged: the gate must SAY it checked zero items, not stay silent.
+    repo = _init_repo(tmp_path)
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_audit_casing: OK" in res.stdout
+    assert "0 staged add(s) checked" in res.stdout
+    assert "0 audit filename(s) in R4 scope" in res.stdout
+
+
+def test_fail_open_path_prints_no_false_ok(monkeypatch, capsys):
+    # The fail-open path checked NOTHING -- it must warn loudly but never claim OK.
+    def _boom():
+        raise RuntimeError("simulated git failure")
+
+    monkeypatch.setattr(vac, "staged_added_paths", _boom)
+    assert vac.main() == 0
+    captured = capsys.readouterr()
+    assert "validate_audit_casing: OK" not in captured.out
+    assert "skipped" in captured.err

@@ -197,4 +197,40 @@ def test_e2e_override_emits_audit_banner(tmp_path):
     res = _run_hook(repo, env=env)
     assert res.returncode == 0
     assert "DELIBERATELY BYPASSED" in res.stderr
+
+
+# --- #126 output contract: success is a positive assertion --------------------
+
+def test_e2e_success_prints_positive_assertion(tmp_path):
+    repo = _init_repo(tmp_path)
+    (repo / "docs" / "note.md").write_text("# ok\n", encoding="utf-8")
+    _git(repo, "add", "docs/note.md")
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_sealed_keys: OK" in res.stdout
+    assert "1 staged add(s) checked" in res.stdout
+    assert "sealed-key" in res.stdout            # the predicate clause names what was scanned for
+
+
+def test_e2e_zero_item_run_is_distinguishable(tmp_path):
+    # Nothing staged: the gate must SAY it checked zero items, not stay silent.
+    repo = _init_repo(tmp_path)
+    res = _run_hook(repo)
+    assert res.returncode == 0, res.stderr
+    assert "validate_sealed_keys: OK" in res.stdout
+    assert "0 staged add(s) checked" in res.stdout
+
+
+def test_e2e_override_run_reports_authorized_count(tmp_path):
+    # An authorized key exits 0: the OK line must carry the override count so the success
+    # assertion and the stderr banner tell the same story.
+    import os
+    repo = _init_repo(tmp_path)
+    (repo / "SEALED-KEY.json").write_text('{"k":1}\n', encoding="utf-8")
+    _git(repo, "add", "SEALED-KEY.json")
+    env = dict(os.environ, AICOUNCIL_SEALED_KEY_ALLOW="SEALED-KEY.json")
+    res = _run_hook(repo, env=env)
+    assert res.returncode == 0
+    assert "validate_sealed_keys: OK" in res.stdout
+    assert "1 sealed key(s) explicitly authorized" in res.stdout
     assert "NO record in git log" in res.stderr
