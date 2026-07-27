@@ -38,39 +38,47 @@ Write-Host "Repo root  : $RepoRoot" -ForegroundColor DarkGray
 # `tests/`, `src/` and the checker path are relative, so invoking a worktree's check.ps1 from
 # another checkout would use the worktree's venv while testing the OTHER tree's files -- the
 # same false-green this ticket exists to close, just relocated (terra pre-merge, #123).
+#
+# NO `exit` BELOW UNTIL AFTER Pop-Location. `exit` bypasses `finally` in PowerShell, so an
+# earlier try/finally form here did NOT restore the caller's location on a failing gate -- and
+# the commit that introduced it CLAIMED it did. That is this repo's own recurring defect (a
+# guarantee asserted without the mechanism that provides it), so the structure is now one that
+# makes the claim true: each step guards on $status, and the single exit is the last statement.
 Push-Location $RepoRoot
-try {
+$status = 0
 
 Write-Host "Running pytest..." -ForegroundColor Cyan
 & $Py -m pytest tests/ -m "not integration and not envcheck" -v
-if ($LASTEXITCODE -ne 0) { exit 1 }
+if ($LASTEXITCODE -ne 0) { $status = 1 }
 
-Write-Host "Running mypy..." -ForegroundColor Cyan
-& $Py -m mypy src/
-if ($LASTEXITCODE -ne 0) { exit 1 }
+if ($status -eq 0) {
+    Write-Host "Running mypy..." -ForegroundColor Cyan
+    & $Py -m mypy src/
+    if ($LASTEXITCODE -ne 0) { $status = 1 }
+}
 
-Write-Host "Running ruff..." -ForegroundColor Cyan
-& $Py -m ruff check src/ tests/
-if ($LASTEXITCODE -ne 0) { exit 1 }
+if ($status -eq 0) {
+    Write-Host "Running ruff..." -ForegroundColor Cyan
+    & $Py -m ruff check src/ tests/
+    if ($LASTEXITCODE -ne 0) { $status = 1 }
+}
 
 # Non-blocking claim-vs-reality report (#97). Exit is captured for visibility but deliberately
 # NOT propagated -- the gate stays pytest+mypy+ruff. A checker crash (exit >=2) is surfaced in
 # Red so it can never be mistaken for a clean pass; a promotion to gating is a one-line change.
-Write-Host "Running claim-vs-reality checker (non-blocking)..." -ForegroundColor Yellow
-& $Py scripts/validate_claims.py
-$claimsExit = $LASTEXITCODE
-if ($claimsExit -ge 2) {
-    Write-Host "claim checker ERRORED (exit $claimsExit) - findings unreliable this run" -ForegroundColor Red
+if ($status -eq 0) {
+    Write-Host "Running claim-vs-reality checker (non-blocking)..." -ForegroundColor Yellow
+    & $Py scripts/validate_claims.py
+    $claimsExit = $LASTEXITCODE
+    if ($claimsExit -ge 2) {
+        Write-Host "claim checker ERRORED (exit $claimsExit) - findings unreliable this run" -ForegroundColor Red
+    }
+    Write-Host "All checks passed!" -ForegroundColor Green
+    # The gate passed. $status stays 0 so the non-blocking checker's exit (1 = findings) does
+    # not leak into check.ps1's result. To PROMOTE the checker to gating, replace the next
+    # line with: if ($claimsExit -ge 1) { $status = 1 }
+    $status = 0
 }
 
-Write-Host "All checks passed!" -ForegroundColor Green
-# The gate passed (any gate failure exited 1 above). Reset the exit code so the non-blocking
-# checker's exit (1 = findings) does not leak into check.ps1's result. To PROMOTE the checker
-# to gating, replace this line with: if ($claimsExit -ge 1) { exit 1 } else { exit 0 }
-exit 0
-
-}
-finally {
-    # Always restore the caller's location, including on the `exit 1` paths above.
-    Pop-Location
-}
+Pop-Location
+exit $status
