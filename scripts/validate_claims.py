@@ -799,9 +799,14 @@ def rule_4(ctx: RepoContext) -> RuleResult:
                       f"not be located, so it silently drops out of the comparison",
                 location=f"{rel}:1",
                 reality=f"no heading matching /{section_re.pattern}/ found in {rel}",
+                # HEAD-sourced like every other rule-4 evidence command (terra fourth pass):
+                # a working-copy read here lets a dirty tree that restores the heading print a
+                # result contradicting the committed-tree finding it is attached to.
                 evidence=("python", "-c",
-                          f"import pathlib; "
-                          f"ls=pathlib.Path({rel!r}).read_text(encoding='utf-8').split(chr(10)); "
+                          f"import subprocess; "
+                          f"ls=subprocess.run(['git','show','HEAD:'+{rel!r}],"
+                          f"capture_output=True,text=True,encoding='utf-8')"
+                          f".stdout.split(chr(10)); "
                           f"print('roster-headings:', [l for l in ls if l.startswith('#') "
                           f"and {word!r} in l.lower()])"),
                 reproduces="stdout-contains",

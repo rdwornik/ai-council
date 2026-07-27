@@ -1182,6 +1182,43 @@ def test_r4_id_pattern_is_ascii_only_in_rule_and_evidence(tmp_path):
         f"a Unicode-digit ADR entered the rule's disk set: {[f.reality for f in r.findings]}"
 
 
+def test_r4_anchor_missing_evidence_also_reads_head(tmp_path):
+    """TERRA fourth pass, accepted: the un-anchored-surface evidence was the last command still
+    reading the working copy, so a dirty tree that restores the heading printed a result
+    contradicting the committed-tree finding it was attached to."""
+    repo = _r4_four_tree(tmp_path, arch="# ARCH\n\n## Layer model\n\n- nothing about ADRs\n")
+    ev = next(f for f in vc.rule_4(vc.RepoContext(repo)).findings
+              if "ARCHITECTURE.md" in f.location)
+    # Restore the heading in the WORKING COPY only; HEAD still lacks it.
+    (repo / "ARCHITECTURE.md").write_text(_r4_arch(), encoding="utf-8")
+    res = _run_evidence(ev, repo)
+    assert res.returncode == 0, res.stderr
+    assert "roster-headings: []" in res.stdout, (
+        "the evidence read the dirty working copy and contradicted the HEAD finding: "
+        f"{res.stdout}")
+
+
+def test_r4_strict_evidence_takes_the_first_id_per_entry_like_the_rule(tmp_path):
+    """TERRA fourth pass, REFUTED by reproduction and pinned so it cannot regress: the claim
+    was that the strict evidence collects EVERY id in an entry while the rule takes only the
+    first, so a middot-packed roster carrying an ADR-43 cross-reference plus a stale entry
+    would make evidence report ADR-43 as extra. `re.search` returns the FIRST match per entry
+    in both. Reproduced: rule and evidence both report exactly the stale id."""
+    arch = ("# ARCH\n\n## Governing ADRs\n\n"
+            "- **Local** (`docs/decisions/`): ADR-01 first · ADR-02 dual output "
+            "(superseded by ADR-43) · ADR-77 ghost · ADR-15 third\n"
+            "- **Ecosystem** (`.dev-knowledge/docs/decisions/`): ADR-29 (append-only)\n")
+    repo = _r4_four_tree(tmp_path, arch=arch)
+    ev = next(f for f in vc.rule_4(vc.RepoContext(repo)).findings
+              if "no file on disk" in f.claim and "ARCHITECTURE.md" in f.location)
+    assert "ADR-77" in ev.reality and "ADR-43" not in ev.reality
+    res = _run_evidence(ev, repo)
+    assert res.returncode == 0, res.stderr
+    assert "ADR-77" in res.stdout
+    assert "ADR-43" not in res.stdout, \
+        f"the evidence treated a cross-reference as a declaration: {res.stdout}"
+
+
 def test_r4_reads_all_four_surfaces_on_the_live_repo():
     """Measurement against the real tree: the widened rule must actually consult four surfaces.
     Kept separate from the verdict so a live finding is reported as a measurement, never
