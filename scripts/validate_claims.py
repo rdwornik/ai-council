@@ -644,16 +644,9 @@ def _adr_surface_spec(rel: str) -> tuple[re.Pattern[str], str]:
     return _ADR_SECTION, "adrs"
 
 
-def _declared_local_adrs(body: list[str]) -> set[str]:
-    """The ADR ids a roster section DECLARES as local.
-
-    A declaration is the id an entry IS ABOUT -- its first id -- not every id it mentions.
-    This is measured, not stylistic: all three live surfaces name ADR-43 (hub-owned) inside
-    ADR-07's own entry, so treating any mention as a declaration would report three false
-    "rostered but not on disk" findings. Precision boundary, stated: two local ADRs packed
-    into ONE entry would declare only the first -- every surface here writes one entry per
-    ADR, and the fix if that changes is to split the entry, not to widen this rule.
-    """
+def _adr_local_block(body: list[str]) -> list[str]:
+    """The LOCAL sub-block of a roster section: from the Local marker (or the top, when the
+    section declares none) up to the Ecosystem marker."""
     has_marker = any(_ADR_LOCAL_MARKER.search(ln) for ln in body)
     keeping = not has_marker
     block: list[str] = []
@@ -664,21 +657,71 @@ def _declared_local_adrs(body: list[str]) -> set[str]:
             keeping = True
         if keeping:
             block.append(line)
-    declared: set[str] = set()
-    for entry in _ADR_ENTRY_SPLIT.split("\n".join(block)):
+    return block
+
+
+def _adr_first_ids(lines: list[str]) -> set[str]:
+    """The id each entry is ABOUT -- its FIRST id -- across `lines` split into entries.
+
+    Measured, not stylistic: all three live surfaces name ADR-43 (hub-owned) inside ADR-07's
+    own entry, so treating every mention as a declaration would report three false findings.
+    Precision boundary, stated: two local ADRs packed into ONE entry yield only the first --
+    every surface writes one entry per ADR, and the fix if that changes is to split the entry.
+    """
+    ids: set[str] = set()
+    for entry in _ADR_ENTRY_SPLIT.split("\n".join(lines)):
         m = _ADR_ID.search(entry)
         if m:
-            declared.add(m.group(1))
-    return declared
+            ids.add(m.group(1))
+    return ids
 
 
-def _adr_evidence(rel: str, word: str, ids: list[str], label: str) -> tuple[str, ...]:
-    """A re-runnable command that recomputes THIS surface's declared set the same way the rule
-    did, then reports the delta. Deliberately backslash-free so it double-quotes cleanly into
-    both PowerShell and git-bash (#106), and deliberately not an import of this checker: the
-    evidence must run from a bare repo checkout with no scripts/ on the path."""
+def _declared_local_adrs(body: list[str]) -> set[str]:
+    """PERMISSIVE set, for the disk -> roster direction: any entry in the local block naming an
+    ADR documents it. Erring permissive here is the established precision-over-recall posture
+    (rule 3's whole-token mention): an ADR named in prose must not be reported as undocumented.
+    """
+    return _adr_first_ids(_adr_local_block(body))
+
+
+def _claimed_local_adrs(body: list[str]) -> set[str]:
+    """STRICT set, for the roster -> disk direction: only ENTRY-SHAPED lines (list items and
+    table rows) make a local claim.
+
+    The two directions ask different questions and must err in opposite directions, so they get
+    different sets. Terra pre-merge finding, verified: with one permissive set, a section that
+    carries an Ecosystem marker but no Local marker treats its introductory prose as the local
+    block, so a cross-reference in that prose is reported as "rostered but not on disk" -- a
+    false finding invented out of a sentence. Requiring entry shape kills that without touching
+    the disk -> roster direction, where an unparsed prose line would instead have invented a
+    false "missing" finding. All three live surfaces are entry-shaped (`- `, `| `).
+    """
+    block = [ln for ln in _adr_local_block(body) if ln.lstrip()[:1] in ("-", "*", "|")]
+    return _adr_first_ids(block)
+
+
+def _adr_evidence(rel: str, word: str, strict: bool, label: str) -> tuple[str, ...]:
+    """A re-runnable command that recomputes BOTH sides of the set-equality the way the rule
+    did, then prints the delta.
+
+    Terra pre-merge finding, accepted: an earlier form embedded the already-computed id list
+    and only re-derived the roster side, so it could print ids the on-disk set no longer
+    supports -- evidence that agrees with the finding by construction rather than by
+    recomputation. Both sides are now derived here, and the disk side comes from HEAD's TREE
+    (`git ls-tree`), not a disk glob, because the rule resolves against the committed tree
+    (#116/ADR-15) -- a `pathlib.glob` here would reintroduce the very tree-vs-disk divergence
+    that determinism fix closed, and the evidence would disagree with the rule on a dirty tree.
+
+    Deliberately backslash-free so it double-quotes cleanly into both PowerShell and git-bash
+    (#106), and deliberately not an import of this checker: evidence must run from a bare
+    checkout with no scripts/ on sys.path.
+    """
+    entry_filter = (
+        "blk=[l for l in blk if l.lstrip()[:1] in ('-','*','|')]; " if strict else ""
+    )
+    delta = "sorted(decl-disk)" if strict else "sorted(disk-decl)"
     payload = (
-        "import re,pathlib; "
+        "import re,subprocess,pathlib; "
         f"ls=pathlib.Path({rel!r}).read_text(encoding='utf-8').split(chr(10)); "
         f"h=[k for k,l in enumerate(ls) if l.startswith('#') and {word!r} in l.lower()]; "
         "i=h[0] if h else -1; "
@@ -687,9 +730,13 @@ def _adr_evidence(rel: str, word: str, ids: list[str], label: str) -> tuple[str,
         "lm=[k for k,l in enumerate(body) if '**Local' in l]; "
         "em=[k for k,l in enumerate(body) if '**Ecosystem' in l]; "
         "blk=body[(lm[0] if lm else 0):(em[0] if em else len(body))]; "
+        f"{entry_filter}"
         "txt=chr(10).join(blk).replace(chr(183),chr(10)).replace(';',chr(10)); "
         "decl={m.group(1) for e in txt.split(chr(10)) if (m:=re.search('(ADR-[0-9]+)',e))}; "
-        f"print({label!r}, sorted(x for x in {ids!r} if (x not in decl) == {(label != 'rostered-but-not-on-disk')!r}))"
+        "tr=subprocess.run(['git','ls-tree','-r','--name-only','HEAD'],capture_output=True,"
+        "text=True).stdout.split(chr(10)); "
+        "disk={m.group(1) for p in tr if (m:=re.match('docs/decisions/(ADR-[0-9]+)',p))}; "
+        f"print({label!r}, {delta})"
     )
     return ("python", "-c", payload)
 
@@ -737,16 +784,15 @@ def rule_4(ctx: RepoContext) -> RuleResult:
             ))
             continue
         anchored = True
-        declared = _declared_local_adrs(body)
-        missing = [a for a in disk_ids if a not in declared]
-        extra = sorted(declared - set(disk_ids), key=lambda a: (len(a), a))
+        missing = [a for a in disk_ids if a not in _declared_local_adrs(body)]
+        extra = sorted(_claimed_local_adrs(body) - set(disk_ids), key=lambda a: (len(a), a))
         if missing:
             findings.append(Finding(
                 rule_id=4,
                 claim=f"ADR roster in {rel} omits an ADR that exists on disk",
                 location=f"{rel}:{hl}",
                 reality=f"on disk but not declared in {rel}: {missing}",
-                evidence=_adr_evidence(rel, word, missing, "missing-from-roster"),
+                evidence=_adr_evidence(rel, word, strict=False, label="missing-from-roster"),
                 reproduces="stdout-contains",
             ))
         if extra:
@@ -755,7 +801,7 @@ def rule_4(ctx: RepoContext) -> RuleResult:
                 claim=f"ADR roster in {rel} declares a local ADR with no file on disk",
                 location=f"{rel}:{hl}",
                 reality=f"declared in {rel} but absent from docs/decisions/: {extra}",
-                evidence=_adr_evidence(rel, word, extra, "rostered-but-not-on-disk"),
+                evidence=_adr_evidence(rel, word, strict=True, label="rostered-but-not-on-disk"),
                 reproduces="stdout-contains",
             ))
     if not anchored and not findings:

@@ -1039,6 +1039,58 @@ def test_r4_surface_present_but_section_renamed_is_a_finding(tmp_path):
         f"expected an un-anchored-surface finding, got {[(f.location, f.claim) for f in r.findings]}"
 
 
+def test_r4_prose_before_an_ecosystem_only_block_is_not_a_local_claim(tmp_path):
+    """TERRA pre-merge, accepted: a section with an Ecosystem marker but NO Local marker
+    treated its introductory prose as the local block, so a cross-reference in that prose was
+    reported as 'rostered but not on disk' -- a finding invented out of a sentence. Only
+    entry-shaped lines (list items, table rows) make a claim."""
+    claude = (
+        "# CLAUDE\n\n## 11. Recent ADRs binding here\n\n"
+        "This section supersedes the older ADR-77 layout note.\n\n"
+        "- ADR-01: title for ADR-01\n- ADR-02: title for ADR-02\n- ADR-15: title for ADR-15\n\n"
+        "**Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**\n- ADR-29: append-only\n"
+    )
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path, claude=claude)))
+    assert not any("ADR-77" in f.reality for f in r.findings), \
+        f"prose cross-reference invented a local claim: {[f.reality for f in r.findings]}"
+    assert r.status == "pass", [f.reality for f in r.findings]
+
+
+def test_r4_missing_direction_still_counts_an_adr_named_in_prose(tmp_path):
+    """The other side of that fix: the two directions err in OPPOSITE directions on purpose.
+    An ADR named in a prose line inside the local block must NOT be reported as undocumented
+    -- narrowing both directions to entry shape would have invented a false 'missing'."""
+    claude = (
+        "# CLAUDE\n\n## 11. Recent ADRs binding here\n\n"
+        "**Local (`docs/decisions/`):**\n"
+        "- ADR-01: title for ADR-01\n- ADR-02: title for ADR-02\n"
+        "ADR-15 is documented in this prose line rather than as a bullet.\n"
+    )
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path, claude=claude)))
+    assert not any("CLAUDE.md" in f.location and "ADR-15" in f.reality for f in r.findings), \
+        f"an ADR named in prose was reported as undocumented: {[f.reality for f in r.findings]}"
+
+
+def test_r4_evidence_recomputes_both_sides_from_the_committed_tree(tmp_path):
+    """TERRA pre-merge, accepted: evidence that embeds the already-computed id list agrees
+    with its finding by construction. Both sides must be re-derived -- and the disk side from
+    HEAD's TREE, not a disk glob, or the evidence disagrees with the rule on a dirty tree."""
+    repo = _r4_four_tree(tmp_path, arch=_r4_arch(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    ev = next(f for f in r.findings if "ARCHITECTURE.md" in f.location)
+    printed = ev.printed()
+    assert "ls-tree" in printed, "the disk side must come from the committed tree"
+    assert "ADR-15" not in printed, \
+        "the id list must be recomputed by the command, not embedded in it"
+    # An UNTRACKED extra ADR must not change what the evidence reports (tree, not disk).
+    (repo / "docs" / "decisions" / "ADR-98-untracked.md").write_text("# x\n", encoding="utf-8")
+    res = _run_evidence(ev, repo)
+    assert res.returncode == 0, res.stderr
+    assert "ADR-15" in res.stdout, f"evidence did not reproduce the finding: {res.stdout}"
+    assert "ADR-98" not in res.stdout, \
+        f"evidence read the disk instead of HEAD's tree: {res.stdout}"
+
+
 def test_r4_reads_all_four_surfaces_on_the_live_repo():
     """Measurement against the real tree: the widened rule must actually consult four surfaces.
     Kept separate from the verdict so a live finding is reported as a measurement, never
