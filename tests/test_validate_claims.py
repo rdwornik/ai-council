@@ -1091,6 +1091,53 @@ def test_r4_evidence_recomputes_both_sides_from_the_committed_tree(tmp_path):
         f"evidence read the disk instead of HEAD's tree: {res.stdout}"
 
 
+def test_r4_evidence_disk_set_matches_the_rules_adr_md_predicate(tmp_path):
+    """TERRA re-review, accepted: the evidence matched any `docs/decisions/ADR-N...` path while
+    the rule globs `ADR-*.md`, so a committed `ADR-99-notes.txt` moved the evidence delta but
+    not the finding."""
+    repo = _r4_four_tree(tmp_path, arch=_r4_arch(ids=("ADR-01", "ADR-02")))
+    (repo / "docs" / "decisions" / "ADR-99-notes.txt").write_text("not an ADR\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "commit a non-md ADR-prefixed file")
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert not any("ADR-99" in f.reality for f in r.findings), \
+        f"a non-.md file entered the rule's disk set: {[f.reality for f in r.findings]}"
+    ev = next(f for f in r.findings if "ARCHITECTURE.md" in f.location)
+    res = _run_evidence(ev, repo)
+    assert res.returncode == 0, res.stderr
+    assert "ADR-99" not in res.stdout, \
+        f"the evidence disk set is broader than the rule's: {res.stdout}"
+    assert "ADR-15" in res.stdout
+
+
+def test_r4_marker_matching_is_case_insensitive_in_rule_and_evidence(tmp_path):
+    """TERRA re-review, accepted: the evidence used case-SENSITIVE '**Local' while the rule
+    matched case-insensitively, so marker casing could split the two verdicts. Both now use the
+    same lowercase substring token."""
+    claude = _r4_claude().replace("**Local (`docs/decisions/`):**", "**LOCAL (`docs/decisions/`):**")
+    repo = _r4_four_tree(tmp_path, claude=claude, arch=_r4_arch(ids=("ADR-01", "ADR-02")))
+    r = vc.rule_4(vc.RepoContext(repo))
+    assert not any("CLAUDE.md" in f.location for f in r.findings), \
+        f"uppercase **LOCAL** broke the rule's block selection: {[f.reality for f in r.findings]}"
+    ev = next(f for f in r.findings if "ARCHITECTURE.md" in f.location)
+    assert _run_evidence(ev, repo).returncode == 0
+
+
+def test_r4_ecosystem_marker_above_the_local_block_does_not_empty_it(tmp_path):
+    """An Ecosystem marker ABOVE the Local block must not collapse the slice: an empty local
+    block reports every ADR on disk as missing, turning a layout quirk into a wall of false
+    findings. The end marker is the first Ecosystem line AFTER the local block starts."""
+    claude = (
+        "# CLAUDE\n\n## 11. Recent ADRs binding here\n\n"
+        "**Ecosystem (`.dev-knowledge/docs/decisions/`) binding here:**\n- ADR-29: append-only\n\n"
+        "**Local (`docs/decisions/`):**\n"
+        "- ADR-01: title\n- ADR-02: title\n- ADR-15: title\n"
+    )
+    r = vc.rule_4(vc.RepoContext(_r4_four_tree(tmp_path, claude=claude)))
+    assert r.status == "pass", \
+        f"an Ecosystem marker above the Local block emptied it: {[f.reality for f in r.findings]}"
+
+
 def test_r4_reads_all_four_surfaces_on_the_live_repo():
     """Measurement against the real tree: the widened rule must actually consult four surfaces.
     Kept separate from the verdict so a live finding is reported as a measurement, never

@@ -623,8 +623,17 @@ _ADR_SURFACES: tuple[tuple[str, re.Pattern[str], str], ...] = (
 # hub-owned ADRs with an explicit marker; the README's `## Index` has no marker because its
 # whole table is local (its cross-repo refs live in a sibling section). So: narrow to the
 # Local block when the body declares one, else the body IS the local block.
-_ADR_LOCAL_MARKER = re.compile(r"\*\*Local\*\*|\*\*Local\s*\(", re.IGNORECASE)
-_ADR_ECOSYSTEM_MARKER = re.compile(r"\*\*Ecosystem", re.IGNORECASE)
+#
+# Deliberately case-insensitive SUBSTRING tokens rather than regexes, and deliberately a slice
+# rather than a stateful scan. Terra pre-merge finding, accepted: the evidence command must
+# reproduce detection exactly, and it has to do so as a shell-pasteable one-liner from a bare
+# checkout. Mirroring a multi-branch regex + stateful loop in that payload is where fidelity
+# silently rots -- so the PREDICATE was simplified to one both sides can express identically,
+# instead of inflating the payload to chase it. Converging the two beats asserting they agree.
+_ADR_LOCAL_TOKEN = "**local"
+_ADR_ECOSYSTEM_TOKEN = "**ecosystem"
+# The entry shapes that constitute a roster CLAIM (list item / table row), shared with evidence.
+_ADR_ENTRY_PREFIXES = ("-", "*", "|")
 # Entries are one-per-line, `·`-packed on one bullet (ARCHITECTURE), or `;`-packed (the
 # ecosystem block's style). Splitting on all three keeps one entry == one declaration.
 _ADR_ENTRY_SPLIT = re.compile(r"[\n·;]")
@@ -646,18 +655,17 @@ def _adr_surface_spec(rel: str) -> tuple[re.Pattern[str], str]:
 
 def _adr_local_block(body: list[str]) -> list[str]:
     """The LOCAL sub-block of a roster section: from the Local marker (or the top, when the
-    section declares none) up to the Ecosystem marker."""
-    has_marker = any(_ADR_LOCAL_MARKER.search(ln) for ln in body)
-    keeping = not has_marker
-    block: list[str] = []
-    for line in body:
-        if _ADR_ECOSYSTEM_MARKER.search(line):
-            keeping = False
-        if _ADR_LOCAL_MARKER.search(line):
-            keeping = True
-        if keeping:
-            block.append(line)
-    return block
+    section declares none) up to the FIRST Ecosystem marker that follows it.
+
+    "That follows it" is load-bearing: an Ecosystem marker sitting ABOVE the Local block must
+    not collapse the slice to empty, because an empty local block reports every ADR on disk as
+    missing -- turning a layout quirk into a wall of false findings.
+    """
+    lm = [k for k, ln in enumerate(body) if _ADR_LOCAL_TOKEN in ln.lower()]
+    em = [k for k, ln in enumerate(body) if _ADR_ECOSYSTEM_TOKEN in ln.lower()]
+    start = lm[0] if lm else 0
+    after = [k for k in em if k > start]
+    return body[start:(after[0] if after else len(body))]
 
 
 def _adr_first_ids(lines: list[str]) -> set[str]:
@@ -696,7 +704,7 @@ def _claimed_local_adrs(body: list[str]) -> set[str]:
     the disk -> roster direction, where an unparsed prose line would instead have invented a
     false "missing" finding. All three live surfaces are entry-shaped (`- `, `| `).
     """
-    block = [ln for ln in _adr_local_block(body) if ln.lstrip()[:1] in ("-", "*", "|")]
+    block = [ln for ln in _adr_local_block(body) if ln.lstrip()[:1] in _ADR_ENTRY_PREFIXES]
     return _adr_first_ids(block)
 
 
@@ -717,7 +725,7 @@ def _adr_evidence(rel: str, word: str, strict: bool, label: str) -> tuple[str, .
     checkout with no scripts/ on sys.path.
     """
     entry_filter = (
-        "blk=[l for l in blk if l.lstrip()[:1] in ('-','*','|')]; " if strict else ""
+        f"blk=[l for l in blk if l.lstrip()[:1] in {_ADR_ENTRY_PREFIXES!r}]; " if strict else ""
     )
     delta = "sorted(decl-disk)" if strict else "sorted(disk-decl)"
     payload = (
@@ -727,15 +735,17 @@ def _adr_evidence(rel: str, word: str, strict: bool, label: str) -> tuple[str, .
         "i=h[0] if h else -1; "
         "nx=[k for k in range(i+1,len(ls)) if ls[k].startswith('#')] if i>=0 else []; "
         "body=ls[i+1:(nx[0] if nx else len(ls))] if i>=0 else []; "
-        "lm=[k for k,l in enumerate(body) if '**Local' in l]; "
-        "em=[k for k,l in enumerate(body) if '**Ecosystem' in l]; "
-        "blk=body[(lm[0] if lm else 0):(em[0] if em else len(body))]; "
+        f"lm=[k for k,l in enumerate(body) if {_ADR_LOCAL_TOKEN!r} in l.lower()]; "
+        f"em=[k for k,l in enumerate(body) if {_ADR_ECOSYSTEM_TOKEN!r} in l.lower()]; "
+        "st=lm[0] if lm else 0; af=[k for k in em if k>st]; "
+        "blk=body[st:(af[0] if af else len(body))]; "
         f"{entry_filter}"
         "txt=chr(10).join(blk).replace(chr(183),chr(10)).replace(';',chr(10)); "
         "decl={m.group(1) for e in txt.split(chr(10)) if (m:=re.search('(ADR-[0-9]+)',e))}; "
         "tr=subprocess.run(['git','ls-tree','-r','--name-only','HEAD'],capture_output=True,"
         "text=True).stdout.split(chr(10)); "
-        "disk={m.group(1) for p in tr if (m:=re.match('docs/decisions/(ADR-[0-9]+)',p))}; "
+        "disk={m.group(1) for p in tr if p.endswith('.md') "
+        "if (m:=re.match('docs/decisions/(ADR-[0-9]+)',p))}; "
         f"print({label!r}, {delta})"
     )
     return ("python", "-c", payload)
