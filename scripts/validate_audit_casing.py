@@ -45,18 +45,23 @@ def _posix_parts(path: str) -> list[str]:
     return path.replace("\\", "/").strip("/").split("/")
 
 
-def audit_casing_violation(path: str) -> Optional[str]:
-    """R4 casing check. Applies ONLY to an added `docs/audits/*.md` (3 path parts exactly, so
-    `docs/audits/archive/legacy/*` is out of scope). Return a BLOCK reason, or None."""
+def in_r4_scope(path: str) -> bool:
+    """True when R4 applies: an added `docs/audits/*.md` (3 path parts exactly) that is not the
+    README index. Applicability is EXTENSION-CASE-INSENSITIVE so an uppercase `.MD` cannot
+    dodge the check by escaping the `.md` match; the casing rule then rejects the extension.
+    Single source for applicability — used by the check AND by the #126 success-line count."""
     parts = _posix_parts(path)
-    # Applicability is EXTENSION-CASE-INSENSITIVE so an uppercase `.MD` cannot dodge the check
-    # by escaping the `.md` match; the casing rule below then rejects the uppercase extension.
     if not (len(parts) == 3 and parts[0] == "docs" and parts[1] == "audits"
             and parts[2].lower().endswith(".md")):
-        return None  # not an audit file -> silent
-    fname = parts[2]
-    if fname.lower() == "readme.md":
-        return None  # the generated index, not an audit artifact
+        return False  # not an audit file
+    return parts[2].lower() != "readme.md"  # the generated index, not an audit artifact
+
+
+def audit_casing_violation(path: str) -> Optional[str]:
+    """R4 casing check. Applies ONLY to paths in `in_r4_scope`. Return a BLOCK reason, or None."""
+    if not in_r4_scope(path):
+        return None
+    fname = _posix_parts(path)[2]
     if not _LOWER_KEBAB_DOT.match(fname):
         return (f"casing: '{fname}' must be all-lowercase kebab-case everywhere incl. the "
                 f".md extension (no UPPERCASE, no _underscore_, no CamelCase; only a `.` "
@@ -104,6 +109,14 @@ def main() -> int:
         print("  docs/audits/*.md names are all-lowercase kebab-case (ADR-101 R4). "
               "Bypass (peer-hook parity): git commit --no-verify.", file=sys.stderr)
         return 1
+    # #126 output contract (local convention, ruled 2026-07-27): success is a POSITIVE
+    # assertion — name, verdict, predicate, item counts — never exit-0 silence; a zero-item
+    # run must be distinguishable from a clean one. Superseded by the hub fleet-intake
+    # (2026-07-26, commissions A–J) gate-output ruling when it lands.
+    n_scope = sum(1 for p in added if in_r4_scope(p))
+    print(f"validate_audit_casing: OK ({len(added)} staged add(s) checked, {n_scope} audit "
+          f"filename(s) in R4 scope -- docs/audits/*.md names all-lowercase kebab-case, "
+          f"ADR-101 R4)")
     return 0
 
 

@@ -149,6 +149,14 @@ def main() -> int:
               f"Do NOT use --no-verify -- it disarms every other hook too.", file=sys.stderr)
         return 1
 
+    # #126 output contract (local convention, ruled 2026-07-27): success is a POSITIVE
+    # assertion -- name, verdict, predicate, item counts -- never exit-0 silence; a zero-item
+    # run must be distinguishable from a clean one. The authorized count is stated here too, so
+    # the success line and the stderr override banner cannot tell different stories. Superseded
+    # by the hub fleet-intake (2026-07-26, commissions A-J) gate-output ruling when it lands.
+    print(f"validate_sealed_keys: OK ({len(added)} staged add(s) checked, "
+          f"{len(overridden)} sealed key(s) explicitly authorized -- no unauthorized "
+          f"sealed-key-shaped .json (SEALED+KEY in either order) is staged)")
     return 0
 
 

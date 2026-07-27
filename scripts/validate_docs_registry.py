@@ -312,10 +312,8 @@ def main() -> int:
     except (RegistryError, OSError) as exc:
         return _malfunction(exc)
 
-    reasons = [
-        r for d in new_dirs(added, tracked)
-        if (r := violation(d, registered, taxonomy)) is not None
-    ]
+    new = new_dirs(added, tracked)
+    reasons = [r for d in new if (r := violation(d, registered, taxonomy)) is not None]
     if reasons:
         print("validate_docs_registry: refused -- unregistered new docs/ directory (#68):",
               file=sys.stderr)
@@ -327,6 +325,16 @@ def main() -> int:
               f"condition. Otherwise the artifact belongs in an existing folder.",
               file=sys.stderr)
         return 1
+    # #126 output contract (local convention, ruled 2026-07-27): success is a POSITIVE
+    # assertion -- name, verdict, predicate, item counts -- never exit-0 silence; a zero-item
+    # run must be distinguishable from a clean one. The registry SIZE is stated because the
+    # parse is the load-bearing step: "0 registered corpus row(s)" on a repo that has live
+    # corpora is how a silently-degraded registry read would now surface. Superseded by the hub
+    # fleet-intake (2026-07-26, commissions A-J) gate-output ruling when it lands.
+    print(f"validate_docs_registry: OK ({len(added)} staged add(s), {len(new)} new docs/ dir(s) "
+          f"vs HEAD, checked against {len(registered)} registered corpus row(s) + "
+          f"{len(taxonomy)} taxonomy folder(s) read from {REGISTRY.as_posix()} -- no "
+          f"unregistered new docs/ directory)")
     return 0
 
 

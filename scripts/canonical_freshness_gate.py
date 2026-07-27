@@ -151,7 +151,12 @@ def main() -> int:
     a date faked to green the gate.
     """
     root = _resolve_repo_root()
-    fails, warns = evaluate(root)
+    # Resolve the present-file set ONCE and hand it to evaluate(), so the count printed below is
+    # literally the list that was evaluated rather than a second implementation of the same
+    # existence predicate (evaluate() skips absent files, so this is behaviour-identical). A
+    # recomputed count is the duplicate-predicate shape LESSONS 2026-07-26 warns about.
+    present = [f for f in DEFAULT_FRESHNESS_FILES if (root / f).exists()]
+    fails, warns = evaluate(root, present)
     for w in warns:
         print(f"canonical_freshness WARN: {w}")
     for f in fails:
@@ -161,6 +166,13 @@ def main() -> int:
               "re-read end-to-end and bump last_reviewed to the GENUINE review date "
               "(never a fake stamp). Bypass in good faith with --no-verify if wrong.")
         return 1
+    # #126 output contract (local convention, ruled 2026-07-27): success is a POSITIVE
+    # assertion — name, verdict, predicate, item count — never exit-0 silence; a zero-item
+    # run must be distinguishable from a clean one. Superseded by the hub fleet-intake
+    # (2026-07-26, commissions A–J) gate-output ruling when it lands.
+    print(f"canonical_freshness: OK ({len(present)} canonical doc(s) checked -- last_reviewed not "
+          f"predating each doc's last commit (A2), {FRESHNESS_CADENCE_DAYS}d cadence (A1, "
+          f"warn-only); {len(warns)} warning(s))")
     return 0
 
 
