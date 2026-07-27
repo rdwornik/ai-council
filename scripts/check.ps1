@@ -39,13 +39,18 @@ Write-Host "Repo root  : $RepoRoot" -ForegroundColor DarkGray
 # another checkout would use the worktree's venv while testing the OTHER tree's files -- the
 # same false-green this ticket exists to close, just relocated (terra pre-merge, #123).
 #
-# NO `exit` BELOW UNTIL AFTER Pop-Location. `exit` bypasses `finally` in PowerShell, so an
-# earlier try/finally form here did NOT restore the caller's location on a failing gate -- and
-# the commit that introduced it CLAIMED it did. That is this repo's own recurring defect (a
-# guarantee asserted without the mechanism that provides it), so the structure is now one that
-# makes the claim true: each step guards on $status, and the single exit is the last statement.
+# Restoration needs BOTH mechanisms, because there are two ways out of this block and each
+# mechanism covers only one (both misses were caught in review, one after the other):
+#   * `exit` bypasses `finally`      -> so NO `exit` appears inside the try; steps set $status
+#                                       and the single `exit` is the last statement of the file.
+#   * a terminating error bypasses a  -> so the try/finally is kept; under
+#     plain fall-through Pop-Location    ErrorActionPreference="Stop" any cmdlet failure here
+#                                       would otherwise skip Pop-Location entirely.
+# Claiming one of these while shipping the other is the defect this repo keeps re-finding: a
+# guarantee asserted without the mechanism that provides it.
 Push-Location $RepoRoot
 $status = 0
+try {
 
 Write-Host "Running pytest..." -ForegroundColor Cyan
 & $Py -m pytest tests/ -m "not integration and not envcheck" -v
@@ -80,5 +85,9 @@ if ($status -eq 0) {
     $status = 0
 }
 
-Pop-Location
+}
+finally {
+    Pop-Location
+}
+
 exit $status
