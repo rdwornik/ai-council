@@ -34,6 +34,8 @@ Defect queue, below the reserved slots (the plan's order):
 11. unit (b) — #97 rule 1 + rule 14 leg (b), one unit on the pinned predicate
 12. #118
 
+**Closure status, 2026-07-27 (execution window):** criterion **1 MET** — #117 was ruled (NO) and #113 driven to its named exit **before the first code lane opened**, as a repo record; criterion **2 MET** — the previous window's tail (`4d4bd87`, `6ed4bbd`, `0e60320`) is anchored; criterion **3 MET** — every code lane carried a named terra review (13 findings across 9 passes: 11 accepted, 2 refuted with reproductions), and the two record-only turns carried a stated reason; criterion **4 MET** — the ruling was made, not deferred. Defect entries below struck accordingly; **the reserved axis slots were NOT reordered and did NOT move.**
+
 **Window closure contract — recorded verbatim from the approved session plan:**
 1. At least one non-delegable item -- operator-gated or architect-owed -- was fully discharged before the first CC lane opened, and the discharge is a repo record rather than a chat outcome.
 2. The previous window's unanchored JOURNAL tail is anchored.
