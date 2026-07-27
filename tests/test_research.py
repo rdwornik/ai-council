@@ -552,6 +552,26 @@ class TestGeminiResearchProvider:
         assert result.content == "Final report."
         assert client.aio.interactions.get.call_count == 3
 
+    async def test_missing_interaction_id_fails_loudly(self) -> None:
+        """genai 2.x types `Interaction.id` as Optional[str]. A None id must name the provider
+        and the cause here, not surface as an opaque failure from inside the SDK on the one
+        path where the provider still looks healthy (terra pre-merge review, BACKLOG #124)."""
+        from ai_council.research.provider import ResearchProviderError
+
+        provider = self._make_provider()
+        started = _make_interaction(status="in_progress")
+        started.id = None
+        client = self._make_mock_client(started, [])
+
+        with patch("ai_council.research.providers.gemini_research.warnings"), \
+             patch("ai_council.research.providers.gemini_research.genai") as mock_genai:
+            mock_genai.Client.return_value = client
+            with pytest.raises(ResearchProviderError) as exc:
+                await provider._run_research("test")
+
+        assert "no id" in str(exc.value)
+        client.aio.interactions.get.assert_not_called()
+
     async def test_failed_status_raises(self) -> None:
         provider = self._make_provider()
         started = _make_interaction(status="in_progress")

@@ -12,7 +12,6 @@ import logging
 import re
 import time
 import warnings
-from typing import cast
 
 from google import genai
 
@@ -87,9 +86,8 @@ class GeminiResearchProvider(ResearchProvider):
             )
 
         # google-genai 2.x types create() as `Interaction | AsyncStream[...]` (streaming and
-        # non-streaming overloads) and `Interaction.id` as `Optional[str]`. This call passes
-        # `background=True` with no `stream`, so the runtime value is the non-streaming
-        # Interaction and its id is always populated.
+        # non-streaming overloads). This call passes `background=True` with no `stream`, so the
+        # runtime value is the non-streaming Interaction.
         #
         # Narrowed with a targeted ignore rather than a cast to the response model, because
         # that model is only nameable at a PRIVATE path (`google.genai._gaos.types...`) --
@@ -99,7 +97,18 @@ class GeminiResearchProvider(ResearchProvider):
         # `warn_unused_ignores = true` makes this self-retiring: the day the SDK types this
         # properly, the ignore becomes an error and the workaround is removed by the gate
         # rather than by memory. Same posture as the #20 openai-2.x stopgap. (BACKLOG #124)
-        interaction_id = cast(str, interaction.id)  # type: ignore[union-attr]
+        raw_id = interaction.id  # type: ignore[union-attr]
+        # 2.x types `id` as Optional[str], and that is NOT hidden behind a cast: without this
+        # guard a None id is handed to `interactions.get()` and surfaces as an opaque failure
+        # from inside the SDK, on the one path where the provider still looks healthy. Failing
+        # here names the provider and the cause (terra pre-merge review, #124).
+        if not raw_id:
+            raise ResearchProviderError(
+                "gemini",
+                "Interactions API returned a created interaction with no id; cannot poll for "
+                "results",
+            )
+        interaction_id: str = raw_id
         logger.info("gemini: research started (interaction_id=%s, agent=%s)", interaction_id, self._agent)
 
         while True:
