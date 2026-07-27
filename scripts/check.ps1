@@ -1,23 +1,48 @@
 #!/usr/bin/env pwsh
 # check.ps1 — CI-equivalent check for solo dev. Run before merging any branch.
+#
+# Every tool runs through the REPO VENV, explicitly (#123). Bare `pytest` / `mypy` / `ruff` /
+# `python` resolve to whatever is first on PATH, and on this machine that is the system
+# interpreter, which carries its own editable `ai_council` install — so `import ai_council`
+# resolved to the PRIMARY checkout from any working directory, and a worktree silently tested
+# the primary's code (the defect `conftest.py` now guards). Naming the interpreter removes the
+# ambiguity at the source instead of relying on an activated shell.
+
+$ErrorActionPreference = "Stop"
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$Py = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+
+# Fail LOUD if the venv is absent rather than falling back to a bare runner: a silent fallback
+# is exactly the ambiguity this change removes, and it would look like a normal green run.
+if (-not (Test-Path $Py)) {
+    Write-Host "check.ps1: repo venv not found at $Py" -ForegroundColor Red
+    Write-Host "  The gate runs through the repo venv on purpose (#123) and will not fall back" -ForegroundColor Red
+    Write-Host "  to a bare interpreter, because that is how a run against the wrong tree looks" -ForegroundColor Red
+    Write-Host "  identical to a correct one. Create it:" -ForegroundColor Red
+    Write-Host "      py -m venv .venv" -ForegroundColor Yellow
+    Write-Host "      .venv\Scripts\python.exe -m pip install -e `".[dev]`"" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "Interpreter: $Py" -ForegroundColor DarkGray
 
 Write-Host "Running pytest..." -ForegroundColor Cyan
-pytest tests/ -m "not integration and not envcheck" -v
+& $Py -m pytest tests/ -m "not integration and not envcheck" -v
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 Write-Host "Running mypy..." -ForegroundColor Cyan
-mypy src/
+& $Py -m mypy src/
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 Write-Host "Running ruff..." -ForegroundColor Cyan
-ruff check src/ tests/
+& $Py -m ruff check src/ tests/
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Non-blocking claim-vs-reality report (#97). Exit is captured for visibility but deliberately
 # NOT propagated -- the gate stays pytest+mypy+ruff. A checker crash (exit >=2) is surfaced in
 # Red so it can never be mistaken for a clean pass; a promotion to gating is a one-line change.
 Write-Host "Running claim-vs-reality checker (non-blocking)..." -ForegroundColor Yellow
-python scripts/validate_claims.py
+& $Py scripts/validate_claims.py
 $claimsExit = $LASTEXITCODE
 if ($claimsExit -ge 2) {
     Write-Host "claim checker ERRORED (exit $claimsExit) - findings unreliable this run" -ForegroundColor Red
