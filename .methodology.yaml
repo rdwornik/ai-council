@@ -90,8 +90,8 @@ sanctioned_divergences:
       Declared as a sanctioned local editor-config surface. Fleet-parity register e1
       (shared-editor-config vs ignore) is an OPEN hub ruling; SHORT shelf-life so this is
       revisited with the fleet-template-membership question (the hub's own .vscode entry
-      carries the same 2026-08-13 review_date).
-    review_date: 2026-08-13
+      carries the same 2026-08-26 review_date).
+    review_date: 2026-08-26
 
   # --- [COLORS] declared-interim adoption (2026-07-22 operator GO) ---------------------
   - component: vscode-boundary-decoration
