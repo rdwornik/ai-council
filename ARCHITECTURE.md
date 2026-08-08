@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-27
+last_reviewed: 2026-08-08
 status: active
 owner: Rob
 ---
@@ -7,7 +7,20 @@ owner: Rob
 # Architecture — `ai-council`
 
 > Living document. Updated after structural changes.
-> Last updated: `2026-07-23` (`pre-handoff claim-vs-reality reconciliation: codemap + responsibilities + layer tables gain boost/crux_check; config path corrected to repo-root config/; pre-commit roster reconciled to the live 12 hook ids; research model names reconciled to settings.yaml; invariants 1/5 reworded to match code (data shapes incl. enum/protocol; synthesizer fallback documented); local ADR span 01…14 — same-day architect repair pass: layer-edge set completed + the cli->boost interface->core edge named as an OPEN CASE (unruled, belongs with the #69/P2 wiring arc); invariants 2/3 marked target-vs-state (#92) / known-exception (#99); boost input stage added to Data Flow (separate invocation, P2 wiring pinned by the T8 strict xfail) and its council-brief-*.md landing recorded in Folder Governance; ADR-13 restored to the Governing-ADRs roster (the CLAUDE.md sibling was repaired a day earlier — live #97 rule-4 instance); stale 'pending #2' clause resolved (amendment verified landed, e3bdcc8/a854bd3)`)
+> Last updated: `2026-08-08` (`hub [#416] codemap re-verification: the module table and the
+> responsibilities table were swept against disk and are accurate 20/20 in both directions (no
+> change); the DEPENDENCY list was re-derived from source via AST and rewritten — 8 declared edges
+> did not exist and 34 real edges were unmapped, so 32 edges became 58; research/ responsibilities
+> row gains headless.py; coupled layer-boundary prose corrected where the completed map falsified
+> it (the codemap-completeness gap is now closed by hand, the allowed set is NOT widened per R1,
+> and the unaccounted-edge inventory grows 10 -> 15 with 5 non-cli edges newly surfaced).`
+> **Freshness-stamp scope, stated honestly:** this pass re-read the file end-to-end and verified
+> the Codemap / Module-responsibilities / Layer-boundaries sections *deterministically against
+> source*. The remaining sections (Data Flow, Key Design Decisions, Transcript Routing, Debate
+> Modes, Research Providers, Folder Governance, Inbox File Detection, Validators, Governing ADRs)
+> were re-read and nothing was found to contradict them, but they were **not** independently
+> re-derived — their standing verification is the 2026-07-23 reconciliation.
+> Prior note, retained: (`pre-handoff claim-vs-reality reconciliation: codemap + responsibilities + layer tables gain boost/crux_check; config path corrected to repo-root config/; pre-commit roster reconciled to the live 12 hook ids; research model names reconciled to settings.yaml; invariants 1/5 reworded to match code (data shapes incl. enum/protocol; synthesizer fallback documented); local ADR span 01…14 — same-day architect repair pass: layer-edge set completed + the cli->boost interface->core edge named as an OPEN CASE (unruled, belongs with the #69/P2 wiring arc); invariants 2/3 marked target-vs-state (#92) / known-exception (#99); boost input stage added to Data Flow (separate invocation, P2 wiring pinned by the T8 strict xfail) and its council-brief-*.md landing recorded in Folder Governance; ADR-13 restored to the Governing-ADRs roster (the CLAUDE.md sibling was repaired a day earlier — live #97 rule-4 instance); stale 'pending #2' clause resolved (amendment verified landed, e3bdcc8/a854bd3)`)
 
 ## Purpose [CORE]
 
@@ -51,38 +64,85 @@ Modules (source root: `src/ai_council/`; layer per the layer model below):
 | policy | foundation | src/ai_council/policy.py |
 | config | foundation | config/ (repo root — top-level package, not under src/) |
 
-Dependencies (`from -> to`):
-- cli -> orchestrator
-- cli -> doctor
-- cli -> boost
-- inbox -> orchestrator
-- orchestrator -> runner
-- orchestrator -> seat_router
-- orchestrator -> crux_check
+Dependencies (`from -> to`) — **58 edges, complete against source.** Re-derived live from
+`src/ai_council/` + `config/` via AST on **2026-08-08** (hub [#416]): every runtime import is listed,
+including function-level ones; `TYPE_CHECKING`-guarded imports are excluded and named separately
+below. The package nodes `providers`, `research` and `config` are collapsed to one node each (per
+the module table), so imports *internal* to those packages are not edges.
+
+- boost -> config
 - boost -> mode_detector
 - boost -> providers
-- boost -> config
+- cli -> boost
+- cli -> config
+- cli -> doctor
+- cli -> healthcheck
+- cli -> inbox
+- cli -> mode_detector
+- cli -> models
+- cli -> orchestrator
+- cli -> output
+- cli -> policy
+- cli -> providers
+- cli -> research
+- cli -> routing
+- cli -> runner
+- crux_check -> config
 - crux_check -> metrics
 - crux_check -> models
 - crux_check -> providers
 - crux_check -> research
-- crux_check -> config
-- doctor -> healthcheck
-- runner -> mode_detector
-- runner -> healthcheck
-- runner -> debate
-- runner -> config
-- debate -> providers
-- debate -> synthesis
+- debate -> config
 - debate -> models
+- debate -> policy
+- debate -> providers
 - debate -> seat_router
-- seat_router -> providers
-- seat_router -> models
+- doctor -> config
+- doctor -> healthcheck
+- doctor -> providers
+- doctor -> runner
+- healthcheck -> providers
+- metrics -> config
+- metrics -> models
+- mode_detector -> providers
+- orchestrator -> config
+- orchestrator -> crux_check
+- orchestrator -> debate
+- orchestrator -> models
+- orchestrator -> output
+- orchestrator -> providers
+- orchestrator -> runner
+- orchestrator -> seat_router
+- orchestrator -> synthesis
+- output -> models
+- providers -> config
+- providers -> models
+- research -> config
+- research -> output
+- runner -> config
+- runner -> providers
 - seat_router -> config
+- seat_router -> models
+- seat_router -> providers
+- synthesis -> config
+- synthesis -> metrics
 - synthesis -> models
-- synthesis -> output
-- output -> routing
-- research -> providers
+- synthesis -> providers
+
+`TYPE_CHECKING`-only edges — real in the type graph, absent from the runtime graph, so excluded
+from the set above: `inbox -> routing`, `models -> policy`. (`cli -> research` is also
+`TYPE_CHECKING`-imported but is listed above because `cli` additionally imports it at runtime.)
+
+**Correction record, 2026-08-08 (hub [#416]).** The prior hand-maintained list declared 32 edges, of
+which **8 did not exist in source** and **34 real edges were missing**. The 8 removed phantoms:
+`inbox -> orchestrator`, `runner -> mode_detector`, `runner -> healthcheck`, `runner -> debate`,
+`debate -> synthesis`, `synthesis -> output`, `output -> routing`, `research -> providers`. Each
+names an import that is not in the module (`runner.py` imports only `providers.base` + `config`;
+`output.py` imports only `models`; `inbox.py`'s only internal import is the `TYPE_CHECKING`
+`routing` one). `research -> providers` was the collapse artefact: `research/` has its **own**
+`research/providers/` subpackage and never imports `ai_council/providers/`. Several phantoms are
+the *reverse* of a real edge — the real ones are `orchestrator -> debate`,
+`orchestrator -> synthesis`, `research -> output`, `cli -> routing`.
 <!-- CODEMAP:END -->
 
 **Module responsibilities** (semantic complement to the structural graph):
@@ -101,7 +161,7 @@ Dependencies (`from -> to`):
 | `mode_detector.py` | core | LLM-based question classification (pick/ideas/judge) |
 | `seat_router.py` | core | CLI-seat admission gate + same-seat API fallback; one `SeatMetrics` per seat → the `seats[]` sidecar (ADR-12, #16) |
 | `providers/` | core | 5 debate-provider implementations + CLI-subscription adapters: `base.py` (AIProvider ABC), `anthropic.py`, `openai_provider.py`, `gemini.py`, `xai.py`, `deepseek.py`, `cli_base.py` (`CliProvider` + `ClaudeCliProvider`/`CodexCliProvider` — subscription backend behind the ABC, ADR-12) |
-| `research/` | core | Research-mode subsystem (isolated code path): `runner.py`, `provider.py` (ABC), `cache.py`, `merger.py`, `models.py`, `display.py`, `output.py`, `providers/` (5 research providers) |
+| `research/` | core | Research-mode subsystem (isolated code path): `runner.py`, `provider.py` (ABC), `cache.py`, `merger.py`, `models.py`, `display.py`, `output.py`, `headless.py` (the no-console entry point `crux_check.py` calls, #18), `providers/` (5 research providers: `perplexity`, `grok_research`, `openai_mini_research`, `openai_deep_research`, `gemini_research`) |
 | `output.py` | output | Rich console render + markdown archive write; **one** verify-or-raise routed-write helper (`_write_routed`) that decides required-vs-best-effort per destination, verifies the write landed, and either accumulates a `RoutingFailure` or raises `OutputRoutingError` — a required `--return-dir` miss is never silent (#35/#62) |
 | `routing.py` | output | TargetResolver; secondary transcript routing (ADR-43) |
 | `models.py` | foundation | Pure dataclasses; all shared data shapes; no logic |
@@ -132,24 +192,36 @@ Layers (dependency order; `output` is cross-cutting, written by `core`):
 | output (cross-cutting) | output, routing |
 
 Layer edges (`from -> to`) — the allowed set (**TARGET, not current state** — see the dated
-current-state note below). Enumerated against the codemap above; an incomplete set cannot serve as
-a gate, so every edge that exists *in the codemap* is listed here or is named as an open case below.
-**The set is not widened to match reality** — rewording a boundary to match a defect launders the
-defect (R1, 2026-07-24). The gap between this set and `cli.py`'s real import surface is recorded in
-the current-state note, not legalised.
+current-state note below). An incomplete set cannot serve as a gate, so every edge that exists *in
+the codemap* is accounted for below — as allowed by this set, as the named open case, or in one of
+the two unaccounted inventories. **The set is not widened to match reality** — rewording a boundary to match a defect launders the
+defect (R1, 2026-07-24). The gap between this set and the real import surface is recorded in the
+current-state notes below, not legalised. Since the codemap was completed on 2026-08-08 (hub [#416])
+that gap is **tree-wide, not `cli`-only**: 42 of the 58 real edges fall inside this set, 1 is the
+named open case, and **15 are unaccounted** (10 from `cli`, 5 elsewhere) — both inventories follow.
 
 - interface -> orchestration
-- orchestration -> orchestration (same-layer: `orchestrator -> runner`)
+- orchestration -> orchestration (same-layer: `orchestrator -> runner`, `doctor -> runner`)
 - orchestration -> core
-- orchestration -> foundation (`doctor -> healthcheck`, `runner -> healthcheck`, `runner -> config`)
+- orchestration -> foundation (`doctor -> healthcheck`, `doctor -> config`, `runner -> config`,
+  `orchestrator -> config`, `orchestrator -> models`)
 - core -> core (same-layer)
 - core -> foundation
-- core -> output (writes via)
-- output -> output (same-layer: `output -> routing`)
+- core -> output (writes via: `research -> output`)
+- output -> output (same-layer) — **currently instance-free.** Its only cited instance,
+  `output -> routing`, was a phantom removed from the codemap on 2026-08-08 (hub [#416]): `output.py`
+  imports `models` and nothing else internal, and `routing` is reached by `cli` instead. The class
+  is retained as a target (it is where a legitimate `output -> routing` would land), not as a
+  description of a live edge.
 
-**OPEN CASE — `interface -> core`, one instance: `cli -> boost`.** Introduced 2026-07-22 with the
-`council boost` input stage. It is the only edge in the codemap that skips a layer, and it is not
-in the allowed set above. Two candidate resolutions, unruled:
+**OPEN CASE — `interface -> core`, named instance: `cli -> boost`.** Introduced 2026-07-22 with the
+`council boost` input stage, and not in the allowed set above. It was described here as *"the only
+edge in the codemap that skips a layer"* — true of the codemap **as it then read**, and false of
+source: completing the map on 2026-08-08 (hub [#416]) surfaced `cli -> mode_detector`,
+`cli -> providers` and `cli -> research` in the same `interface -> core` class, plus four further
+layer-skipping classes (inventories below). `cli -> boost` stays the *named* case because it is the
+one with a live ruling question attached; the others are unaccounted, not open. Two candidate
+resolutions, unruled:
 
   (a) `boost` is misclassified. Its work — selecting a cheapest provider, coordinating
       classify → decompose → reformulate → emit — is the same shape as `runner` (panel selection,
@@ -180,13 +252,42 @@ allowed set: the set stays the target, and #92's decomposition is what shrinks `
 surface toward it. Do not cite the allowed set as a description of today's `cli.py`. **Re-derive this
 note after #92 lands.**
 
-**Codemap-completeness gap (distinct from allowed-set conformance).** The Codemap block above lists
-only 3 of these 14 `cli` edges (`orchestrator`, `doctor`, `boost`), so **11 real `cli` edges are
-absent from the hand-maintained codemap** (the 10 unaccounted above plus `cli -> runner`, which is
-allowed but unmapped). Validating the map against itself would pass an omitted illegal import;
-catching that is **BACKLOG #97 rule 14 leg (b)** — every real `src/` inter-module import must appear
-in the codemap (map completeness against source). The follow-up codemap edit rides the same
-#97/#92 arc; it is **not** applied here (this pass is allowed-set-honesty only, per R1).
+**Non-`cli` unaccounted edges — 5, surfaced 2026-08-08 by completing the codemap (hub [#416]).** The
+note above was the hand-run of leg (b) against `cli.py` only, so it could not see these. They are
+recorded, **not** added to the allowed set (R1):
+
+- `foundation -> core`: `healthcheck -> providers` — **a layer inversion**, and the sharpest of the
+  five: `healthcheck.py` is classed `foundation` yet imports `providers.base`. Either it is
+  misclassified (it is a startup gate over providers, which is `orchestration`-shaped work, the same
+  argument (a) makes about `boost`), or `providers.base` is really a foundation-level ABC that the
+  `providers` node's `core` classification hides. Unruled — it belongs with the same
+  classification question as the `cli -> boost` open case.
+- `foundation -> foundation`: `metrics -> models`, `metrics -> config` — same-layer, and benign in
+  the way `core -> core` is; the allowed set simply never declared a same-layer foundation class.
+- `orchestration -> output`: `orchestrator -> output` — the orchestrator writes results directly
+  rather than through `core`, which is what `core -> output (writes via)` was written to describe.
+- `output -> foundation`: `output -> models` — `output.py` reads the shared dataclasses. Benign on
+  the same reading that makes `core -> foundation` allowed.
+
+Three of the four classes look like **declaration gaps** (the set was enumerated against an
+incomplete map, so classes with no mapped instance were never written down) rather than defects;
+`foundation -> core` looks like a genuine one. That triage is a reading, not a ruling — do not
+resolve any of them by editing the allowed set. The ruling rides the same #97/#92 arc as the
+`cli -> boost` case.
+
+**Codemap-completeness gap (distinct from allowed-set conformance) — CLOSED by hand 2026-08-08
+(hub [#416]); the mechanisation stays open.** This paragraph previously recorded that the Codemap block
+listed only 3 of `cli`'s 14 edges, leaving 11 real `cli` edges unmapped. That is no longer true: the
+codemap was re-derived from source and is now complete at 58 edges (with 8 phantom edges removed —
+see its correction record). All 14 `cli` edges are mapped. **What this does *not* close is
+BACKLOG #97 rule 14 leg (b)** — every real `src/` inter-module import must appear in the codemap,
+*checked automatically*. A hand-run is true on the day it is run and decays from the next commit; a
+one-off pass is not a gate. Leg (b)'s mechanisation still rides the #97 arc.
+
+This correction is a **description** change, not a boundary change: the allowed set above was **not**
+widened to admit anything the completed map surfaced (R1, 2026-07-24). Completing the map makes
+defects visible; it does not legalise them — which is why the unaccounted-edge inventory above grew
+(10 → 15) rather than shrank.
 
 **Enforcement tool:** Convention + code review. No automated import-linter at current scale (no Tach).
 This is the known weak point: the codemap and this layer map are both hand-maintained, `codemap check`
@@ -194,8 +295,11 @@ always reports a diff here and is wired to no gate (#262 gap-note), and `check.p
 ruff, plus a non-blocking #97 claim-check) does not inspect imports. Layer conformance is therefore **unverified by construction** —
 mechanisation is BACKLOG #97 rule 14, two legs: leg (a) every codemap edge falls inside the allowed
 set above; leg (b) every real `src/` inter-module import appears in the codemap (map-vs-source, which
-de-vacuates leg (a) — an illegal import the map omits would otherwise pass). The current-state note
-above is the hand-run of leg (b) against `cli.py`.
+de-vacuates leg (a) — an illegal import the map omits would otherwise pass). Leg (b) was hand-run
+**tree-wide** on 2026-08-08 (hub [#416]) — the codemap above is complete against source as of that
+date — and leg (a) was then hand-run against the completed map, producing the 15-edge unaccounted
+inventory. Both readings are **snapshots**: they were true at that commit and decay from the next
+one, which is precisely why #97's mechanisation is the deliverable and a hand-run is not.
 **Config file:** N/A
 **Where enforced:** Code review only, pending #97.
 
